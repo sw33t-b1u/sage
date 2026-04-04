@@ -1,0 +1,496 @@
+{
+  "type": "bundle",
+  "id": "bundle--f8e897fe-76b1-4d92-b101-aae6b868b595",
+  "objects": [
+    {
+      "type": "intrusion-set",
+      "id": "intrusion-set--5bf149da-fbe2-47ad-a2ce-2d91a37958b1",
+      "created": "2024-01-01T00:00:00Z",
+      "modified": "2026-03-01T00:00:00Z",
+      "name": "INC Ransomware",
+      "aliases": [
+        "RANINC",
+        "INC Group"
+      ],
+      "description": "INC is a ransomware-as-a-service group active since mid-2023, conducting double-extortion attacks against healthcare, education, and manufacturing sectors globally including Japan. Known for exploiting Citrix NetScaler and Ivanti vulnerabilities for initial access.",
+      "first_seen": "2023-07-01T00:00:00Z",
+      "sophistication": "intermediate",
+      "primary_motivation": "financial",
+      "labels": [
+        "ransomware",
+        "financially-motivated",
+        "double-extortion"
+      ]
+    },
+    {
+      "type": "malware",
+      "id": "malware--77ffa03c-32b3-4f84-bfbe-8a129a7daa62",
+      "created": "2024-01-01T00:00:00Z",
+      "modified": "2026-03-01T00:00:00Z",
+      "name": "INC Ransomware Payload",
+      "description": "Windows and Linux ransomware binary. Encrypts files and drops ransom note. Terminates backup and database services before encryption. Deletes VSS shadow copies.",
+      "malware_types": [
+        "ransomware"
+      ],
+      "is_family": false,
+      "capabilities": [
+        "encryption",
+        "defense-evasion",
+        "anti-forensics"
+      ],
+      "labels": [
+        "ransomware"
+      ]
+    },
+    {
+      "type": "tool",
+      "id": "tool--6ecae815-ed04-4a1d-8d76-133631efdf1b",
+      "created": "2024-01-01T00:00:00Z",
+      "modified": "2026-03-01T00:00:00Z",
+      "name": "Cobalt Strike",
+      "description": "Commercial penetration testing framework abused as C2 framework for lateral movement and command execution.",
+      "tool_types": [
+        "exploitation"
+      ],
+      "labels": [
+        "dual-use-tool"
+      ]
+    },
+    {
+      "type": "tool",
+      "id": "tool--b50854a2-5a6f-406d-afe4-5074767b586f",
+      "created": "2024-01-01T00:00:00Z",
+      "modified": "2026-03-01T00:00:00Z",
+      "name": "AnyDesk",
+      "description": "Legitimate remote desktop software abused for persistent remote access and lateral movement.",
+      "tool_types": [
+        "remote-access"
+      ],
+      "labels": [
+        "dual-use-tool"
+      ]
+    },
+    {
+      "type": "tool",
+      "id": "tool--9904c12d-fe0f-4035-93e6-6199cf5a6d5b",
+      "created": "2024-01-01T00:00:00Z",
+      "modified": "2026-03-01T00:00:00Z",
+      "name": "MegaSync",
+      "description": "Cloud storage client abused for large-scale data exfiltration before ransomware deployment.",
+      "tool_types": [
+        "exfiltration"
+      ],
+      "labels": [
+        "dual-use-tool"
+      ]
+    },
+    {
+      "type": "attack-pattern",
+      "id": "attack-pattern--984230ee-46fe-420d-9eb0-52b6cd418e3e",
+      "created": "2024-01-01T00:00:00Z",
+      "modified": "2026-03-01T00:00:00Z",
+      "name": "Exploit Public-Facing Application",
+      "description": "INC exploits Citrix NetScaler (CVE-2023-3519, CVE-2023-4966) and Ivanti Connect Secure for initial access.",
+      "kill_chain_phases": [
+        {
+          "kill_chain_name": "mitre-attack",
+          "phase_name": "initial-access"
+        }
+      ],
+      "external_references": [
+        {
+          "source_name": "mitre-attack",
+          "external_id": "T1190"
+        }
+      ]
+    },
+    {
+      "type": "attack-pattern",
+      "id": "attack-pattern--39c6bf15-4d0d-4e86-bea3-15b24b36aac0",
+      "created": "2024-01-01T00:00:00Z",
+      "modified": "2026-03-01T00:00:00Z",
+      "name": "Valid Accounts",
+      "description": "Leverages stolen VPN credentials obtained via credential harvesting or dark web purchases.",
+      "kill_chain_phases": [
+        {
+          "kill_chain_name": "mitre-attack",
+          "phase_name": "initial-access"
+        }
+      ],
+      "external_references": [
+        {
+          "source_name": "mitre-attack",
+          "external_id": "T1078"
+        }
+      ]
+    },
+    {
+      "type": "attack-pattern",
+      "id": "attack-pattern--ed03a1ef-3ba7-4a8f-9f30-3787d077f0f9",
+      "created": "2024-01-01T00:00:00Z",
+      "modified": "2026-03-01T00:00:00Z",
+      "name": "OS Credential Dumping: LSASS Memory",
+      "description": "Dumps LSASS memory using Mimikatz or comsvcs.dll to harvest credentials for lateral movement.",
+      "kill_chain_phases": [
+        {
+          "kill_chain_name": "mitre-attack",
+          "phase_name": "credential-access"
+        }
+      ],
+      "external_references": [
+        {
+          "source_name": "mitre-attack",
+          "external_id": "T1003.001"
+        }
+      ]
+    },
+    {
+      "type": "attack-pattern",
+      "id": "attack-pattern--c122e024-5368-4d67-a76a-d87a48e5c0b9",
+      "created": "2024-01-01T00:00:00Z",
+      "modified": "2026-03-01T00:00:00Z",
+      "name": "Lateral Movement via SMB",
+      "description": "Uses PsExec and SMB admin shares to move laterally across the network using harvested credentials.",
+      "kill_chain_phases": [
+        {
+          "kill_chain_name": "mitre-attack",
+          "phase_name": "lateral-movement"
+        }
+      ],
+      "external_references": [
+        {
+          "source_name": "mitre-attack",
+          "external_id": "T1021.002"
+        }
+      ]
+    },
+    {
+      "type": "attack-pattern",
+      "id": "attack-pattern--d1017c1a-32b5-4c22-bf12-4c82c6561c88",
+      "created": "2024-01-01T00:00:00Z",
+      "modified": "2026-03-01T00:00:00Z",
+      "name": "Exfiltration via Cloud Storage",
+      "description": "Exfiltrates sensitive data using MegaSync prior to ransomware deployment (double extortion).",
+      "kill_chain_phases": [
+        {
+          "kill_chain_name": "mitre-attack",
+          "phase_name": "exfiltration"
+        }
+      ],
+      "external_references": [
+        {
+          "source_name": "mitre-attack",
+          "external_id": "T1048.002"
+        }
+      ]
+    },
+    {
+      "type": "attack-pattern",
+      "id": "attack-pattern--187b08d7-6be7-4bf2-876e-74118c4d19e8",
+      "created": "2024-01-01T00:00:00Z",
+      "modified": "2026-03-01T00:00:00Z",
+      "name": "Data Encrypted for Impact",
+      "description": "Deploys INC ransomware payload after completing data exfiltration. Terminates database and backup services, deletes VSS copies before encrypting.",
+      "kill_chain_phases": [
+        {
+          "kill_chain_name": "mitre-attack",
+          "phase_name": "impact"
+        }
+      ],
+      "external_references": [
+        {
+          "source_name": "mitre-attack",
+          "external_id": "T1486"
+        }
+      ]
+    },
+    {
+      "type": "vulnerability",
+      "id": "vulnerability--042ecaff-f7df-4254-bba6-356e4f4ffa0e",
+      "created": "2024-01-01T00:00:00Z",
+      "modified": "2026-03-01T00:00:00Z",
+      "name": "CVE-2023-3519",
+      "description": "Citrix NetScaler ADC and Gateway unauthenticated remote code execution vulnerability. Actively exploited by INC ransomware for initial access to corporate networks.",
+      "external_references": [
+        {
+          "source_name": "cve",
+          "external_id": "CVE-2023-3519"
+        }
+      ],
+      "x_cvss_score": 9.8,
+      "x_affected_platforms": [
+        "windows",
+        "linux"
+      ]
+    },
+    {
+      "type": "vulnerability",
+      "id": "vulnerability--8b7f5ed2-045f-4a6f-81b7-d5a60d1c436a",
+      "created": "2024-01-01T00:00:00Z",
+      "modified": "2026-03-01T00:00:00Z",
+      "name": "CVE-2023-4966",
+      "description": "Citrix Bleed - Citrix NetScaler information disclosure vulnerability allowing session token hijacking, bypassing authentication including MFA.",
+      "external_references": [
+        {
+          "source_name": "cve",
+          "external_id": "CVE-2023-4966"
+        }
+      ],
+      "x_cvss_score": 9.4,
+      "x_affected_platforms": [
+        "windows",
+        "linux"
+      ]
+    },
+    {
+      "type": "indicator",
+      "id": "indicator--1b1fe6df-8a63-40f8-a9e5-62af5691797e",
+      "created": "2026-01-15T00:00:00Z",
+      "modified": "2026-03-01T00:00:00Z",
+      "name": "INC Ransomware SHA-256",
+      "description": "SHA-256 hash of INC ransomware Windows binary (from Trend Micro IoC report)",
+      "indicator_types": [
+        "malicious-activity"
+      ],
+      "pattern": "[file:hashes.'SHA-256' = '11cfd8e84704194ff9c56780858e9bbb9e82ff1b958149d74c43969d06ea10bd']",
+      "pattern_type": "stix",
+      "valid_from": "2026-01-15T00:00:00Z",
+      "object_marking_refs": [
+        "marking-definition--f88d31f6-486f-44da-b317-01333bde0b82"
+      ],
+      "labels": [
+        "malicious-activity"
+      ]
+    },
+    {
+      "type": "indicator",
+      "id": "indicator--642181d2-c532-453c-a91a-7348607df450",
+      "created": "2026-01-15T00:00:00Z",
+      "modified": "2026-03-01T00:00:00Z",
+      "name": "INC C2 Domain",
+      "description": "Cobalt Strike C2 domain used by INC operators",
+      "indicator_types": [
+        "malicious-activity"
+      ],
+      "pattern": "[domain-name:value = 'update.windows-cdn-delivery.net']",
+      "pattern_type": "stix",
+      "valid_from": "2026-01-15T00:00:00Z",
+      "object_marking_refs": [
+        "marking-definition--f88d31f6-486f-44da-b317-01333bde0b82"
+      ],
+      "labels": [
+        "malicious-activity"
+      ]
+    },
+    {
+      "type": "indicator",
+      "id": "indicator--e420350a-23e3-4d5c-bf9d-3b2341aa3797",
+      "created": "2026-01-15T00:00:00Z",
+      "modified": "2026-03-01T00:00:00Z",
+      "name": "INC C2 IP",
+      "description": "C2 infrastructure IP address used for Cobalt Strike beacon communication",
+      "indicator_types": [
+        "malicious-activity"
+      ],
+      "pattern": "[ipv4-addr:value = '185.220.101.47']",
+      "pattern_type": "stix",
+      "valid_from": "2026-01-15T00:00:00Z",
+      "object_marking_refs": [
+        "marking-definition--f88d31f6-486f-44da-b317-01333bde0b82"
+      ],
+      "labels": [
+        "malicious-activity"
+      ]
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--80ed2f30-549f-4497-b748-34ea26a83cf2",
+      "created": "2026-01-15T00:00:00Z",
+      "modified": "2026-03-01T00:00:00Z",
+      "relationship_type": "uses",
+      "source_ref": "intrusion-set--5bf149da-fbe2-47ad-a2ce-2d91a37958b1",
+      "target_ref": "attack-pattern--984230ee-46fe-420d-9eb0-52b6cd418e3e",
+      "confidence": 95
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--bd6c1c63-74e2-4a64-ab5a-2507d512706b",
+      "created": "2026-01-15T00:00:00Z",
+      "modified": "2026-03-01T00:00:00Z",
+      "relationship_type": "uses",
+      "source_ref": "intrusion-set--5bf149da-fbe2-47ad-a2ce-2d91a37958b1",
+      "target_ref": "attack-pattern--39c6bf15-4d0d-4e86-bea3-15b24b36aac0",
+      "confidence": 90
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--082e04b2-b7ee-40c3-954d-2688d9afb1b0",
+      "created": "2026-01-15T00:00:00Z",
+      "modified": "2026-03-01T00:00:00Z",
+      "relationship_type": "uses",
+      "source_ref": "intrusion-set--5bf149da-fbe2-47ad-a2ce-2d91a37958b1",
+      "target_ref": "attack-pattern--ed03a1ef-3ba7-4a8f-9f30-3787d077f0f9",
+      "confidence": 90
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--15a2e844-98a9-4f33-a254-ac994fc1a6b0",
+      "created": "2026-01-15T00:00:00Z",
+      "modified": "2026-03-01T00:00:00Z",
+      "relationship_type": "uses",
+      "source_ref": "intrusion-set--5bf149da-fbe2-47ad-a2ce-2d91a37958b1",
+      "target_ref": "attack-pattern--c122e024-5368-4d67-a76a-d87a48e5c0b9",
+      "confidence": 85
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--6b6505fd-cf78-445d-a46f-102f50e096e8",
+      "created": "2026-01-15T00:00:00Z",
+      "modified": "2026-03-01T00:00:00Z",
+      "relationship_type": "uses",
+      "source_ref": "intrusion-set--5bf149da-fbe2-47ad-a2ce-2d91a37958b1",
+      "target_ref": "attack-pattern--d1017c1a-32b5-4c22-bf12-4c82c6561c88",
+      "confidence": 95
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--4a7d565a-d49d-484b-ae18-e3921a8c352b",
+      "created": "2026-01-15T00:00:00Z",
+      "modified": "2026-03-01T00:00:00Z",
+      "relationship_type": "uses",
+      "source_ref": "intrusion-set--5bf149da-fbe2-47ad-a2ce-2d91a37958b1",
+      "target_ref": "attack-pattern--187b08d7-6be7-4bf2-876e-74118c4d19e8",
+      "confidence": 100
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--bb2b9ab1-b0e3-4fbb-923a-c3aa006d59dd",
+      "created": "2026-01-15T00:00:00Z",
+      "modified": "2026-03-01T00:00:00Z",
+      "relationship_type": "uses",
+      "source_ref": "intrusion-set--5bf149da-fbe2-47ad-a2ce-2d91a37958b1",
+      "target_ref": "malware--77ffa03c-32b3-4f84-bfbe-8a129a7daa62",
+      "confidence": 100
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--4286fd6c-d7e3-4bef-ba8b-c0deecd49b11",
+      "created": "2026-01-15T00:00:00Z",
+      "modified": "2026-03-01T00:00:00Z",
+      "relationship_type": "uses",
+      "source_ref": "intrusion-set--5bf149da-fbe2-47ad-a2ce-2d91a37958b1",
+      "target_ref": "tool--6ecae815-ed04-4a1d-8d76-133631efdf1b",
+      "confidence": 90
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--afb7d5fb-7fbd-4166-b236-7d15932a65fd",
+      "created": "2026-01-15T00:00:00Z",
+      "modified": "2026-03-01T00:00:00Z",
+      "relationship_type": "uses",
+      "source_ref": "intrusion-set--5bf149da-fbe2-47ad-a2ce-2d91a37958b1",
+      "target_ref": "tool--b50854a2-5a6f-406d-afe4-5074767b586f",
+      "confidence": 85
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--ce4bb877-6cc1-4a72-b529-4e7409a793ab",
+      "created": "2026-01-15T00:00:00Z",
+      "modified": "2026-03-01T00:00:00Z",
+      "relationship_type": "uses",
+      "source_ref": "intrusion-set--5bf149da-fbe2-47ad-a2ce-2d91a37958b1",
+      "target_ref": "tool--9904c12d-fe0f-4035-93e6-6199cf5a6d5b",
+      "confidence": 90
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--18303b01-4dc5-436e-ae8c-aa8e9d2c4c23",
+      "created": "2026-01-15T00:00:00Z",
+      "modified": "2026-03-01T00:00:00Z",
+      "relationship_type": "exploits",
+      "source_ref": "attack-pattern--984230ee-46fe-420d-9eb0-52b6cd418e3e",
+      "target_ref": "vulnerability--042ecaff-f7df-4254-bba6-356e4f4ffa0e",
+      "confidence": 95
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--1a2f0d31-70db-4176-bc43-cac7d2f67b1b",
+      "created": "2026-01-15T00:00:00Z",
+      "modified": "2026-03-01T00:00:00Z",
+      "relationship_type": "exploits",
+      "source_ref": "attack-pattern--984230ee-46fe-420d-9eb0-52b6cd418e3e",
+      "target_ref": "vulnerability--8b7f5ed2-045f-4a6f-81b7-d5a60d1c436a",
+      "confidence": 90
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--5a9a6c45-4c58-4afb-9a18-fdd4d15cb281",
+      "created": "2026-01-15T00:00:00Z",
+      "modified": "2026-03-01T00:00:00Z",
+      "relationship_type": "indicates",
+      "source_ref": "indicator--1b1fe6df-8a63-40f8-a9e5-62af5691797e",
+      "target_ref": "intrusion-set--5bf149da-fbe2-47ad-a2ce-2d91a37958b1",
+      "confidence": 90
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--9b9cc4fa-0560-4f55-be0f-6e1e59293d1a",
+      "created": "2026-01-15T00:00:00Z",
+      "modified": "2026-03-01T00:00:00Z",
+      "relationship_type": "indicates",
+      "source_ref": "indicator--642181d2-c532-453c-a91a-7348607df450",
+      "target_ref": "attack-pattern--c122e024-5368-4d67-a76a-d87a48e5c0b9",
+      "confidence": 80
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--e8ba53b7-df64-4e7b-b991-60f9f7bf142d",
+      "created": "2026-01-15T00:00:00Z",
+      "modified": "2026-03-01T00:00:00Z",
+      "relationship_type": "indicates",
+      "source_ref": "indicator--e420350a-23e3-4d5c-bf9d-3b2341aa3797",
+      "target_ref": "intrusion-set--5bf149da-fbe2-47ad-a2ce-2d91a37958b1",
+      "confidence": 75
+    },
+    {
+      "type": "incident",
+      "id": "incident--inc-2026-001",
+      "spec_version": "2.1",
+      "name": "INC Ransomware 侵害インシデント 2026-Q1",
+      "description": "Citrix NetScaler 脆弱性を起点とした INC ランサムウェアグループによる侵害。資格情報窃取・横展開・データ漏洩・暗号化の全フェーズを確認。",
+      "first_seen": "2026-02-10T00:00:00Z",
+      "last_seen": "2026-02-14T00:00:00Z",
+      "severity": "critical",
+      "x_diamond_model": "intrusion",
+      "kill_chain_phases": [
+        {
+          "kill_chain_name": "mitre-attack",
+          "phase_name": "initial-access",
+          "x_ttp_stix_id": "attack-pattern--984230ee-46fe-420d-9eb0-52b6cd418e3e"
+        },
+        {
+          "kill_chain_name": "mitre-attack",
+          "phase_name": "credential-access",
+          "x_ttp_stix_id": "attack-pattern--ed03a1ef-3ba7-4a8f-9f30-3787d077f0f9"
+        },
+        {
+          "kill_chain_name": "mitre-attack",
+          "phase_name": "lateral-movement",
+          "x_ttp_stix_id": "attack-pattern--c122e024-5368-4d67-a76a-d87a48e5c0b9"
+        },
+        {
+          "kill_chain_name": "mitre-attack",
+          "phase_name": "exfiltration",
+          "x_ttp_stix_id": "attack-pattern--d1017c1a-32b5-4c22-bf12-4c82c6561c88"
+        },
+        {
+          "kill_chain_name": "mitre-attack",
+          "phase_name": "impact",
+          "x_ttp_stix_id": "attack-pattern--187b08d7-6be7-4bf2-876e-74118c4d19e8"
+        }
+      ],
+      "modified": "2026-02-20T00:00:00Z",
+      "created": "2026-02-20T00:00:00Z"
+    }
+  ]
+}

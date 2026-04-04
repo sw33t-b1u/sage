@@ -1,0 +1,180 @@
+{
+  "_comment": "日本の製造業を想定した社内資産サンプル。INC/MirrorFaceによる攻撃シナリオ検証用。",
+  "network_segments": [
+    {
+      "id": "seg-0001-dmz0-0000-000000000001",
+      "name": "DMZ",
+      "cidr": "10.0.1.0/24",
+      "zone": "dmz"
+    },
+    {
+      "id": "seg-0002-corp0-0000-000000000002",
+      "name": "Corporate LAN",
+      "cidr": "10.0.2.0/24",
+      "zone": "internal"
+    },
+    {
+      "id": "seg-0003-fact0-0000-000000000003",
+      "name": "Factory OT Network",
+      "cidr": "192.168.10.0/24",
+      "zone": "ot"
+    },
+    {
+      "id": "seg-0004-mgmt0-0000-000000000004",
+      "name": "Management Network",
+      "cidr": "10.0.3.0/24",
+      "zone": "internal"
+    }
+  ],
+  "security_controls": [
+    {
+      "id": "ctrl-0001-edr00-0000-000000000001",
+      "name": "CrowdStrike Falcon EDR",
+      "control_type": "edr",
+      "coverage": ["windows", "linux"]
+    },
+    {
+      "id": "ctrl-0002-fw000-0000-000000000002",
+      "name": "Palo Alto NGFW",
+      "control_type": "firewall",
+      "coverage": ["network"]
+    },
+    {
+      "id": "ctrl-0003-siem0-0000-000000000003",
+      "name": "Splunk SIEM",
+      "control_type": "siem",
+      "coverage": ["windows", "linux", "network"]
+    },
+    {
+      "id": "ctrl-0004-waf00-0000-000000000004",
+      "name": "Imperva WAF",
+      "control_type": "waf",
+      "coverage": ["web"]
+    }
+  ],
+  "assets": [
+    {
+      "id": "asset-001-vpn00-0000-000000000001",
+      "name": "Citrix NetScaler ADC",
+      "asset_type": "network-device",
+      "environment": "onprem",
+      "criticality": 9.0,
+      "owner": "network-team@example.co.jp",
+      "network_segment_id": "seg-0001-dmz0-0000-000000000001",
+      "exposed_to_internet": true,
+      "tags": ["external-facing", "vpn", "citrix"],
+      "security_control_ids": ["ctrl-0002-fw000-0000-000000000002"]
+    },
+    {
+      "id": "asset-002-ad000-0000-000000000002",
+      "name": "Active Directory Domain Controller",
+      "asset_type": "server",
+      "environment": "onprem",
+      "criticality": 10.0,
+      "owner": "infra-team@example.co.jp",
+      "network_segment_id": "seg-0004-mgmt0-0000-000000000004",
+      "exposed_to_internet": false,
+      "tags": ["identity", "critical-infra"],
+      "security_control_ids": ["ctrl-0001-edr00-0000-000000000001", "ctrl-0003-siem0-0000-000000000003"]
+    },
+    {
+      "id": "asset-003-file0-0000-000000000003",
+      "name": "File Server (設計図・顧客情報)",
+      "asset_type": "server",
+      "environment": "onprem",
+      "criticality": 9.0,
+      "owner": "it-team@example.co.jp",
+      "network_segment_id": "seg-0002-corp0-0000-000000000002",
+      "exposed_to_internet": false,
+      "tags": ["sensitive-data", "pii", "ip-data"],
+      "security_control_ids": ["ctrl-0001-edr00-0000-000000000001"]
+    },
+    {
+      "id": "asset-004-bkup0-0000-000000000004",
+      "name": "Backup Server (Veeam)",
+      "asset_type": "server",
+      "environment": "onprem",
+      "criticality": 8.0,
+      "owner": "infra-team@example.co.jp",
+      "network_segment_id": "seg-0004-mgmt0-0000-000000000004",
+      "exposed_to_internet": false,
+      "tags": ["backup", "recovery-critical"],
+      "security_control_ids": ["ctrl-0001-edr00-0000-000000000001"]
+    },
+    {
+      "id": "asset-005-erp00-0000-000000000005",
+      "name": "ERP Server (SAP S/4HANA)",
+      "asset_type": "server",
+      "environment": "onprem",
+      "criticality": 9.5,
+      "owner": "erp-team@example.co.jp",
+      "network_segment_id": "seg-0002-corp0-0000-000000000002",
+      "exposed_to_internet": false,
+      "tags": ["sensitive-data", "financial", "erp"],
+      "security_control_ids": ["ctrl-0001-edr00-0000-000000000001", "ctrl-0003-siem0-0000-000000000003"]
+    },
+    {
+      "id": "asset-006-plc00-0000-000000000006",
+      "name": "Factory PLC Controller",
+      "asset_type": "network-device",
+      "environment": "onprem",
+      "criticality": 10.0,
+      "owner": "factory-team@example.co.jp",
+      "network_segment_id": "seg-0003-fact0-0000-000000000003",
+      "exposed_to_internet": false,
+      "tags": ["ot", "operational-critical", "safety-system"],
+      "security_control_ids": []
+    },
+    {
+      "id": "asset-007-ws000-0000-000000000007",
+      "name": "Employee Workstations (代表)",
+      "asset_type": "endpoint",
+      "environment": "onprem",
+      "criticality": 5.0,
+      "owner": "it-team@example.co.jp",
+      "network_segment_id": "seg-0002-corp0-0000-000000000002",
+      "exposed_to_internet": false,
+      "tags": ["endpoint"],
+      "security_control_ids": ["ctrl-0001-edr00-0000-000000000001"]
+    }
+  ],
+  "asset_vulnerabilities": [
+    {
+      "asset_id": "asset-001-vpn00-0000-000000000001",
+      "vuln_stix_id_ref": "CVE-2023-3519",
+      "remediation_status": "open"
+    },
+    {
+      "asset_id": "asset-001-vpn00-0000-000000000001",
+      "vuln_stix_id_ref": "CVE-2023-4966",
+      "remediation_status": "open"
+    },
+    {
+      "asset_id": "asset-001-vpn00-0000-000000000001",
+      "vuln_stix_id_ref": "CVE-2024-21412",
+      "remediation_status": "open"
+    }
+  ],
+  "asset_connections": [
+    {"src": "asset-001-vpn00-0000-000000000001", "dst": "asset-007-ws000-0000-000000000007", "protocol": "https", "port": 443},
+    {"src": "asset-001-vpn00-0000-000000000001", "dst": "asset-002-ad000-0000-000000000002", "protocol": "ldap", "port": 389},
+    {"src": "asset-007-ws000-0000-000000000007", "dst": "asset-002-ad000-0000-000000000002", "protocol": "smb", "port": 445},
+    {"src": "asset-007-ws000-0000-000000000007", "dst": "asset-003-file0-0000-000000000003", "protocol": "smb", "port": 445},
+    {"src": "asset-007-ws000-0000-000000000007", "dst": "asset-005-erp00-0000-000000000005", "protocol": "https", "port": 8443},
+    {"src": "asset-002-ad000-0000-000000000002", "dst": "asset-004-bkup0-0000-000000000004", "protocol": "tcp", "port": 9392},
+    {"src": "asset-003-file0-0000-000000000003", "dst": "asset-004-bkup0-0000-000000000004", "protocol": "tcp", "port": 2500},
+    {"src": "asset-002-ad000-0000-000000000002", "dst": "asset-006-plc00-0000-000000000006", "protocol": "tcp", "port": 102}
+  ],
+  "actor_targets": [
+    {
+      "actor_stix_id_ref": "INC Ransomware",
+      "asset_id": "asset-001-vpn00-0000-000000000001",
+      "confidence": 90
+    },
+    {
+      "actor_stix_id_ref": "MirrorFace",
+      "asset_id": "asset-001-vpn00-0000-000000000001",
+      "confidence": 80
+    }
+  ]
+}

@@ -1,0 +1,68 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# uv
+.uv/
+
+# Environment variables & secrets
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+service-account*.json
+*-credentials.json
+application_default_credentials.json
+
+# GCP credentials
+gcloud/
+.config/gcloud/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Test & coverage
+.coverage
+.pytest_cache/
+htmlcov/
+coverage.xml
+tests/output/
+
+# Logs
+*.log
+logs/
+
+# PIR config (may contain sensitive org context)
+# Remove this line if pir.json is safe to commit
+config/pir.json
+
+# Ruff cache
+.ruff_cache/
+
+# mypy
+.mypy_cache/
+
+# Temporary files
+tmp/
+temp/
+Thumbs.db

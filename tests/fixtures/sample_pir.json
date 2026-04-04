@@ -1,0 +1,15 @@
+[
+  {
+    "pir_id": "PIR-2025-001",
+    "description": "ランサムウェアグループおよびAPTによる標的型攻撃への耐性強化",
+    "threat_actor_tags": ["ransomware", "apt", "targets-japan"],
+    "asset_weight_rules": [
+      {"tag": "external-facing",  "criticality_multiplier": 2.0},
+      {"tag": "s3",               "criticality_multiplier": 1.8},
+      {"tag": "gcs",              "criticality_multiplier": 1.8},
+      {"tag": "backup",           "criticality_multiplier": 1.5}
+    ],
+    "valid_from": "2025-01-01",
+    "valid_until": "2025-12-31"
+  }
+]

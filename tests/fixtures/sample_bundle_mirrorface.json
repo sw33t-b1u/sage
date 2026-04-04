@@ -1,0 +1,444 @@
+{
+  "type": "bundle",
+  "id": "bundle--mirrorface-2025-campaign",
+  "spec_version": "2.1",
+  "objects": [
+    {
+      "type": "intrusion-set",
+      "id": "intrusion-set--eac3257c-e7bc-44fe-aa65-9d4fa9f1a6a3",
+      "spec_version": "2.1",
+      "name": "MirrorFace",
+      "aliases": [
+        "Earth Kasha",
+        "APT10 successor"
+      ],
+      "description": "中国に帰属するAPTグループ。日本の政府機関・防衛関連企業・メディアを標的とした持続的スパイ活動を展開。LODEINFOマルウェアを主要ツールとして使用。2024〜2025年にかけてVPN機器の脆弱性を悪用した侵入が確認されている。",
+      "primary_motivation": "espionage",
+      "secondary_motivations": [
+        "organizational-gain"
+      ],
+      "sophistication": "advanced",
+      "labels": [
+        "apt",
+        "targets-japan",
+        "espionage"
+      ],
+      "first_seen": "2019-01-01T00:00:00Z",
+      "last_seen": "2025-07-01T00:00:00Z",
+      "created": "2022-01-01T00:00:00Z",
+      "modified": "2025-07-01T00:00:00Z"
+    },
+    {
+      "type": "malware",
+      "id": "malware--397b9276-8552-4f7b-b03b-76c0116c1839",
+      "spec_version": "2.1",
+      "name": "LODEINFO",
+      "description": "MirrorFaceが独自開発したバックドア型マルウェア。shellcodeローダーとして機能し、ファイル操作・コマンド実行・スクリーンショット取得・キーロギングが可能。正規ソフトウェアのサイドローディングにより検出を回避する。",
+      "malware_types": [
+        "backdoor",
+        "keylogger"
+      ],
+      "is_family": true,
+      "capabilities": [
+        "backdoor",
+        "exfiltration",
+        "keylogging",
+        "screen-capture"
+      ],
+      "created": "2020-01-01T00:00:00Z",
+      "modified": "2025-06-01T00:00:00Z"
+    },
+    {
+      "type": "attack-pattern",
+      "id": "attack-pattern--9eb86d72-574e-4f49-aba2-f0bc4d45d3cd",
+      "spec_version": "2.1",
+      "name": "Exploit Public-Facing Application",
+      "description": "公開VPN機器・Webサーバー等の既知脆弱性を悪用して初期侵入を実現する。MirrorFaceはArray Networks・Fortinet・Cisco等のVPN製品の脆弱性を積極的に悪用している。",
+      "x_mitre_platforms": [
+        "Linux",
+        "Windows",
+        "Network"
+      ],
+      "kill_chain_phases": [
+        {
+          "kill_chain_name": "mitre-attack",
+          "phase_name": "initial-access"
+        }
+      ],
+      "external_references": [
+        {
+          "source_name": "mitre-attack",
+          "external_id": "T1190"
+        }
+      ],
+      "created": "2018-01-01T00:00:00Z",
+      "modified": "2025-01-01T00:00:00Z"
+    },
+    {
+      "type": "attack-pattern",
+      "id": "attack-pattern--96aed346-b03a-4ea4-8e3c-acccecbfbb9a",
+      "spec_version": "2.1",
+      "name": "Phishing: Spearphishing Attachment",
+      "description": "日本語の政策文書・選挙関連資料等を装った悪性Wordファイルを添付したスピアフィッシングメールを送付。マクロまたはテンプレートインジェクションによりLODEINFOをドロップする。",
+      "x_mitre_platforms": [
+        "Windows",
+        "macOS",
+        "Linux"
+      ],
+      "kill_chain_phases": [
+        {
+          "kill_chain_name": "mitre-attack",
+          "phase_name": "initial-access"
+        }
+      ],
+      "external_references": [
+        {
+          "source_name": "mitre-attack",
+          "external_id": "T1566.001"
+        }
+      ],
+      "created": "2020-01-01T00:00:00Z",
+      "modified": "2025-01-01T00:00:00Z"
+    },
+    {
+      "type": "attack-pattern",
+      "id": "attack-pattern--3f57bf35-b82b-4888-9e1a-fa0c96047432",
+      "spec_version": "2.1",
+      "name": "Hijack Execution Flow: DLL Side-Loading",
+      "description": "正規署名済みアプリケーション（セキュリティソフトウェア等）と同じディレクトリに悪性DLLを配置し、LODEINFOのshellcodeをロードさせる手法。EDR検知を回避するために広く使用される。",
+      "x_mitre_platforms": [
+        "Windows"
+      ],
+      "kill_chain_phases": [
+        {
+          "kill_chain_name": "mitre-attack",
+          "phase_name": "defense-evasion"
+        },
+        {
+          "kill_chain_name": "mitre-attack",
+          "phase_name": "persistence"
+        }
+      ],
+      "external_references": [
+        {
+          "source_name": "mitre-attack",
+          "external_id": "T1574.002"
+        }
+      ],
+      "created": "2020-01-01T00:00:00Z",
+      "modified": "2025-01-01T00:00:00Z"
+    },
+    {
+      "type": "attack-pattern",
+      "id": "attack-pattern--621f7a2a-eea4-4553-9f88-0a9cf372d6a0",
+      "spec_version": "2.1",
+      "name": "Application Layer Protocol: Web Protocols",
+      "description": "LODEINFOはHTTPS通信でC2サーバーと通信する。通信先はWordPress等の正規サービスを改ざんしたサイトを中継サーバーとして使用し、通信の検知を困難にする。",
+      "x_mitre_platforms": [
+        "Windows",
+        "Linux",
+        "macOS"
+      ],
+      "kill_chain_phases": [
+        {
+          "kill_chain_name": "mitre-attack",
+          "phase_name": "command-and-control"
+        }
+      ],
+      "external_references": [
+        {
+          "source_name": "mitre-attack",
+          "external_id": "T1071.001"
+        }
+      ],
+      "created": "2018-01-01T00:00:00Z",
+      "modified": "2025-01-01T00:00:00Z"
+    },
+    {
+      "type": "attack-pattern",
+      "id": "attack-pattern--002cfebc-95a8-4bb5-b854-fb9ac5d0853b",
+      "spec_version": "2.1",
+      "name": "File and Directory Discovery",
+      "description": "侵害したシステム上でファイル・ディレクトリの探索を行い、機密文書・認証情報・ネットワーク構成情報を特定する。",
+      "x_mitre_platforms": [
+        "Windows",
+        "Linux",
+        "macOS"
+      ],
+      "kill_chain_phases": [
+        {
+          "kill_chain_name": "mitre-attack",
+          "phase_name": "discovery"
+        }
+      ],
+      "external_references": [
+        {
+          "source_name": "mitre-attack",
+          "external_id": "T1083"
+        }
+      ],
+      "created": "2018-01-01T00:00:00Z",
+      "modified": "2025-01-01T00:00:00Z"
+    },
+    {
+      "type": "attack-pattern",
+      "id": "attack-pattern--381fd3d0-3cc4-4669-9baa-520ef1d73b90",
+      "spec_version": "2.1",
+      "name": "Exfiltration Over C2 Channel",
+      "description": "収集した機密ファイルをLODEINFOのC2通信チャネル（HTTPS）経由で外部へ持ち出す。暗号化により通信内容の検査を回避する。",
+      "x_mitre_platforms": [
+        "Windows",
+        "Linux",
+        "macOS"
+      ],
+      "kill_chain_phases": [
+        {
+          "kill_chain_name": "mitre-attack",
+          "phase_name": "exfiltration"
+        }
+      ],
+      "external_references": [
+        {
+          "source_name": "mitre-attack",
+          "external_id": "T1041"
+        }
+      ],
+      "created": "2018-01-01T00:00:00Z",
+      "modified": "2025-01-01T00:00:00Z"
+    },
+    {
+      "type": "vulnerability",
+      "id": "vulnerability--f390d447-cb8d-42e2-9756-fa491f889509",
+      "spec_version": "2.1",
+      "name": "CVE-2023-28461",
+      "description": "Array Networks Array AG/vxAG SSL VPNの認証バイパス脆弱性。認証なしで任意コードを実行可能。CVSS v3.1スコア9.8（Critical）。MirrorFaceによる日本政府機関への侵入で悪用が確認されている（JPCERT/CC 2024年）。",
+      "x_mitre_data_sources": [
+        "SSL VPN"
+      ],
+      "created": "2023-07-01T00:00:00Z",
+      "modified": "2024-11-01T00:00:00Z",
+      "external_references": [
+        {
+          "source_name": "cve",
+          "external_id": "CVE-2023-28461"
+        },
+        {
+          "source_name": "JPCERT/CC",
+          "url": "https://www.jpcert.or.jp/",
+          "description": "MirrorFace Attack Campaigns Targeting Japan"
+        }
+      ]
+    },
+    {
+      "type": "vulnerability",
+      "id": "vulnerability--3e5ac34e-6b87-41ef-8721-865a119a21fd",
+      "spec_version": "2.1",
+      "name": "CVE-2024-21412",
+      "description": "Windows Internet Shortcut Files セキュリティ機能バイパス脆弱性。Mark of the Web（MoTW）の検証を回避し、悪性ファイルを警告なしで実行させる。CVSS v3.1スコア8.1（High）。2024年初頭からAPTグループ・サイバー犯罪グループの双方で悪用が確認されている。",
+      "created": "2024-02-01T00:00:00Z",
+      "modified": "2024-12-01T00:00:00Z",
+      "external_references": [
+        {
+          "source_name": "cve",
+          "external_id": "CVE-2024-21412"
+        },
+        {
+          "source_name": "mitre-attack",
+          "description": "Exploited in the wild"
+        }
+      ]
+    },
+    {
+      "type": "indicator",
+      "id": "indicator--69dd6ab3-090f-49c4-9d5e-d717c7099e63",
+      "spec_version": "2.1",
+      "name": "MirrorFace LODEINFO C2 IP (relay)",
+      "description": "MirrorFaceのLODEINFO C2通信の中継IPアドレス。侵害されたWordPressサイトを経由したHTTPS通信のエンドポイント。TLP:AMBER（組織内共有可）。",
+      "indicator_types": [
+        "malicious-activity",
+        "attribution"
+      ],
+      "pattern": "[ipv4-addr:value = '103.27.109.217']",
+      "pattern_type": "stix",
+      "valid_from": "2025-01-01T00:00:00Z",
+      "confidence": 75,
+      "object_marking_refs": [
+        "marking-definition--f88d31f6-486f-44da-b317-01333bde0b82"
+      ],
+      "created": "2025-01-15T00:00:00Z",
+      "modified": "2025-07-01T00:00:00Z"
+    },
+    {
+      "type": "indicator",
+      "id": "indicator--4e4a8921-bcbc-4952-b422-f6513ff9823e",
+      "spec_version": "2.1",
+      "name": "MirrorFace LODEINFO C2 domain",
+      "description": "LODEINFOのビーコン通信先ドメイン。正規ドメインを模倣した命名規則を使用。",
+      "indicator_types": [
+        "malicious-activity"
+      ],
+      "pattern": "[domain-name:value = 'update.microsoft-cdn.net']",
+      "pattern_type": "stix",
+      "valid_from": "2025-02-01T00:00:00Z",
+      "confidence": 65,
+      "object_marking_refs": [
+        "marking-definition--f88d31f6-486f-44da-b317-01333bde0b82"
+      ],
+      "created": "2025-02-10T00:00:00Z",
+      "modified": "2025-06-01T00:00:00Z"
+    },
+    {
+      "type": "indicator",
+      "id": "indicator--6a3ff405-81a6-4784-9600-d8bcc076cd4b",
+      "spec_version": "2.1",
+      "name": "LODEINFO shellcode loader SHA-256",
+      "description": "DLLサイドローディングに使用されるLODEINFOローダーDLLのハッシュ値。正規セキュリティソフトウェアと同一ディレクトリに配置される。",
+      "indicator_types": [
+        "malicious-activity"
+      ],
+      "pattern": "[file:hashes.'SHA-256' = '92aa0e0288242fbd54ff1bda97abc6546c77983fbdbafe8eb651e673c010de47']",
+      "pattern_type": "stix",
+      "valid_from": "2025-03-01T00:00:00Z",
+      "confidence": 85,
+      "object_marking_refs": [
+        "marking-definition--f88d31f6-486f-44da-b317-01333bde0b82"
+      ],
+      "created": "2025-03-01T00:00:00Z",
+      "modified": "2025-07-01T00:00:00Z"
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--5d2237c7-54b9-470a-9b41-26fbf3975362",
+      "spec_version": "2.1",
+      "relationship_type": "uses",
+      "source_ref": "intrusion-set--eac3257c-e7bc-44fe-aa65-9d4fa9f1a6a3",
+      "target_ref": "attack-pattern--9eb86d72-574e-4f49-aba2-f0bc4d45d3cd",
+      "confidence": 90,
+      "description": "JPCERT/CC が2024年11月に公開したレポートにてVPN脆弱性悪用を確認",
+      "created": "2025-01-01T00:00:00Z",
+      "modified": "2025-07-01T00:00:00Z"
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--59587534-d63b-48ed-a6ba-974f508f2000",
+      "spec_version": "2.1",
+      "relationship_type": "uses",
+      "source_ref": "intrusion-set--eac3257c-e7bc-44fe-aa65-9d4fa9f1a6a3",
+      "target_ref": "attack-pattern--96aed346-b03a-4ea4-8e3c-acccecbfbb9a",
+      "confidence": 95,
+      "description": "国内政治・選挙関連資料を装ったスピアフィッシングキャンペーンが継続的に確認されている",
+      "created": "2022-01-01T00:00:00Z",
+      "modified": "2025-07-01T00:00:00Z"
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--bf3927a5-44c0-42bb-9f16-4adf489ced3c",
+      "spec_version": "2.1",
+      "relationship_type": "uses",
+      "source_ref": "intrusion-set--eac3257c-e7bc-44fe-aa65-9d4fa9f1a6a3",
+      "target_ref": "attack-pattern--3f57bf35-b82b-4888-9e1a-fa0c96047432",
+      "confidence": 90,
+      "created": "2020-01-01T00:00:00Z",
+      "modified": "2025-07-01T00:00:00Z"
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--9904394b-b175-45e8-a0d3-4360445eccf2",
+      "spec_version": "2.1",
+      "relationship_type": "uses",
+      "source_ref": "intrusion-set--eac3257c-e7bc-44fe-aa65-9d4fa9f1a6a3",
+      "target_ref": "attack-pattern--621f7a2a-eea4-4553-9f88-0a9cf372d6a0",
+      "confidence": 85,
+      "created": "2020-01-01T00:00:00Z",
+      "modified": "2025-07-01T00:00:00Z"
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--d7d9c054-e7f3-42c2-960b-5af57519f9dc",
+      "spec_version": "2.1",
+      "relationship_type": "uses",
+      "source_ref": "intrusion-set--eac3257c-e7bc-44fe-aa65-9d4fa9f1a6a3",
+      "target_ref": "attack-pattern--002cfebc-95a8-4bb5-b854-fb9ac5d0853b",
+      "confidence": 80,
+      "created": "2020-01-01T00:00:00Z",
+      "modified": "2025-07-01T00:00:00Z"
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--8e45cccf-16b3-41b2-85c2-4624e02ba366",
+      "spec_version": "2.1",
+      "relationship_type": "uses",
+      "source_ref": "intrusion-set--eac3257c-e7bc-44fe-aa65-9d4fa9f1a6a3",
+      "target_ref": "attack-pattern--381fd3d0-3cc4-4669-9baa-520ef1d73b90",
+      "confidence": 85,
+      "created": "2020-01-01T00:00:00Z",
+      "modified": "2025-07-01T00:00:00Z"
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--9abb77e4-3001-48c7-b5c7-b52d4377cd3a",
+      "spec_version": "2.1",
+      "relationship_type": "exploits",
+      "source_ref": "attack-pattern--9eb86d72-574e-4f49-aba2-f0bc4d45d3cd",
+      "target_ref": "vulnerability--f390d447-cb8d-42e2-9756-fa491f889509",
+      "description": "Array Networks VPN脆弱性を初期侵入に悪用",
+      "created": "2024-01-01T00:00:00Z",
+      "modified": "2025-01-01T00:00:00Z"
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--ce6e1f03-4bb0-4bae-918f-469e803fc002",
+      "spec_version": "2.1",
+      "relationship_type": "exploits",
+      "source_ref": "attack-pattern--96aed346-b03a-4ea4-8e3c-acccecbfbb9a",
+      "target_ref": "vulnerability--3e5ac34e-6b87-41ef-8721-865a119a21fd",
+      "description": "スピアフィッシングのペイロードデリバリーにMoTWバイパスを組み合わせて使用",
+      "created": "2024-03-01T00:00:00Z",
+      "modified": "2025-01-01T00:00:00Z"
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--fe0690ef-4c7d-49a9-a604-a87c25092287",
+      "spec_version": "2.1",
+      "relationship_type": "uses",
+      "source_ref": "intrusion-set--eac3257c-e7bc-44fe-aa65-9d4fa9f1a6a3",
+      "target_ref": "malware--397b9276-8552-4f7b-b03b-76c0116c1839",
+      "confidence": 100,
+      "created": "2020-01-01T00:00:00Z",
+      "modified": "2025-07-01T00:00:00Z"
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--99eb7d63-334b-44d0-99d5-a0b3562a36aa",
+      "spec_version": "2.1",
+      "relationship_type": "indicates",
+      "source_ref": "indicator--69dd6ab3-090f-49c4-9d5e-d717c7099e63",
+      "target_ref": "intrusion-set--eac3257c-e7bc-44fe-aa65-9d4fa9f1a6a3",
+      "confidence": 75,
+      "created": "2025-01-15T00:00:00Z",
+      "modified": "2025-07-01T00:00:00Z"
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--a93c4722-f03e-4271-9820-6b788eeb0170",
+      "spec_version": "2.1",
+      "relationship_type": "indicates",
+      "source_ref": "indicator--4e4a8921-bcbc-4952-b422-f6513ff9823e",
+      "target_ref": "intrusion-set--eac3257c-e7bc-44fe-aa65-9d4fa9f1a6a3",
+      "confidence": 65,
+      "created": "2025-02-10T00:00:00Z",
+      "modified": "2025-06-01T00:00:00Z"
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--2c855cee-ca47-4a79-b203-a71c5d675a06",
+      "spec_version": "2.1",
+      "relationship_type": "indicates",
+      "source_ref": "indicator--6a3ff405-81a6-4784-9600-d8bcc076cd4b",
+      "target_ref": "attack-pattern--3f57bf35-b82b-4888-9e1a-fa0c96047432",
+      "confidence": 85,
+      "created": "2025-03-01T00:00:00Z",
+      "modified": "2025-07-01T00:00:00Z"
+    }
+  ]
+}
