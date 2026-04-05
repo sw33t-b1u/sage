@@ -1,10 +1,10 @@
-"""Caldera REST API クライアント。
+"""MITRE Caldera REST API client.
 
-MITRE Caldera に Adversary プロファイルを生成・同期する。
+Generates and synchronizes Adversary profiles in MITRE Caldera.
 
-必要な環境変数:
-  CALDERA_URL:     Caldera サーバーの URL（例: http://caldera.internal:8888）
-  CALDERA_API_KEY: Caldera REST API Key（UI の Settings で確認可能）
+Required environment variables:
+  CALDERA_URL:     Caldera server URL (e.g. http://caldera.internal:8888)
+  CALDERA_API_KEY: Caldera REST API key (visible in the Caldera UI under Settings)
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ _ABILITY_ENDPOINT = "/api/v2/abilities"
 
 
 def get_adversaries(caldera_url: str, api_key: str) -> list[dict[str, Any]]:
-    """Caldera に登録済みの Adversary プロファイル一覧を返す。"""
+    """Return the list of Adversary profiles registered in Caldera."""
     if requests is None:
         logger.error("caldera_client_failed", reason="requests not installed")
         return []
@@ -50,17 +50,17 @@ def create_adversary(
     description: str,
     atomic_ordering: list[str],
 ) -> dict[str, Any] | None:
-    """Caldera に Adversary プロファイルを新規作成する。
+    """Create a new Adversary profile in Caldera.
 
     Args:
-        caldera_url: Caldera サーバーの URL
-        api_key: REST API キー
-        name: プロファイル名
-        description: プロファイルの説明
-        atomic_ordering: Ability ID のリスト（実行順序）
+        caldera_url: Caldera server URL
+        api_key: REST API key
+        name: Profile name
+        description: Profile description
+        atomic_ordering: List of Ability IDs in execution order
 
     Returns:
-        作成された Adversary の dict、失敗時は None
+        The created Adversary dict, or None on failure
     """
     if requests is None:
         logger.error("caldera_client_failed", reason="requests not installed")
@@ -95,7 +95,7 @@ def update_adversary(
     adversary_id: str,
     atomic_ordering: list[str],
 ) -> bool:
-    """既存 Adversary プロファイルの Ability リストを更新する。"""
+    """Update the Ability list of an existing Adversary profile."""
     if requests is None:
         return False
 
@@ -120,16 +120,16 @@ def sync_actor_ttps(
     actor_stix_id: str,
     ttp_rows: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    """アクターの TTP フローを Caldera Adversary プロファイルとして同期する。
+    """Sync an actor's TTP flow as a Caldera Adversary profile.
 
-    同名の Adversary が既存の場合は Ability リストを更新する。
-    存在しない場合は新規作成する。
+    Updates the Ability list if a profile with the same name already exists.
+    Creates a new profile if none exists.
 
     Args:
-        caldera_url: Caldera サーバーの URL
-        api_key: REST API キー
-        actor_stix_id: ThreatActor の STIX ID
-        ttp_rows: find_actor_ttps() の返り値（src/dst TTP ペア）
+        caldera_url: Caldera server URL
+        api_key: REST API key
+        actor_stix_id: ThreatActor STIX ID
+        ttp_rows: Return value of find_actor_ttps() (src/dst TTP pairs)
 
     Returns:
         {
@@ -138,7 +138,7 @@ def sync_actor_ttps(
           "ability_count": N,
         }
     """
-    # TTP STIX ID を重複排除しつつ順序を保持
+    # Deduplicate TTP STIX IDs while preserving order
     seen: set[str] = set()
     ordered_ttps: list[str] = []
     for row in ttp_rows:
@@ -148,8 +148,8 @@ def sync_actor_ttps(
                 seen.add(stix_id)
                 ordered_ttps.append(stix_id)
 
-    # Caldera では Ability ID が必要だが、STIX ID を暫定で使用
-    # 実運用では TTP→Ability のマッピングテーブルが必要
+    # Caldera requires Ability IDs; STIX IDs are used as a placeholder here.
+    # A TTP→Ability mapping table is required for production use.
     ability_ids = ordered_ttps
 
     profile_name = f"SAGE-{actor_stix_id}"

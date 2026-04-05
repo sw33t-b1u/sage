@@ -1,12 +1,12 @@
-"""Spanner Graph クエリ関数。
+"""Spanner Graph query functions.
 
-Attack Flow / Attack Graph の分析クエリを提供する。
+Provides analytical queries for Attack Flow and Attack Graph sub-graphs.
 
-- 経路探索（find_attack_paths, find_actor_ttps）: GQL（Property Graph 構文）を使用
-- 集計系（find_choke_points, find_asset_exposure）: 通常の SQL を使用
+- Path traversal (find_attack_paths, find_actor_ttps): uses GQL (Property Graph syntax)
+- Aggregation (find_choke_points, find_asset_exposure): uses standard SQL
 
-NOTE: Spanner エミュレーターは GQL のサポートが限定的なため、
-      これらの関数のテストは unittest.mock でスナップショットをモックする。
+NOTE: The Spanner emulator has limited GQL support, so these functions are tested
+      by mocking snapshots with unittest.mock rather than running against the emulator.
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from google.cloud.spanner_v1.database import Database
 
 logger = structlog.get_logger(__name__)
 
-# GQL で取得する最大ホップ数（Asset 間の ConnectedTo パス）
+# Maximum hops for GQL traversal (ConnectedTo paths between Assets)
 _MAX_HOPS = 5
 
 
@@ -27,10 +27,10 @@ def find_attack_paths(
     asset_id: str,
     limit: int = 10,
 ) -> list[dict[str, Any]]:
-    """指定資産に到達する攻撃経路を FollowedBy 重み順で返す。
+    """Return attack paths reaching the specified asset, ordered by FollowedBy weight.
 
-    GQL を用いて ThreatActor → TTP → ... → TTP → Asset の経路を探索する。
-    各経路は (actor_stix_id, ttp_sequence, total_weight) の dict で返す。
+    Uses GQL to traverse ThreatActor → TTP → ... → TTP → Asset paths.
+    Each path is returned as a dict with (actor_stix_id, ttp_sequence, total_weight).
 
     Returns:
         [
@@ -83,9 +83,9 @@ def find_actor_ttps(
     database: Database,
     actor_stix_id: str,
 ) -> list[dict[str, Any]]:
-    """指定アクターの TTP を FollowedBy 重み順の攻撃フローとして返す。
+    """Return the TTP attack flow for the specified actor, ordered by FollowedBy weight.
 
-    GQL を用いて actor -[USES]-> TTP -[FOLLOWED_BY*]-> TTP の経路を取得する。
+    Uses GQL to traverse actor -[USES]-> TTP -[FOLLOWED_BY*]-> TTP paths.
 
     Returns:
         [
@@ -138,9 +138,9 @@ def find_choke_points(
     database: Database,
     top_n: int = 20,
 ) -> list[dict[str, Any]]:
-    """チョークポイント資産を返す（多数の攻撃経路が通過する資産）。
+    """Return choke-point assets (assets with the most attack paths passing through them).
 
-    SQL を用いて以下のスコアで資産をランキングする:
+    Ranks assets using SQL with the following score:
       choke_score = pir_adjusted_criticality × targeting_actor_count
 
     Returns:
@@ -190,10 +190,10 @@ def find_choke_points(
 def find_asset_exposure(
     database: Database,
 ) -> list[dict[str, Any]]:
-    """外部露出資産と、それに関連する到達可能 TTP 数を返す。
+    """Return internet-exposed assets with their reachable TTP counts.
 
-    SQL を用いて exposed_to_internet=TRUE の資産と
-    Targets エッジ経由で紐づくアクターの TTP 数を集計する。
+    Uses SQL to aggregate exposed_to_internet=TRUE assets alongside the number
+    of distinct actors and TTPs reachable via Targets edges.
 
     Returns:
         [
@@ -242,9 +242,7 @@ def find_incident_ttps(
     database: Database,
     incident_id: str,
 ) -> list[str]:
-    """指定インシデントに紐づく TTP STIX ID 一覧を返す。
-
-    IncidentUsesTTP エッジを経由して取得する。
+    """Return TTP STIX IDs linked to the specified incident via IncidentUsesTTP.
 
     Returns:
         ["attack-pattern--t1078", ...]
@@ -270,7 +268,7 @@ def find_incident_ttps(
 def find_followedby_edges(
     database: Database,
 ) -> list[dict[str, Any]]:
-    """全 FollowedBy エッジを返す（類似度計算用グラフ構築に使用）。
+    """Return all FollowedBy edges (used for building the similarity graph).
 
     Returns:
         [{"src_stix_id": "...", "dst_stix_id": "...", "weight": 0.72}, ...]
@@ -293,7 +291,7 @@ def find_followedby_edges(
 def find_all_incident_ttps(
     database: Database,
 ) -> dict[str, list[str]]:
-    """全インシデントの TTP STIX ID 一覧を返す。
+    """Return TTP STIX IDs for all incidents.
 
     Returns:
         {"incident--xxx": ["attack-pattern--t1078", ...], ...}
@@ -316,7 +314,7 @@ def find_all_incident_ttps(
 
 
 # ---------------------------------------------------------------------------
-# 型ヘルパー（Spanner param_types）
+# Type helpers (Spanner param_types)
 # ---------------------------------------------------------------------------
 
 

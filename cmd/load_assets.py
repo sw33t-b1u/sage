@@ -1,7 +1,7 @@
 """社内資産データを Spanner に投入するスクリプト。
 
 tests/fixtures/sample_assets.json または指定ファイルを読み込み、
-NetworkSegment / SecurityControl / Asset / HasVulnerability /
+SecurityControl / Asset / HasVulnerability /
 ConnectedTo / ProtectedBy / Targets テーブルへ upsert する。
 
 使用方法:

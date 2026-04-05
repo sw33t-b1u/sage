@@ -1,7 +1,7 @@
-"""STIX 2.1 オブジェクト → Spanner ノード/エッジ行への変換。
+"""STIX 2.1 objects → Spanner node/edge row conversion.
 
-各 map_* メソッドは Spanner の INSERT OR UPDATE に渡せる dict を返す。
-変換対象外のオブジェクトは None を返す（呼び出し元でスキップ）。
+Each map_* method returns a dict suitable for Spanner INSERT OR UPDATE.
+Objects outside the target scope return None (caller skips them).
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-# ATT&CK Kill Chain フェーズの順序（FollowedBy 重み計算に使用）
+# ATT&CK kill chain phase order (used for FollowedBy weight calculation)
 PHASE_ORDER: dict[str, int] = {
     "reconnaissance": 0,
     "resource-development": 1,
@@ -29,7 +29,7 @@ PHASE_ORDER: dict[str, int] = {
     "impact": 13,
 }
 
-# STIX Indicator パターンの抽出ルール (obs_type, regex)
+# Extraction rules for STIX Indicator patterns: (obs_type, regex)
 _INDICATOR_PATTERNS: list[tuple[str, str]] = [
     ("ip", r"\[ipv4-addr:value\s*=\s*'([^']+)'\]"),
     ("ip", r"\[ipv6-addr:value\s*=\s*'([^']+)'\]"),
@@ -41,10 +41,10 @@ _INDICATOR_PATTERNS: list[tuple[str, str]] = [
 
 
 class StixMapper:
-    """STIX 2.1 オブジェクトを Spanner スキーマへマップする。"""
+    """Maps STIX 2.1 objects to the Spanner schema."""
 
     # -----------------------------------------------------------------------
-    # ノードマッパー
+    # Node mappers
     # -----------------------------------------------------------------------
 
     def map_threat_actor(self, obj: dict) -> dict | None:
@@ -73,7 +73,7 @@ class StixMapper:
             "name": obj["name"],
             "description": obj.get("description"),
             "platforms": obj.get("x_mitre_platforms", []),
-            "detection_difficulty": None,  # Summiting the Pyramid 連携時に設定
+            "detection_difficulty": None,  # Set when Summiting the Pyramid integration is enabled
             "stix_modified": _to_ts(obj.get("modified")) or _now(),
         }
 
@@ -85,7 +85,7 @@ class StixMapper:
             "cve_id": obj.get("name"),
             "description": obj.get("description"),
             "cvss_score": _cvss_score(obj),
-            "epss_score": None,  # EPSS API 連携時に設定
+            "epss_score": None,  # Set when EPSS API integration is enabled
             "affected_platforms": obj.get("x_affected_platforms", []),
             "published_date": _to_ts(obj.get("created")),
             "stix_modified": _to_ts(obj.get("modified")) or _now(),
@@ -104,7 +104,7 @@ class StixMapper:
         }
 
     def map_observable(self, obj: dict) -> dict | None:
-        """indicator オブジェクトから Observable 行を生成する。"""
+        """Generate an Observable row from an indicator object."""
         if obj["type"] != "indicator":
             return None
         extracted = _extract_indicator(obj.get("pattern", ""))
@@ -141,9 +141,9 @@ class StixMapper:
         }
 
     def map_incident_ttp_edges(self, obj: dict) -> list[dict]:
-        """incident オブジェクトから IncidentUsesTTP 行を生成する。
+        """Generate IncidentUsesTTP rows from an incident object.
 
-        kill_chain_phases の順序を sequence_order として使用する。
+        Uses the kill_chain_phases order as sequence_order.
         """
         if obj["type"] != "incident":
             return []
@@ -160,11 +160,11 @@ class StixMapper:
         return rows
 
     # -----------------------------------------------------------------------
-    # エッジマッパー
+    # Edge mappers
     # -----------------------------------------------------------------------
 
     def map_relationship(self, obj: dict) -> tuple[str, dict] | None:
-        """STIX relationship → (テーブル名, 行 dict) を返す。対象外は None。"""
+        """Map a STIX relationship to (table_name, row dict). Returns None if not applicable."""
         if obj["type"] != "relationship":
             return None
 
@@ -230,7 +230,7 @@ class StixMapper:
 
 
 # ---------------------------------------------------------------------------
-# FollowedBy 重み計算
+# FollowedBy weight calculation
 # ---------------------------------------------------------------------------
 
 
@@ -240,27 +240,27 @@ def build_followed_by_weights(
     ttp_vuln_data: dict[str, dict] | None = None,
     ir_feedback_pairs: set[tuple[str, str]] | None = None,
 ) -> list[dict]:
-    """Uses エッジ一覧から FollowedBy(threat_intel) エッジを導出し重みを計算する。
+    """Derive FollowedBy(threat_intel) edges from Uses edges and calculate weights.
 
     weight = base_prob × activity_score × exploit_ease × ir_multiplier
 
     Args:
-        uses_rows: map_relationship で生成した Uses 行のリスト
-        ttp_phases: {ttp_stix_id: phase_name} の辞書
+        uses_rows: List of Uses rows produced by map_relationship()
+        ttp_phases: {ttp_stix_id: phase_name} mapping
         ttp_vuln_data: {ttp_stix_id: {"cvss_score": float|None, "epss_score": float|None}}
-                       Exploits エッジから構築。省略時は全 TTP の exploit_ease = 1.0
-        ir_feedback_pairs: build_ir_feedback_followed_by で得られた (src, dst) ペアのセット。
-                           一致する遷移に ir_multiplier = 1.5 を適用。省略時は全遷移 = 1.0
+                       Built from Exploits edges. When omitted, exploit_ease = 1.0 for all TTPs.
+        ir_feedback_pairs: Set of (src, dst) pairs from build_ir_feedback_followed_by().
+                           Matching transitions receive ir_multiplier = 1.5. Default: 1.0 for all.
 
     Returns:
-        FollowedBy テーブルへの upsert 用 dict のリスト（source="threat_intel"）
+        List of dicts ready for upsert into the FollowedBy table (source="threat_intel")
     """
     if ttp_vuln_data is None:
         ttp_vuln_data = {}
     if ir_feedback_pairs is None:
         ir_feedback_pairs = set()
 
-    # アクター → TTP セットを構築
+    # Build actor → TTP set mapping
     actor_ttps: dict[str, set[str]] = defaultdict(set)
     for row in uses_rows:
         actor_ttps[row["actor_stix_id"]].add(row["ttp_stix_id"])
@@ -281,7 +281,8 @@ def build_followed_by_weights(
 
     total_actors = max(len(actor_ttps), 1)
 
-    # activity_score 計算: TTPごとの直近90日観測率 (last_observed が None は中立 0.5 扱い)
+    # activity_score: per-TTP observation rate in the last 90 days
+    # (last_observed = None is treated as neutral 0.5)
     cutoff_dt = _now() - timedelta(days=90)
 
     ttp_activity: dict[str, float] = {}
@@ -289,7 +290,7 @@ def build_followed_by_weights(
         relevant = [r for r in uses_rows if r.get("ttp_stix_id") == ttp_id]
         dated = [r for r in relevant if r.get("last_observed") is not None]
         if not dated:
-            ttp_activity[ttp_id] = 0.5  # 日付不明 → 中立 (× 2.0 で 1.0)
+            ttp_activity[ttp_id] = 0.5  # unknown date → neutral (× 2.0 = 1.0)
         else:
             recent = sum(
                 1 for r in dated
@@ -302,15 +303,15 @@ def build_followed_by_weights(
 
     result = []
     for (src, dst), count in transition_counts.items():
-        # base_prob: このペアに遷移するアクター数 / 全アクター数
+        # base_prob: number of actors that make this transition / total actors
         base_prob = min(count / total_actors, 1.0)
 
-        # activity_score: src・dst 両 TTP の観測率の平均 × 2.0 (範囲 0.0-2.0)
+        # activity_score: average observation rate of src+dst TTPs × 2.0 (range 0.0–2.0)
         src_ratio = ttp_activity.get(src, 0.5)
         dst_ratio = ttp_activity.get(dst, 0.5)
         activity_score = min((src_ratio + dst_ratio) / 2.0 * 2.0, 2.0)
 
-        # exploit_ease: src TTP の脆弱性情報から算出 (なければ 1.0)
+        # exploit_ease: derived from src TTP vulnerability data (1.0 if no CVE)
         vuln = ttp_vuln_data.get(src, {})
         cvss = vuln.get("cvss_score")
         epss = vuln.get("epss_score")
@@ -321,9 +322,9 @@ def build_followed_by_weights(
         elif epss is not None:
             exploit_ease = float(epss)
         else:
-            exploit_ease = 1.0  # CVEなし TTP（ソーシャルエンジニアリング等）はニュートラル
+            exploit_ease = 1.0  # TTPs without CVEs (e.g. social engineering) are neutral
 
-        # ir_multiplier: 同一遷移が IR フィードバックで確認済みなら 1.5
+        # ir_multiplier: 1.5 if this transition was confirmed in IR feedback
         ir_multiplier = 1.5 if (src, dst) in ir_feedback_pairs else 1.0
 
         weight = min(base_prob * activity_score * exploit_ease * ir_multiplier, 1.0)
@@ -344,23 +345,23 @@ def build_followed_by_weights(
 def build_ir_feedback_followed_by(
     incident_ttp_rows: list[dict],
 ) -> tuple[list[dict], set[tuple[str, str]]]:
-    """IncidentUsesTTP から FollowedBy(ir_feedback) エッジを導出する。
+    """Derive FollowedBy(ir_feedback) edges from IncidentUsesTTP rows.
 
-    sequence_order が NULL のレコードはスキップする。
+    Records with a NULL sequence_order are skipped.
 
     Args:
-        incident_ttp_rows: IncidentUsesTTP 行のリスト
+        incident_ttp_rows: List of IncidentUsesTTP rows
                            ({incident_stix_id, ttp_stix_id, sequence_order})
 
     Returns:
         (followed_by_rows, ir_feedback_pairs)
-        - followed_by_rows: FollowedBy upsert 用 dict リスト（source="ir_feedback"）
-        - ir_feedback_pairs: (src_ttp_stix_id, dst_ttp_stix_id) のセット（ir_multiplier 計算用）
+        - followed_by_rows: List of dicts for FollowedBy upsert (source="ir_feedback")
+        - ir_feedback_pairs: Set of (src_ttp_stix_id, dst_ttp_stix_id) for ir_multiplier calculation
     """
     if not incident_ttp_rows:
         return [], set()
 
-    # incident ごとに TTP を sequence_order でグループ化（NULL は除外）
+    # Group TTPs per incident by sequence_order (skip NULL entries)
     incident_sequences: dict[str, list[tuple[int, str]]] = defaultdict(list)
     for row in incident_ttp_rows:
         if row.get("sequence_order") is None:
@@ -400,7 +401,7 @@ def build_ir_feedback_followed_by(
 
 
 # ---------------------------------------------------------------------------
-# ユーティリティ
+# Utilities
 # ---------------------------------------------------------------------------
 
 

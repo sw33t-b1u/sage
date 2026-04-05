@@ -1,0 +1,6 @@
+#!/bin/sh
+# Pre-commit hook: fast lint checks (runs before every commit).
+# Install with: make setup
+set -e
+cd "$(git rev-parse --show-toplevel)/SAGE" 2>/dev/null || cd "$(git rev-parse --show-toplevel)"
+make vet lint

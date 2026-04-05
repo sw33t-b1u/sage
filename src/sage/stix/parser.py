@@ -1,6 +1,7 @@
-"""STIX 2.1 バンドルのパースと前処理。
+"""STIX 2.1 bundle parsing and pre-processing.
 
-stix2 ライブラリでバリデーションを行い、ETL が扱いやすい dict 形式へ変換する。
+Uses the stix2 library for validation and converts objects to plain dicts
+for easier handling in the ETL pipeline.
 """
 
 from __future__ import annotations
@@ -14,7 +15,7 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 
-# ETL で処理するオブジェクトタイプ
+# Object types processed by the ETL pipeline
 SUPPORTED_TYPES = frozenset(
     {
         "threat-actor",
@@ -25,18 +26,18 @@ SUPPORTED_TYPES = frozenset(
         "tool",
         "indicator",
         "relationship",
-        "incident",  # IR フィードバック用
-        "sighting",  # 将来対応
+        "incident",  # IR feedback
+        "sighting",  # reserved for future use
     }
 )
 
 
 def parse_bundle(bundle_dict: dict[str, Any]) -> list[dict[str, Any]]:
-    """STIX 2.1 バンドルをパースし、サポート対象オブジェクトのリストを返す。
+    """Parse a STIX 2.1 bundle and return a list of supported objects.
 
-    - stix2 ライブラリで各オブジェクトを個別にバリデーション
-    - バリデーション失敗オブジェクトはスキップしてログ出力
-    - サポート外のタイプはスキップ
+    - Each object is individually validated by the stix2 library
+    - Objects that fail validation are skipped with a warning log
+    - Unsupported types are skipped silently
     """
     raw_objects = bundle_dict.get("objects", [])
     result: list[dict[str, Any]] = []
@@ -59,18 +60,18 @@ def parse_bundle(bundle_dict: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def load_bundle_from_file(path: Path) -> list[dict[str, Any]]:
-    """JSON ファイルからバンドルを読み込んでパースする。"""
+    """Load and parse a STIX bundle from a JSON file."""
     with path.open() as f:
         bundle = json.load(f)
     return parse_bundle(bundle)
 
 
 def _parse_object(raw: dict[str, Any]) -> dict[str, Any]:
-    """stix2 ライブラリでパースして dict を返す。
+    """Parse a raw dict through the stix2 library and return a plain dict.
 
-    stix2 はパース時にバリデーションを行う。
-    失敗時は stix2.exceptions.STIXError またはその派生例外を送出する。
+    The stix2 library validates the object during parsing.
+    On failure it raises stix2.exceptions.STIXError or a subclass.
     """
     parsed = stix2.parse(json.dumps(raw), allow_custom=True)
-    # stix2 オブジェクトを通常の dict として返す（Spanner upsert で扱いやすくするため）
+    # Return as a plain dict (easier to handle in Spanner upsert code)
     return json.loads(parsed.serialize())

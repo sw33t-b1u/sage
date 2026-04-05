@@ -1,7 +1,7 @@
-"""OpenCTI から STIX 2.1 バンドルを取得するクライアント。
+"""OpenCTI client for fetching STIX 2.1 bundles.
 
-pycti の OpenCTIApiClient を使い、STIX 2.1 エクスポートエンドポイントを呼び出す。
-バンドルは GCS Landing Zone へ保存した後、ETL ワーカーへ渡される。
+Uses pycti's OpenCTIApiClient to call the STIX 2.1 export endpoint.
+Bundles are saved to the GCS Landing Zone before being passed to the ETL worker.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from pycti import OpenCTIApiClient
 
 logger = structlog.get_logger(__name__)
 
-# OpenCTI が STIX エクスポートで返すエンティティタイプ
+# Entity types returned by OpenCTI STIX export
 EXPORT_TYPES = [
     "threat-actor",
     "intrusion-set",
@@ -36,11 +36,11 @@ class OpenCTIClient:
         self,
         modified_after: datetime | None = None,
     ) -> dict[str, Any]:
-        """STIX 2.1 バンドルを取得する。
+        """Fetch a STIX 2.1 bundle from OpenCTI.
 
         Args:
-            modified_after: この日時以降に更新されたオブジェクトのみ取得。
-                            None の場合は全件取得。
+            modified_after: Only fetch objects updated after this timestamp.
+                            Fetches all objects when None.
 
         Returns:
             STIX 2.1 Bundle dict (type="bundle", objects=[...])
@@ -66,7 +66,7 @@ class OpenCTIClient:
                     objects.extend(items if isinstance(items, list) else [items])
                 logger.info("fetched", entity_type=entity_type, count=len(objects))
             except Exception as exc:
-                # 取得失敗は警告にとどめ、他のタイプの取得を継続する
+                # Log a warning and continue fetching other types
                 logger.warning(
                     "fetch_failed",
                     entity_type=entity_type,
@@ -88,7 +88,7 @@ class OpenCTIClient:
         bucket_name: str,
         source: str = "opencti",
     ) -> str:
-        """バンドルを GCS Landing Zone へ保存し、GCS パスを返す。"""
+        """Save the bundle to the GCS Landing Zone and return the GCS path."""
         from google.cloud import storage
 
         client = storage.Client()

@@ -1,4 +1,4 @@
-.PHONY: check vet lint format test audit init-schema run-etl
+.PHONY: check vet lint format test audit setup init-schema run-etl
 
 # Full quality gate: vet → lint → test
 check: vet lint test audit
@@ -18,6 +18,11 @@ test:
 
 audit:
 	uv run pip-audit
+
+setup:
+	git config core.hooksPath .githooks
+	chmod +x .githooks/pre-commit .githooks/pre-push
+	@echo "Git hooks installed (pre-commit: vet+lint, pre-push: full check)."
 
 init-schema:
 	uv run python cmd/init_schema.py

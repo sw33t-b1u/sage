@@ -116,6 +116,7 @@ def main() -> None:
             repo=config.ghe_repo,
             title=title,
             body=report,
+            api_base=config.ghe_api_base,
         )
         if issue_url:
             logger.info("ghe_issue_posted", url=issue_url)

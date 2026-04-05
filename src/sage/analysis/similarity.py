@@ -1,12 +1,12 @@
-"""IR Feedback — 類似インシデント検索。
+"""IR Feedback — similar incident search.
 
-ハイブリッド類似度スコアを計算してインシデントをランキングする。
+Computes a hybrid similarity score to rank incidents.
 
   hybrid_score = alpha × jaccard_ttp + (1 - alpha) × transition_coverage
 
-- jaccard_ttp: 2つのインシデントの TTP 集合の Jaccard 類似度
-- transition_coverage: FollowedBy グラフ上で参照インシデントの TTP が
-  クエリインシデントから最大 max_hops ホップで到達可能な割合
+- jaccard_ttp: Jaccard similarity of the TTP sets of two incidents
+- transition_coverage: fraction of the reference incident's TTPs that are
+  reachable from the query incident within max_hops hops on the FollowedBy graph
 """
 
 from __future__ import annotations
@@ -23,14 +23,14 @@ logger = structlog.get_logger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# グラフ構築ユーティリティ
+# Graph construction utilities
 # ---------------------------------------------------------------------------
 
 
 def build_followedby_graph(
     followedby_rows: list[dict[str, Any]],
 ) -> dict[str, set[str]]:
-    """FollowedBy エッジ一覧から有向グラフを構築する。
+    """Build a directed graph from a list of FollowedBy edges.
 
     Returns:
         {src_stix_id: {dst_stix_id, ...}, ...}
@@ -48,9 +48,9 @@ def bfs_reachable(
     start_nodes: set[str],
     max_hops: int,
 ) -> set[str]:
-    """BFS で start_nodes から max_hops 以内に到達可能なノードを返す。
+    """Return all nodes reachable from start_nodes within max_hops via BFS.
 
-    start_nodes 自身も含む。
+    Includes start_nodes themselves.
     """
     visited: set[str] = set(start_nodes)
     frontier: deque[tuple[str, int]] = deque((n, 0) for n in start_nodes)
@@ -68,12 +68,12 @@ def bfs_reachable(
 
 
 # ---------------------------------------------------------------------------
-# スコア計算
+# Score calculation
 # ---------------------------------------------------------------------------
 
 
 def jaccard_ttp(set_a: set[str], set_b: set[str]) -> float:
-    """2 つの TTP 集合の Jaccard 類似度を返す。"""
+    """Return the Jaccard similarity of two TTP sets."""
     if not set_a and not set_b:
         return 1.0
     union = set_a | set_b
@@ -88,13 +88,13 @@ def transition_coverage(
     followedby_graph: dict[str, set[str]],
     max_hops: int = 2,
 ) -> float:
-    """参照インシデントの TTP がクエリインシデントから到達可能な割合。
+    """Return the fraction of ref_ttps reachable from incident_ttps.
 
-    到達可能: クエリの TTP に直接含まれるか、FollowedBy グラフ上で
-    max_hops 以内に辿り着けるか。
+    Reachable means: directly contained in incident_ttps, or reachable within
+    max_hops hops on the FollowedBy graph.
 
     Returns:
-        0.0〜1.0 の float
+        float in range 0.0–1.0
     """
     if not ref_ttps:
         return 1.0
@@ -111,7 +111,7 @@ def hybrid_score(
     alpha: float = 0.5,
     max_hops: int = 2,
 ) -> float:
-    """ハイブリッド類似度スコアを計算する。
+    """Compute the hybrid similarity score.
 
     hybrid_score = alpha × jaccard_ttp + (1 - alpha) × transition_coverage
     """
@@ -121,7 +121,7 @@ def hybrid_score(
 
 
 # ---------------------------------------------------------------------------
-# Spanner 連携: 類似インシデント検索
+# Spanner integration: similar incident search
 # ---------------------------------------------------------------------------
 
 
@@ -132,14 +132,14 @@ def find_similar_incidents(
     alpha: float = 0.5,
     max_hops: int = 2,
 ) -> list[dict[str, Any]]:
-    """指定インシデントに類似した過去インシデントをスコア順で返す。
+    """Return historical incidents most similar to the specified incident, ordered by score.
 
     Args:
-        database: Spanner Database インスタンス
-        incident_id: クエリインシデントの STIX ID
-        top_k: 返す上位件数
-        alpha: jaccard_ttp の重み
-        max_hops: FollowedBy BFS の最大ホップ数
+        database: Spanner Database instance
+        incident_id: STIX ID of the query incident
+        top_k: Number of top results to return
+        alpha: Weight for jaccard_ttp component
+        max_hops: Maximum BFS hops on the FollowedBy graph
 
     Returns:
         [

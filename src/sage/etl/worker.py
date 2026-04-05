@@ -1,14 +1,14 @@
-"""ETL ワーカー — STIX バンドル → Spanner Graph への変換・書き込み。
+"""ETL worker — transforms STIX bundles and writes them to Spanner Graph.
 
-処理フロー:
-  1. STIX オブジェクトをタイプ別に分類
-  2. TLP フィルタ（設定レベル超のものを除外）
-  3. PIR フィルタ（関連性スコアが閾値以下を除外）
-  4. ノード upsert（ThreatActor, TTP, Vulnerability, MalwareTool, Observable, Incident）
-  5. エッジ upsert（Uses, MalwareUsesTTP, UsesTool, Exploits, Indicates*, IncidentUsesTTP）
-  6. FollowedBy(ir_feedback) 導出・upsert（IncidentUsesTTP から生成）
-  7. Targets エッジ生成（PIR タグマッチング）
-  8. FollowedBy(threat_intel) 重み計算・upsert（ir_feedback pairs を ir_multiplier に使用）
+Processing flow:
+  1. Classify STIX objects by type
+  2. TLP filter (exclude objects above the configured level)
+  3. PIR filter (exclude objects below the relevance threshold)
+  4. Node upsert (ThreatActor, TTP, Vulnerability, MalwareTool, Observable, Incident)
+  5. Edge upsert (Uses, MalwareUsesTTP, UsesTool, Exploits, Indicates*, IncidentUsesTTP)
+  6. Derive and upsert FollowedBy(ir_feedback) edges from IncidentUsesTTP
+  7. Generate Targets edges via PIR tag matching
+  8. Calculate and upsert FollowedBy(threat_intel) weights (using ir_feedback pairs as ir_multiplier)
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ logger = structlog.get_logger(__name__)
 
 
 class ETLWorker:
-    """STIX バンドルを処理して Spanner Graph へ書き込む。"""
+    """Processes a STIX bundle and writes the results to Spanner Graph."""
 
     def __init__(
         self,
@@ -50,17 +50,17 @@ class ETLWorker:
         objects: list[dict[str, Any]],
         asset_rows: list[dict[str, Any]] | None = None,
     ) -> dict[str, int]:
-        """STIX オブジェクトリストを処理する。処理数の集計を返す。
+        """Process a list of STIX objects and return ingestion counts.
 
         Args:
-            objects: stix/parser.py で parse_bundle した結果
-            asset_rows: Targets 生成に使用する内部資産データ。
-                        省略時は Targets エッジを生成しない。
+            objects: Result of stix/parser.py parse_bundle()
+            asset_rows: Internal asset data used to generate Targets edges.
+                        Targets edges are skipped when omitted.
 
         Returns:
-            {"threat_actors": N, "ttps": N, ...} の集計 dict
+            Counts dict: {"threat_actors": N, "ttps": N, ...}
         """
-        # --- タイプ別に分類 ---
+        # --- Classify by type ---
         by_type: dict[str, list[dict]] = defaultdict(list)
         for obj in objects:
             by_type[obj["type"]].append(obj)
@@ -98,7 +98,7 @@ class ETLWorker:
         ]
         stats["malware_tools"] = upsert_rows(self._db, "MalwareTool", mt_rows)
 
-        # --- Observable (TLPフィルタあり) ---
+        # --- Observable (TLP-filtered) ---
         obs_rows = []
         for obj in by_type["indicator"]:
             row = self._mapper.map_observable(obj)
@@ -106,7 +106,7 @@ class ETLWorker:
                 obs_rows.append(row)
         stats["observables"] = upsert_rows(self._db, "Observable", obs_rows)
 
-        # --- Incident (IR フィードバック) ---
+        # --- Incident (IR feedback) ---
         incident_rows = [r for obj in by_type["incident"] if (r := self._mapper.map_incident(obj))]
         stats["incidents"] = upsert_rows(self._db, "Incident", incident_rows)
 
@@ -137,7 +137,7 @@ class ETLWorker:
             elif table == "IndicatesActor":
                 ind_actor_rows.append(row)
 
-        # IncidentUsesTTP は incident オブジェクトから直接生成（sequence_order 付き）
+        # IncidentUsesTTP is generated directly from incident objects (includes sequence_order)
         for obj in by_type["incident"]:
             for row in self._mapper.map_incident_ttp_edges(obj):
                 incident_ttp_rows.append(row)
@@ -150,17 +150,17 @@ class ETLWorker:
         stats["indicates_actor"] = upsert_rows(self._db, "IndicatesActor", ind_actor_rows)
         stats["incident_uses_ttp"] = upsert_rows(self._db, "IncidentUsesTTP", incident_ttp_rows)
 
-        # --- FollowedBy(ir_feedback): IncidentUsesTTP から導出 ---
+        # --- FollowedBy(ir_feedback): derived from IncidentUsesTTP ---
         ir_fb_rows, ir_feedback_pairs = build_ir_feedback_followed_by(incident_ttp_rows)
         stats["followed_by_ir"] = upsert_followed_by(self._db, ir_fb_rows)
 
-        # --- Targets: PIR タグマッチングで自動生成 ---
+        # --- Targets: auto-generated via PIR tag matching ---
         targets_rows: list[dict] = []
         if asset_rows:
             targets_rows = self._pir.build_targets(actor_rows, asset_rows)
             stats["targets"] = upsert_rows(self._db, "Targets", targets_rows)
 
-            # --- pir_adjusted_criticality 更新: Targets エッジ存在を考慮した 1.5 倍補正 ---
+            # --- Update pir_adjusted_criticality: apply 1.5x multiplier when a Targets edge exists ---
             updated_assets = self._pir.update_asset_criticality(
                 asset_rows, actor_rows, targets_rows
             )
@@ -169,7 +169,7 @@ class ETLWorker:
             stats["targets"] = 0
             stats["pir_criticality_updated"] = 0
 
-        # --- FollowedBy(threat_intel): 4因子計算（ir_feedback pairs を ir_multiplier に利用） ---
+        # --- FollowedBy(threat_intel): 4-factor weight calculation (ir_feedback pairs used as ir_multiplier) ---
         ttp_vuln_data = _build_ttp_vuln_data(exploits_rows, vuln_rows)
         fb_rows = build_followed_by_weights(
             uses_rows,
@@ -190,9 +190,9 @@ def _build_ttp_vuln_data(
     exploits_rows: list[dict],
     vuln_rows: list[dict],
 ) -> dict[str, dict]:
-    """Exploits エッジと Vulnerability ノードから TTP → 脆弱性データの辞書を構築する。
+    """Build a TTP → vulnerability data dict from Exploits edges and Vulnerability nodes.
 
-    同一 TTP に複数の脆弱性が紐づく場合は最大スコアを採用する。
+    When multiple vulnerabilities are linked to the same TTP, the maximum scores are used.
     """
     vuln_map = {r["stix_id"]: r for r in vuln_rows}
     result: dict[str, dict] = {}
@@ -204,7 +204,7 @@ def _build_ttp_vuln_data(
         epss = vuln.get("epss_score")
 
         existing = result.get(ttp_id, {})
-        # 複数脆弱性がある場合は max スコアを保持
+        # Keep the max score when multiple vulnerabilities map to the same TTP
         new_cvss = max(filter(None, [existing.get("cvss_score"), cvss]), default=None)
         new_epss = max(filter(None, [existing.get("epss_score"), epss]), default=None)
         result[ttp_id] = {"cvss_score": new_cvss, "epss_score": new_epss}

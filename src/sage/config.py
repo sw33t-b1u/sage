@@ -2,14 +2,14 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-# TLP 順序（フィルタリングに使用）
+# TLP priority order (used for filtering)
 TLP_LEVELS = {"white": 0, "green": 1, "amber": 2, "red": 3}
 
 
 def _load_dotenv(path: str = ".env") -> None:
-    """
-    .env ファイルの内容を os.environ に読み込む（stdlib のみ、外部依存なし）。
-    既に設定済みの環境変数は上書きしない。
+    """Load .env file contents into os.environ (stdlib only, no external dependencies).
+
+    Already-set environment variables are not overwritten.
     """
     env_file = Path(path)
     if not env_file.exists():
@@ -35,16 +35,18 @@ class Config:
     opencti_url: str
     opencti_token: str
     pir_file_path: str = "/config/pir.json"
-    # amber 以下のデータのみ取り込む（red は除外）
+    # Ingest only data at or below this TLP level (red is always excluded)
     tlp_max_level: str = "amber"
-    # FollowedBy 重み計算の活動観測ウィンドウ（日）
+    # Lookback window in days for FollowedBy activity score calculation
     activity_window_days: int = 90
-    # Slack webhook URL（省略時は通知なし）
+    # Slack webhook URL (omit to disable notifications)
     slack_webhook_url: str = ""
-    # GitHub Enterprise: Personal Access Token と "owner/repo" 形式
+    # GitHub Enterprise: Personal Access Token and "owner/repo" format
     ghe_token: str = ""
     ghe_repo: str = ""
-    # Caldera: URL と API キー
+    # Override API base URL for GitHub Enterprise Server (e.g. https://ghe.example.com/api/v3)
+    ghe_api_base: str = "https://api.github.com"
+    # Caldera: server URL and API key
     caldera_url: str = ""
     caldera_api_key: str = ""
 
@@ -64,7 +66,7 @@ class Config:
             if not os.environ.get(k)
         ]
         if missing:
-            raise RuntimeError(f"必須環境変数が未設定です: {', '.join(missing)}")
+            raise RuntimeError(f"Required environment variables not set: {', '.join(missing)}")
 
         return cls(
             gcp_project_id=os.environ["GCP_PROJECT_ID"],
@@ -79,6 +81,7 @@ class Config:
             slack_webhook_url=os.environ.get("SLACK_WEBHOOK_URL", ""),
             ghe_token=os.environ.get("GHE_TOKEN", ""),
             ghe_repo=os.environ.get("GHE_REPO", ""),
+            ghe_api_base=os.environ.get("GHE_API_BASE", "https://api.github.com"),
             caldera_url=os.environ.get("CALDERA_URL", ""),
             caldera_api_key=os.environ.get("CALDERA_API_KEY", ""),
         )

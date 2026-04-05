@@ -1,7 +1,7 @@
-"""Spanner Graph への upsert 操作。
+"""Spanner Graph upsert operations.
 
-INSERT OR UPDATE (insert_or_update mutation) を使用して冪等性を担保する。
-同一 stix_id のオブジェクトが複数回 ETL されても重複しない。
+Uses INSERT OR UPDATE (insert_or_update mutation) to ensure idempotency.
+Re-running the ETL for the same stix_id does not produce duplicate rows.
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from google.cloud.spanner_v1.database import Database
 
 logger = structlog.get_logger(__name__)
 
-# テーブルごとのカラム定義（順序は Spanner DDL と一致させる）
+# Column definitions per table (order must match the Spanner DDL)
 _TABLE_COLUMNS: dict[str, list[str]] = {
     "ThreatActor": [
         "stix_id",
@@ -149,7 +149,7 @@ _TABLE_COLUMNS: dict[str, list[str]] = {
     "IncidentUsesTTP": ["incident_stix_id", "ttp_stix_id", "sequence_order"],
 }
 
-# バッチサイズ（Spanner mutation の上限は 20,000 mutations/transaction）
+# Batch size (Spanner mutation limit is 20,000 mutations/transaction)
 _BATCH_SIZE = 500
 
 
@@ -158,7 +158,7 @@ def upsert_rows(
     table: str,
     rows: list[dict[str, Any]],
 ) -> int:
-    """指定テーブルへ rows を一括 upsert する。挿入/更新した行数を返す。"""
+    """Bulk upsert rows into the specified table. Returns the number of rows written."""
     if not rows:
         return 0
 
@@ -179,7 +179,7 @@ def upsert_followed_by(
     database: Database,
     rows: list[dict[str, Any]],
 ) -> int:
-    """FollowedBy を upsert する。last_calculated に commit_timestamp を使用。"""
+    """Upsert FollowedBy rows, using commit_timestamp for last_calculated."""
     if not rows:
         return 0
 
@@ -187,11 +187,11 @@ def upsert_followed_by(
     total = 0
 
     for batch in _chunk(rows, _BATCH_SIZE):
-        # last_calculated は ALLOW_COMMIT_TIMESTAMP 対応カラム
+        # last_calculated uses ALLOW_COMMIT_TIMESTAMP
         values = []
         for r in batch:
             row_vals = _row_to_values(r, columns)
-            # last_calculated (最後のカラム) を commit timestamp に置き換え
+            # Replace last_calculated (final column) with commit timestamp
             row_vals[-1] = spanner.COMMIT_TIMESTAMP
             values.append(row_vals)
 
@@ -204,7 +204,7 @@ def upsert_followed_by(
 
 
 # ---------------------------------------------------------------------------
-# クエリ (読み取り)
+# Queries (read operations)
 # ---------------------------------------------------------------------------
 
 
@@ -212,9 +212,9 @@ def update_pir_criticality(
     database: Database,
     asset_rows: list[dict],
 ) -> int:
-    """Asset.pir_adjusted_criticality を部分更新する（id 以外のカラムは変更しない）。
+    """Partially update Asset.pir_adjusted_criticality without touching other columns.
 
-    batch.update() を使用して pir_adjusted_criticality のみを更新する。
+    Uses batch.update() to write only the pir_adjusted_criticality column.
     """
     if not asset_rows:
         return 0
@@ -232,10 +232,10 @@ def update_pir_criticality(
 
 
 def fetch_asset_rows(database: Database) -> list[dict]:
-    """Spanner から Asset テーブルの全行を取得して dict のリストで返す。
+    """Fetch all rows from the Asset table and return them as a list of dicts.
 
-    ETL 実行前に呼び出して process_bundle() の asset_rows 引数に渡す。
-    返却する dict は PIRFilter.build_targets() が必要とする id / tags を含む。
+    Called before ETL to supply the asset_rows argument to process_bundle().
+    The returned dicts include the id and tags fields required by PIRFilter.build_targets().
     """
     columns = _TABLE_COLUMNS["Asset"]
     rows = []
@@ -247,7 +247,7 @@ def fetch_asset_rows(database: Database) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
-# ユーティリティ
+# Utilities
 # ---------------------------------------------------------------------------
 
 
@@ -258,5 +258,3 @@ def _row_to_values(row: dict, columns: list[str]) -> list:
 def _chunk(lst: list, size: int):
     for i in range(0, len(lst), size):
         yield lst[i : i + size]
-
-

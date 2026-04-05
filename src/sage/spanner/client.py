@@ -1,7 +1,8 @@
-"""Spanner Graph クライアントのセットアップ。"""
+"""Spanner Graph client setup."""
 
 from __future__ import annotations
 
+from google.api_core.client_options import ClientOptions
 from google.cloud import spanner
 from google.cloud.spanner_v1.database import Database
 
@@ -11,7 +12,7 @@ def get_database(
     instance_id: str,
     database_id: str,
 ) -> Database:
-    """Spanner Database オブジェクトを返す。"""
+    """Return a Spanner Database object."""
     client = spanner.Client(project=project_id)
     instance = client.instance(instance_id)
     return instance.database(database_id)

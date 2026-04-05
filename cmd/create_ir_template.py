@@ -142,6 +142,7 @@ def main() -> None:
 
     ghe_token = os.environ.get("GHE_TOKEN", "")
     ghe_repo = os.environ.get("GHE_REPO", "")
+    ghe_api_base = os.environ.get("GHE_API_BASE", "https://api.github.com")
 
     if not args.dry_run and (not ghe_token or not ghe_repo):
         print("Error: GHE_TOKEN and GHE_REPO must be set (or use --dry-run).", file=sys.stderr)
@@ -171,6 +172,7 @@ def main() -> None:
         repo=ghe_repo,
         title=title,
         body=body,
+        api_base=ghe_api_base,
     )
 
     if result:
