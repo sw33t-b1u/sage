@@ -66,3 +66,4 @@ config/pir.json
 tmp/
 temp/
 Thumbs.db
+TODO.md
