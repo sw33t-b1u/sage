@@ -26,6 +26,7 @@ class PIRFilter:
     PIR JSON schema (see high-level-design.md):
     {
       "pir_id": "PIR-2025-001",
+      "organizational_scope": "Financial Crime Intelligence Team (department)",
       "description": "...",
       "threat_actor_tags": ["ransomware", "financially-motivated"],
       "asset_weight_rules": [
@@ -45,7 +46,12 @@ class PIRFilter:
         with path.open() as f:
             data = json.load(f)
         pirs = data if isinstance(data, list) else [data]
-        logger.info("pir_loaded", count=len(pirs))
+        for pir in pirs:
+            logger.info(
+                "pir_loaded",
+                pir_id=pir.get("pir_id"),
+                organizational_scope=pir.get("organizational_scope", "entire company"),
+            )
         return cls(pirs)
 
     # -----------------------------------------------------------------------
