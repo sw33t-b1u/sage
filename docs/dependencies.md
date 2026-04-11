@@ -17,6 +17,7 @@ per [project Rule 18](../../docs/RULES.md).
 | `requests` | `>=2.32.0` | Apache-2.0 | HTTP client for Slack Incoming Webhook, GitHub REST API, and MITRE Caldera REST API. | All three external APIs use plain HTTPS/JSON. `httpx` was not chosen to avoid an async dependency at the ETL layer; `requests` is synchronous and simpler. |
 | `fastapi` | `>=0.115.0` | MIT | Analysis API web framework — declarative routing, automatic OpenAPI docs, Pydantic validation. | Flask lacks built-in OpenAPI generation and type-based validation. FastAPI's `Query` descriptor handles range checks and required parameters with minimal boilerplate. |
 | `uvicorn` | `>=0.30.0` | BSD-3-Clause | ASGI server for FastAPI on Cloud Run. | FastAPI requires an ASGI server; uvicorn is the de facto standard pairing and is maintained by the same Encode team. |
+| `cryptography` | `>=46.0.7` | Apache-2.0 / BSD | Transitive dependency of `google-cloud-spanner`. Pinned to `>=46.0.7` to resolve CVE-2026-39892 in 46.0.6. No direct usage in SAGE code. |
 
 ---
 

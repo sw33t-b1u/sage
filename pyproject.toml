@@ -8,6 +8,7 @@ dependencies = [
     "google-cloud-spanner>=3.49.0",
     "google-cloud-storage>=2.18.0",
     "structlog>=24.4.0",
+    "cryptography>=46.0.7",
     "requests>=2.32.0",
     "fastapi>=0.115.0",
     "uvicorn>=0.30.0",

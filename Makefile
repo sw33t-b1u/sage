@@ -17,7 +17,7 @@ test:
 	uv run python -m pytest tests/ -v
 
 audit:
-	uv run pip-audit
+	PIPAPI_PYTHON_LOCATION=.venv/bin/python3 uv run pip-audit
 
 setup:
 	git config core.hooksPath .githooks
