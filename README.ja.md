@@ -75,36 +75,7 @@ make setup             # Git フックをインストール
 
 ## ディレクトリ構成
 
-```
-sage/
-├── src/sage/
-│   ├── config.py
-│   ├── etl/worker.py              # ETL パイプライン
-│   ├── stix/{parser,mapper}.py    # STIX 2.1 パース
-│   ├── pir/filter.py              # PIR フィルタリング & クリティカリティ調整
-│   ├── spanner/{client,upsert,query}.py
-│   ├── notify/{slack,github}.py
-│   ├── api/app.py                 # FastAPI Analysis API
-│   ├── caldera/client.py
-│   ├── analysis/similarity.py
-│   └── opencti/client.py
-├── cmd/
-│   ├── init_schema.py
-│   ├── run_etl.py
-│   ├── load_assets.py
-│   ├── report_choke_points.py
-│   ├── query_attack_paths.py
-│   ├── visualize_graph.py
-│   ├── visualize_attack_flow.py
-│   ├── analysis_api.py
-│   ├── sync_caldera.py
-│   └── create_ir_template.py
-├── schema/spanner_ddl.sql
-├── tests/fixtures/
-├── Dockerfile
-├── Makefile
-└── pyproject.toml
-```
+詳細なディレクトリレイアウトと設計方針は [docs/ja/structure.md](docs/ja/structure.md) を参照。
 
 ## 開発
 

@@ -74,36 +74,7 @@ See [docs/setup.md](docs/setup.md) for the full setup procedure.
 
 ## Project Structure
 
-```
-sage/
-├── src/sage/
-│   ├── config.py
-│   ├── etl/worker.py              # ETL pipeline
-│   ├── stix/{parser,mapper}.py    # STIX 2.1 parsing
-│   ├── pir/filter.py              # PIR filtering & criticality adjustment
-│   ├── spanner/{client,upsert,query}.py
-│   ├── notify/{slack,github}.py
-│   ├── api/app.py                 # FastAPI Analysis API
-│   ├── caldera/client.py
-│   ├── analysis/similarity.py
-│   └── opencti/client.py
-├── cmd/
-│   ├── init_schema.py
-│   ├── run_etl.py
-│   ├── load_assets.py
-│   ├── report_choke_points.py
-│   ├── query_attack_paths.py
-│   ├── visualize_graph.py
-│   ├── visualize_attack_flow.py
-│   ├── analysis_api.py
-│   ├── sync_caldera.py
-│   └── create_ir_template.py
-├── schema/spanner_ddl.sql
-├── tests/fixtures/
-├── Dockerfile
-├── Makefile
-└── pyproject.toml
-```
+See [docs/structure.md](docs/structure.md) for the full directory layout and design criteria.
 
 ## Development
 
