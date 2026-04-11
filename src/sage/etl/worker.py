@@ -8,7 +8,8 @@ Processing flow:
   5. Edge upsert (Uses, MalwareUsesTTP, UsesTool, Exploits, Indicates*, IncidentUsesTTP)
   6. Derive and upsert FollowedBy(ir_feedback) edges from IncidentUsesTTP
   7. Generate Targets edges via PIR tag matching
-  8. Calculate and upsert FollowedBy(threat_intel) weights (using ir_feedback pairs as ir_multiplier)
+  8. Calculate and upsert FollowedBy(threat_intel) weights
+     (using ir_feedback pairs as ir_multiplier)
 """
 
 from __future__ import annotations
@@ -160,7 +161,8 @@ class ETLWorker:
             targets_rows = self._pir.build_targets(actor_rows, asset_rows)
             stats["targets"] = upsert_rows(self._db, "Targets", targets_rows)
 
-            # --- Update pir_adjusted_criticality: apply 1.5x multiplier when a Targets edge exists ---
+            # --- Update pir_adjusted_criticality ---
+            # Apply 1.5x multiplier when a Targets edge exists.
             updated_assets = self._pir.update_asset_criticality(
                 asset_rows, actor_rows, targets_rows
             )
@@ -169,7 +171,8 @@ class ETLWorker:
             stats["targets"] = 0
             stats["pir_criticality_updated"] = 0
 
-        # --- FollowedBy(threat_intel): 4-factor weight calculation (ir_feedback pairs used as ir_multiplier) ---
+        # --- FollowedBy(threat_intel): 4-factor weight calculation ---
+        # ir_feedback pairs are used as ir_multiplier.
         ttp_vuln_data = _build_ttp_vuln_data(exploits_rows, vuln_rows)
         fb_rows = build_followed_by_weights(
             uses_rows,

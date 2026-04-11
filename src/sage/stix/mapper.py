@@ -152,11 +152,13 @@ class StixMapper:
         for order, phase in enumerate(obj.get("kill_chain_phases", [])):
             ttp_id = phase.get("x_ttp_stix_id")
             if ttp_id:
-                rows.append({
-                    "incident_stix_id": incident_id,
-                    "ttp_stix_id": ttp_id,
-                    "sequence_order": order,
-                })
+                rows.append(
+                    {
+                        "incident_stix_id": incident_id,
+                        "ttp_stix_id": ttp_id,
+                        "sequence_order": order,
+                    }
+                )
         return rows
 
     # -----------------------------------------------------------------------
@@ -293,7 +295,8 @@ def build_followed_by_weights(
             ttp_activity[ttp_id] = 0.5  # unknown date → neutral (× 2.0 = 1.0)
         else:
             recent = sum(
-                1 for r in dated
+                1
+                for r in dated
                 if _to_ts(r["last_observed"]) is not None
                 and _to_ts(r["last_observed"]) >= cutoff_dt
             )
@@ -329,15 +332,17 @@ def build_followed_by_weights(
 
         weight = min(base_prob * activity_score * exploit_ease * ir_multiplier, 1.0)
 
-        result.append({
-            "src_ttp_stix_id": src,
-            "dst_ttp_stix_id": dst,
-            "source": "threat_intel",
-            "weight": weight,
-            "actor_stix_id": None,
-            "evidence_stix_ids": transition_evidence[(src, dst)][:10],
-            "last_calculated": now,
-        })
+        result.append(
+            {
+                "src_ttp_stix_id": src,
+                "dst_ttp_stix_id": dst,
+                "source": "threat_intel",
+                "weight": weight,
+                "actor_stix_id": None,
+                "evidence_stix_ids": transition_evidence[(src, dst)][:10],
+                "last_calculated": now,
+            }
+        )
 
     return result
 

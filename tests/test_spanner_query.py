@@ -64,9 +64,12 @@ class TestFindActorTTPs:
     def test_returns_followed_by_edges(self):
         mock_rows = [
             [
-                "attack-pattern--t1078", "Valid Accounts",
-                "attack-pattern--t1068", "Priv Esc",
-                0.72, "threat_intel",
+                "attack-pattern--t1078",
+                "Valid Accounts",
+                "attack-pattern--t1068",
+                "Priv Esc",
+                0.72,
+                "threat_intel",
             ],
         ]
         db = _make_db(mock_rows)
@@ -89,7 +92,7 @@ class TestFindChokePoints:
     def test_returns_choke_score(self):
         mock_rows = [
             ["asset-001", "WebServer", 9.0, 3, 27.0],
-            ["asset-002", "Backup",    6.0, 2, 12.0],
+            ["asset-002", "Backup", 6.0, 2, 12.0],
         ]
         db = _make_db(mock_rows)
 

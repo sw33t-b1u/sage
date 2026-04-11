@@ -126,7 +126,10 @@ class TestPostChokePointIssue:
             mock_requests.post.side_effect = [mock_post_label, mock_post_issue]
 
             result = post_choke_point_issue(
-                "token", "owner/repo", "title", "body",
+                "token",
+                "owner/repo",
+                "title",
+                "body",
                 api_base="https://api.github.com",
             )
 
@@ -146,7 +149,10 @@ class TestPostChokePointIssue:
             mock_requests.patch.return_value = mock_patch
 
             result = post_choke_point_issue(
-                "token", "owner/repo", "title", "body",
+                "token",
+                "owner/repo",
+                "title",
+                "body",
                 api_base="https://api.github.com",
             )
 

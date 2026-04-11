@@ -131,7 +131,11 @@ def _ensure_label(
         url = f"{api_base}/repos/{repo}/labels"
         resp = requests.post(  # type: ignore[union-attr]
             url,
-            json={"name": _ISSUE_LABEL, "color": "d93f0b", "description": "SAGE auto-generated report"},
+            json={
+                "name": _ISSUE_LABEL,
+                "color": "d93f0b",
+                "description": "SAGE auto-generated report",
+            },
             headers=headers,
             timeout=10,
         )

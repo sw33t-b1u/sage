@@ -39,15 +39,15 @@ structlog.configure(
 logger = structlog.get_logger(__name__)
 
 # ノード色
-_ACTOR_COLOR = "#e74c3c"   # 赤: ThreatActor
-_TTP_COLOR = "#e67e22"     # オレンジ: TTP
-_MALWARE_COLOR = "#9b59b6" # 紫: MalwareTool
+_ACTOR_COLOR = "#e74c3c"  # 赤: ThreatActor
+_TTP_COLOR = "#e67e22"  # オレンジ: TTP
+_MALWARE_COLOR = "#9b59b6"  # 紫: MalwareTool
 
 # FollowedBy source ごとのエッジスタイル
 _SOURCE_DASH: dict[str, bool] = {
-    "threat_intel": False,   # 実線
-    "ir_feedback": True,     # 破線（自社IR実績）
-    "manual_analysis": True, # 破線
+    "threat_intel": False,  # 実線
+    "ir_feedback": True,  # 破線（自社IR実績）
+    "manual_analysis": True,  # 破線
 }
 
 
@@ -270,7 +270,8 @@ def build_network(
         dashes = _SOURCE_DASH.get(e["source"], False)
         label = f"{weight:.2f}"
         net.add_edge(
-            e["src"], e["dst"],
+            e["src"],
+            e["dst"],
             label=label,
             color=color,
             width=width,
@@ -282,7 +283,8 @@ def build_network(
     # Uses エッジ: 細いグレー実線
     for e in uses_edges:
         net.add_edge(
-            e["src"], e["dst"],
+            e["src"],
+            e["dst"],
             label="uses",
             color="#666666",
             width=1.0,

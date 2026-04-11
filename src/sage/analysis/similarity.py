@@ -171,13 +171,15 @@ def find_similar_incidents(
         j = jaccard_ttp(query_ttps, ref_ttps)
         t = transition_coverage(query_ttps, ref_ttps, graph, max_hops)
         score = alpha * j + (1.0 - alpha) * t
-        results.append({
-            "incident_id": ref_id,
-            "hybrid_score": round(score, 4),
-            "jaccard_ttp": round(j, 4),
-            "transition_coverage": round(t, 4),
-            "shared_ttps": sorted(query_ttps & ref_ttps),
-        })
+        results.append(
+            {
+                "incident_id": ref_id,
+                "hybrid_score": round(score, 4),
+                "jaccard_ttp": round(j, 4),
+                "transition_coverage": round(t, 4),
+                "shared_ttps": sorted(query_ttps & ref_ttps),
+            }
+        )
 
     results.sort(key=lambda x: x["hybrid_score"], reverse=True)
     logger.info(

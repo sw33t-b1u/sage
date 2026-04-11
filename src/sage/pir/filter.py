@@ -201,20 +201,12 @@ class PIRFilter:
 
         for pir in self._pirs:
             pir_actor_tags: set[str] = set(pir.get("threat_actor_tags", []))
-            pir_asset_tags: set[str] = {
-                rule["tag"] for rule in pir.get("asset_weight_rules", [])
-            }
+            pir_asset_tags: set[str] = {rule["tag"] for rule in pir.get("asset_weight_rules", [])}
             if not pir_actor_tags or not pir_asset_tags:
                 continue
 
-            matched_actors = [
-                a for a in actor_rows
-                if set(a.get("tags") or []) & pir_actor_tags
-            ]
-            matched_assets = [
-                a for a in asset_rows
-                if set(a.get("tags") or []) & pir_asset_tags
-            ]
+            matched_actors = [a for a in actor_rows if set(a.get("tags") or []) & pir_actor_tags]
+            matched_assets = [a for a in asset_rows if set(a.get("tags") or []) & pir_asset_tags]
 
             for actor in matched_actors:
                 actor_overlap = len(set(actor.get("tags") or []) & pir_actor_tags)

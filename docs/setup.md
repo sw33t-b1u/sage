@@ -173,3 +173,51 @@ gcloud scheduler jobs create http sage-daily-etl \
   --time-zone="UTC" \
   --project=${PROJECT_ID}
 ```
+
+---
+
+## Deleting data from Spanner
+
+There is no dedicated delete CLI. Use `gcloud spanner databases execute-sql` with DML statements.
+
+**Delete a specific node by STIX ID:**
+
+```sh
+# Delete a ThreatActor
+gcloud spanner databases execute-sql ${SPANNER_DB} \
+  --instance=${SPANNER_INSTANCE} --project=${PROJECT_ID} \
+  --sql="DELETE FROM ThreatActor WHERE stix_id = 'intrusion-set--xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'"
+
+# Delete a TTP (also removes downstream FollowedBy edges referencing it)
+gcloud spanner databases execute-sql ${SPANNER_DB} \
+  --instance=${SPANNER_INSTANCE} --project=${PROJECT_ID} \
+  --sql="DELETE FROM TTP WHERE stix_id = 'attack-pattern--xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'"
+
+# Delete an Asset loaded by mistake
+gcloud spanner databases execute-sql ${SPANNER_DB} \
+  --instance=${SPANNER_INSTANCE} --project=${PROJECT_ID} \
+  --sql="DELETE FROM Asset WHERE id = 'asset-001-xxxxx-xxxx-xxxxxxxxxxxx'"
+```
+
+**Delete edges only (keep nodes):**
+
+```sh
+# Remove all Targets edges for a specific actor
+gcloud spanner databases execute-sql ${SPANNER_DB} \
+  --instance=${SPANNER_INSTANCE} --project=${PROJECT_ID} \
+  --sql="DELETE FROM Targets WHERE src_actor_stix_id = 'intrusion-set--xxxx'"
+
+# Remove FollowedBy edges from a specific source
+gcloud spanner databases execute-sql ${SPANNER_DB} \
+  --instance=${SPANNER_INSTANCE} --project=${PROJECT_ID} \
+  --sql="DELETE FROM FollowedBy WHERE source = 'manual'"
+```
+
+**Full schema reset (wipe all data, keep schema):**
+
+```sh
+# Run DDL again — drops and recreates all tables
+make init-schema
+```
+
+> **Note:** Spanner DDL re-execution via `init_schema.py` drops all tables and recreates them empty. Use this only when a clean slate is needed.

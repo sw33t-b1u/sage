@@ -51,19 +51,64 @@ Priority Intelligence Requirements (PIRs) drive dynamic asset criticality adjust
 
 ### PIR JSON format
 
+BEACON generates the following structure. SAGE processes the fields marked **[used by SAGE]**; remaining fields are metadata stored as-is.
+
 ```json
 {
   "pir_id": "PIR-2026-001",
-  "description": "Supply chain attack via vendor systems",
-  "threat_actor_tags": ["supply-chain", "apt-naver-linked"],
+  "intelligence_level": "strategic",
+  "description": "Strengthen defenses against nation-state actors targeting PLM systems",
+  "rationale": "Likelihood=5, Impact=5 — state_sponsored.China / OT connectivity risk",
+  "threat_actor_tags": ["apt-china", "espionage", "ip-theft", "ot-targeting"],
   "asset_weight_rules": [
-    { "tag": "authentication",    "criticality_multiplier": 3.0 },
-    { "tag": "shared-infra",      "criticality_multiplier": 2.5 }
+    { "tag": "plm",  "criticality_multiplier": 2.5 },
+    { "tag": "ot",   "criticality_multiplier": 2.0 }
   ],
-  "valid_from": "2026-01-01",
-  "valid_until": "2026-12-31"
+  "collection_focus": [
+    "Monitor new TTPs and infrastructure changes: MirrorFace / Salt Typhoon",
+    "Vulnerability exploitation targeting OT/ICS environments"
+  ],
+  "valid_from": "2026-04-11",
+  "valid_until": "2027-04-11",
+  "risk_score": { "likelihood": 5, "impact": 5, "composite": 25 }
 }
 ```
+
+Fields used by SAGE ETL: `pir_id`, `threat_actor_tags`, `asset_weight_rules`, `valid_from`, `valid_until`.
+Remaining fields (`intelligence_level`, `description`, `rationale`, `collection_focus`, `risk_score`) are BEACON metadata passed through without modification.
+
+### Available threat_actor_tags
+
+| Category | Tags |
+|----------|------|
+| Nation-state | `apt-china`, `apt-russia`, `apt-north-korea`, `apt-iran`, `apt-india` |
+| Motivation | `espionage`, `ip-theft`, `financially-motivated`, `destructive`, `hacktivism`, `bec`, `fraud`, `double-extortion`, `insider-threat` |
+| Target type | `ot-targeting`, `critical-infrastructure`, `cloud-targeting`, `supply-chain-attack`, `phi-targeting`, `erp-targeting`, `msp-targeting`, `software-supply-chain`, `source-code-theft`, `research-theft` |
+| Geography | `targets-japan`, `targets-sea`, `targets-usa`, `targets-europe`, `targets-south-korea`, `targets-taiwan`, `targets-uk`, `targets-germany`, `targets-australia`, `targets-middle-east` |
+| Crime | `ransomware`, `raas`, `cybercriminal`, `initial-access-broker` |
+
+### Available asset_weight_rules tags
+
+| Tag | Typical multiplier | Asset type |
+|-----|--------------------|-----------|
+| `plm` | 2.5 | PLM / product lifecycle |
+| `ot` | 2.0 | OT / ICS / SCADA |
+| `erp` | 2.0 | ERP systems |
+| `authentication` | 2.5 | IAM / SSO / directory services |
+| `domain_controller` | 2.5 | Active Directory / LDAP |
+| `cloud` | 1.5 | Cloud infrastructure |
+| `devops_cicd` | 2.0 | DevOps / CI-CD toolchain |
+| `siem` | 2.0 | SIEM / security monitoring |
+| `pki` | 2.0 | PKI / certificate authority |
+| `database` | 1.8 | Database servers |
+| `email_gateway` | 1.5 | Email gateway / MTA |
+| `vpn_remote_access` | 1.5 | VPN / remote access |
+| `firewall_ngfw` | 1.5 | Firewall / NGFW |
+| `api_gateway` | 1.5 | API gateway |
+| `file_server` | 1.3 | File servers |
+| `external-facing` | 1.5 | DMZ / internet-exposed assets |
+
+Full tag definitions and multipliers: `BEACON/schema/asset_tags.json`
 
 ### Criticality formula
 

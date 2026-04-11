@@ -166,9 +166,7 @@ def sync_actor_ttps(
                 "ability_count": len(ability_ids),
             }
 
-    created = create_adversary(
-        caldera_url, api_key, profile_name, description, ability_ids
-    )
+    created = create_adversary(caldera_url, api_key, profile_name, description, ability_ids)
     if created:
         return {
             "action": "created",

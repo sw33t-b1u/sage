@@ -120,9 +120,7 @@ def _fetch_similar(incident_id: str) -> str:
     lines = ["| インシデント ID | スコア | 共通 TTP 数 |", "|---|---|---|"]
     for item in items:
         shared = len(item.get("shared_ttps", []))
-        lines.append(
-            f"| `{item['incident_id']}` | {item['hybrid_score']:.3f} | {shared} |"
-        )
+        lines.append(f"| `{item['incident_id']}` | {item['hybrid_score']:.3f} | {shared} |")
     return "\n".join(lines)
 
 

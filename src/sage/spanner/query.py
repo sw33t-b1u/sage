@@ -67,13 +67,15 @@ def find_attack_paths(
     with database.snapshot() as snap:
         result = snap.execute_sql(gql, params=params, param_types=param_types)
         for row in result:
-            rows.append({
-                "actor_stix_id": row[0],
-                "actor_name": row[1],
-                "ttp_stix_id": row[2],
-                "ttp_name": row[3],
-                "confidence": row[4],
-            })
+            rows.append(
+                {
+                    "actor_stix_id": row[0],
+                    "actor_name": row[1],
+                    "ttp_stix_id": row[2],
+                    "ttp_name": row[3],
+                    "confidence": row[4],
+                }
+            )
 
     logger.info("find_attack_paths", asset_id=asset_id, count=len(rows))
     return rows
@@ -121,14 +123,16 @@ def find_actor_ttps(
     with database.snapshot() as snap:
         result = snap.execute_sql(gql, params=params, param_types=param_types)
         for row in result:
-            rows.append({
-                "src_ttp_stix_id": row[0],
-                "src_ttp_name": row[1],
-                "dst_ttp_stix_id": row[2],
-                "dst_ttp_name": row[3],
-                "weight": row[4],
-                "source": row[5],
-            })
+            rows.append(
+                {
+                    "src_ttp_stix_id": row[0],
+                    "src_ttp_name": row[1],
+                    "dst_ttp_stix_id": row[2],
+                    "dst_ttp_name": row[3],
+                    "weight": row[4],
+                    "source": row[5],
+                }
+            )
 
     logger.info("find_actor_ttps", actor_stix_id=actor_stix_id, count=len(rows))
     return rows
@@ -175,13 +179,15 @@ def find_choke_points(
     with database.snapshot() as snap:
         result = snap.execute_sql(sql, params=params, param_types=param_types)
         for row in result:
-            rows.append({
-                "asset_id": row[0],
-                "asset_name": row[1],
-                "pir_adjusted_criticality": row[2],
-                "targeting_actor_count": row[3],
-                "choke_score": row[4],
-            })
+            rows.append(
+                {
+                    "asset_id": row[0],
+                    "asset_name": row[1],
+                    "pir_adjusted_criticality": row[2],
+                    "targeting_actor_count": row[3],
+                    "choke_score": row[4],
+                }
+            )
 
     logger.info("find_choke_points", top_n=top_n, count=len(rows))
     return rows
@@ -226,13 +232,15 @@ def find_asset_exposure(
     with database.snapshot() as snap:
         result = snap.execute_sql(sql)
         for row in result:
-            rows.append({
-                "asset_id": row[0],
-                "asset_name": row[1],
-                "pir_adjusted_criticality": row[2],
-                "targeting_actor_count": row[3],
-                "reachable_ttp_count": row[4],
-            })
+            rows.append(
+                {
+                    "asset_id": row[0],
+                    "asset_name": row[1],
+                    "pir_adjusted_criticality": row[2],
+                    "targeting_actor_count": row[3],
+                    "reachable_ttp_count": row[4],
+                }
+            )
 
     logger.info("find_asset_exposure", count=len(rows))
     return rows

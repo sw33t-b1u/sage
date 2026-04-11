@@ -292,11 +292,13 @@ class TestBuildIrFeedbackFollowedBy:
         ]
         fb_rows, _ = build_ir_feedback_followed_by(rows)
         ab = next(
-            r for r in fb_rows
+            r
+            for r in fb_rows
             if r["src_ttp_stix_id"] == "ttp-A" and r["dst_ttp_stix_id"] == "ttp-B"
         )
         ac = next(
-            r for r in fb_rows
+            r
+            for r in fb_rows
             if r["src_ttp_stix_id"] == "ttp-A" and r["dst_ttp_stix_id"] == "ttp-C"
         )
         # 各遷移は2インシデント中1回 → weight = 0.5

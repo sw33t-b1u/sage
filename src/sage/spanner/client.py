@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from google.api_core.client_options import ClientOptions
 from google.cloud import spanner
 from google.cloud.spanner_v1.database import Database
 

@@ -113,8 +113,10 @@ def _build_etl_blocks(stats: dict[str, int], changed: list[dict]) -> list[dict]:
 
     lines = []
     for row in changed[:5]:  # show top 5 only
-        icon = ":new:" if row["change"] == "new" else (
-            ":arrow_up:" if row["change"] == "increased" else ":arrow_down:"
+        icon = (
+            ":new:"
+            if row["change"] == "new"
+            else (":arrow_up:" if row["change"] == "increased" else ":arrow_down:")
         )
         prev = f"(prev: {row['prev_score']:.1f})" if row["prev_score"] is not None else "(new)"
         lines.append(

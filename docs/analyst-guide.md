@@ -135,9 +135,12 @@ Available endpoints:
 Run this when organizational context changes (new projects, M&A, regulatory updates, new crown jewels):
 
 ```
-1. Update business_context.json (or .md)     ← in BEACON repo
-2. uv run python cmd/generate_pir.py ...     ← run in BEACON repo (see BEACON docs)
-3. cp pir_output.json /path/to/config/pir.json
+1. Update input/<context>.md                  ← in BEACON repo (see docs/context_template.md)
+2. uv run python cmd/generate_pir.py \        ← run in BEACON repo
+     --context input/<context>.md \
+     --output output/pir_output.json \
+     --collection-plan output/collection_plan.md
+3. cp output/pir_output.json /path/to/config/pir.json
 4. make run-etl                               ← re-run ETL to apply new PIR weights
 5. uv run python cmd/report_choke_points.py   ← verify criticality changes
 ```
