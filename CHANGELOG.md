@@ -92,8 +92,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Spanner Query Module**
 - `src/sage/spanner/query.py` — Analysis queries:
-  - `find_attack_paths(asset_id, limit)`: GQL traversal ThreatActor → TTP path to asset
-  - `find_actor_ttps(actor_stix_id)`: GQL actor → TTP → FollowedBy flow
+  - `find_attack_paths(asset_id, limit)`: SQL JOIN ThreatActor → Targets → Asset + Uses → TTP
+  - `find_actor_ttps(actor_stix_id)`: SQL JOIN actor → Uses → TTP → FollowedBy → TTP
   - `find_choke_points(top_n)`: SQL ranking by `pir_adjusted_criticality × actor_count`
   - `find_asset_exposure()`: SQL for internet-exposed assets with reachable TTP count
 

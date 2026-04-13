@@ -34,4 +34,4 @@ load-assets:
 	uv run python cmd/load_assets.py
 
 visualize:
-	uv run python cmd/visualize_graph.py
+	uv run python cmd/visualize_combined.py

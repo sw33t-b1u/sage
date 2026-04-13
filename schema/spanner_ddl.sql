@@ -228,75 +228,51 @@ CREATE TABLE IndicatesActor (
 ) PRIMARY KEY (observable_stix_id, actor_stix_id);
 
 -- =============================================================================
--- PROPERTY GRAPH 宣言
+-- PROPERTY GRAPH (optional — requires Enterprise edition)
 -- =============================================================================
-
-CREATE PROPERTY GRAPH ThreatIntelGraph
-  NODE TABLES (
-    ThreatActor     KEY (stix_id)
-      LABEL ThreatActor     PROPERTIES ALL COLUMNS,
-    TTP             KEY (stix_id)
-      LABEL TTP             PROPERTIES ALL COLUMNS,
-    Vulnerability   KEY (stix_id)
-      LABEL Vulnerability   PROPERTIES ALL COLUMNS,
-    MalwareTool     KEY (stix_id)
-      LABEL MalwareTool     PROPERTIES ALL COLUMNS,
-    Observable      KEY (stix_id)
-      LABEL Observable      PROPERTIES ALL COLUMNS,
-    Incident        KEY (stix_id)
-      LABEL Incident        PROPERTIES ALL COLUMNS,
-    Asset           KEY (id)
-      LABEL Asset           PROPERTIES ALL COLUMNS,
-    SecurityControl KEY (id)
-      LABEL SecurityControl PROPERTIES ALL COLUMNS
-  )
-  EDGE TABLES (
-    Uses
-      SOURCE KEY (actor_stix_id) REFERENCES ThreatActor (stix_id)
-      DESTINATION KEY (ttp_stix_id) REFERENCES TTP (stix_id)
-      LABEL USES PROPERTIES ALL COLUMNS,
-    MalwareUsesTTP
-      SOURCE KEY (malware_stix_id) REFERENCES MalwareTool (stix_id)
-      DESTINATION KEY (ttp_stix_id) REFERENCES TTP (stix_id)
-      LABEL MALWARE_USES_TTP PROPERTIES ALL COLUMNS,
-    UsesTool
-      SOURCE KEY (actor_stix_id) REFERENCES ThreatActor (stix_id)
-      DESTINATION KEY (tool_stix_id) REFERENCES MalwareTool (stix_id)
-      LABEL USES_TOOL PROPERTIES ALL COLUMNS,
-    Exploits
-      SOURCE KEY (ttp_stix_id) REFERENCES TTP (stix_id)
-      DESTINATION KEY (vuln_stix_id) REFERENCES Vulnerability (stix_id)
-      LABEL EXPLOITS PROPERTIES ALL COLUMNS,
-    FollowedBy
-      SOURCE KEY (src_ttp_stix_id) REFERENCES TTP (stix_id)
-      DESTINATION KEY (dst_ttp_stix_id) REFERENCES TTP (stix_id)
-      LABEL FOLLOWED_BY PROPERTIES ALL COLUMNS,
-    IncidentUsesTTP
-      SOURCE KEY (incident_stix_id) REFERENCES Incident (stix_id)
-      DESTINATION KEY (ttp_stix_id) REFERENCES TTP (stix_id)
-      LABEL INCIDENT_USES_TTP PROPERTIES ALL COLUMNS,
-    Targets
-      SOURCE KEY (actor_stix_id) REFERENCES ThreatActor (stix_id)
-      DESTINATION KEY (asset_id) REFERENCES Asset (id)
-      LABEL TARGETS PROPERTIES ALL COLUMNS,
-    HasVulnerability
-      SOURCE KEY (asset_id) REFERENCES Asset (id)
-      DESTINATION KEY (vuln_stix_id) REFERENCES Vulnerability (stix_id)
-      LABEL HAS_VULNERABILITY PROPERTIES ALL COLUMNS,
-    ConnectedTo
-      SOURCE KEY (src_asset_id) REFERENCES Asset (id)
-      DESTINATION KEY (dst_asset_id) REFERENCES Asset (id)
-      LABEL CONNECTED_TO PROPERTIES ALL COLUMNS,
-    ProtectedBy
-      SOURCE KEY (asset_id) REFERENCES Asset (id)
-      DESTINATION KEY (control_id) REFERENCES SecurityControl (id)
-      LABEL PROTECTED_BY PROPERTIES ALL COLUMNS,
-    IndicatesTTP
-      SOURCE KEY (observable_stix_id) REFERENCES Observable (stix_id)
-      DESTINATION KEY (ttp_stix_id) REFERENCES TTP (stix_id)
-      LABEL INDICATES_TTP PROPERTIES ALL COLUMNS,
-    IndicatesActor
-      SOURCE KEY (observable_stix_id) REFERENCES Observable (stix_id)
-      DESTINATION KEY (actor_stix_id) REFERENCES ThreatActor (stix_id)
-      LABEL INDICATES_ACTOR PROPERTIES ALL COLUMNS
-  );
+-- The CREATE PROPERTY GRAPH statement below is commented out because it
+-- requires Spanner Enterprise edition.  All SAGE queries use standard SQL
+-- JOINs on the node/edge tables above, so the graph declaration is not
+-- required for the system to function.
+--
+-- To enable GQL support on Enterprise, uncomment the block below and run
+-- init_schema again (the existing tables will be skipped; only the graph
+-- declaration will be applied).
+--
+-- CREATE PROPERTY GRAPH ThreatIntelGraph
+--   NODE TABLES (
+--     ThreatActor     KEY (stix_id)  LABEL ThreatActor     PROPERTIES ALL COLUMNS,
+--     TTP             KEY (stix_id)  LABEL TTP             PROPERTIES ALL COLUMNS,
+--     Vulnerability   KEY (stix_id)  LABEL Vulnerability   PROPERTIES ALL COLUMNS,
+--     MalwareTool     KEY (stix_id)  LABEL MalwareTool     PROPERTIES ALL COLUMNS,
+--     Observable      KEY (stix_id)  LABEL Observable      PROPERTIES ALL COLUMNS,
+--     Incident        KEY (stix_id)  LABEL Incident        PROPERTIES ALL COLUMNS,
+--     Asset           KEY (id)       LABEL Asset           PROPERTIES ALL COLUMNS,
+--     SecurityControl KEY (id)       LABEL SecurityControl PROPERTIES ALL COLUMNS
+--   )
+--   EDGE TABLES (
+--     Uses           SOURCE KEY (actor_stix_id)      REFERENCES ThreatActor (stix_id)
+--                    DESTINATION KEY (ttp_stix_id)    REFERENCES TTP (stix_id)         LABEL USES PROPERTIES ALL COLUMNS,
+--     MalwareUsesTTP SOURCE KEY (malware_stix_id)    REFERENCES MalwareTool (stix_id)
+--                    DESTINATION KEY (ttp_stix_id)    REFERENCES TTP (stix_id)         LABEL MALWARE_USES_TTP PROPERTIES ALL COLUMNS,
+--     UsesTool       SOURCE KEY (actor_stix_id)      REFERENCES ThreatActor (stix_id)
+--                    DESTINATION KEY (tool_stix_id)   REFERENCES MalwareTool (stix_id) LABEL USES_TOOL PROPERTIES ALL COLUMNS,
+--     Exploits       SOURCE KEY (ttp_stix_id)        REFERENCES TTP (stix_id)
+--                    DESTINATION KEY (vuln_stix_id)   REFERENCES Vulnerability (stix_id) LABEL EXPLOITS PROPERTIES ALL COLUMNS,
+--     FollowedBy     SOURCE KEY (src_ttp_stix_id)    REFERENCES TTP (stix_id)
+--                    DESTINATION KEY (dst_ttp_stix_id) REFERENCES TTP (stix_id)        LABEL FOLLOWED_BY PROPERTIES ALL COLUMNS,
+--     IncidentUsesTTP SOURCE KEY (incident_stix_id)  REFERENCES Incident (stix_id)
+--                    DESTINATION KEY (ttp_stix_id)    REFERENCES TTP (stix_id)         LABEL INCIDENT_USES_TTP PROPERTIES ALL COLUMNS,
+--     Targets        SOURCE KEY (actor_stix_id)      REFERENCES ThreatActor (stix_id)
+--                    DESTINATION KEY (asset_id)       REFERENCES Asset (id)            LABEL TARGETS PROPERTIES ALL COLUMNS,
+--     HasVulnerability SOURCE KEY (asset_id)          REFERENCES Asset (id)
+--                    DESTINATION KEY (vuln_stix_id)   REFERENCES Vulnerability (stix_id) LABEL HAS_VULNERABILITY PROPERTIES ALL COLUMNS,
+--     ConnectedTo    SOURCE KEY (src_asset_id)       REFERENCES Asset (id)
+--                    DESTINATION KEY (dst_asset_id)   REFERENCES Asset (id)            LABEL CONNECTED_TO PROPERTIES ALL COLUMNS,
+--     ProtectedBy    SOURCE KEY (asset_id)           REFERENCES Asset (id)
+--                    DESTINATION KEY (control_id)     REFERENCES SecurityControl (id)  LABEL PROTECTED_BY PROPERTIES ALL COLUMNS,
+--     IndicatesTTP   SOURCE KEY (observable_stix_id) REFERENCES Observable (stix_id)
+--                    DESTINATION KEY (ttp_stix_id)    REFERENCES TTP (stix_id)         LABEL INDICATES_TTP PROPERTIES ALL COLUMNS,
+--     IndicatesActor SOURCE KEY (observable_stix_id) REFERENCES Observable (stix_id)
+--                    DESTINATION KEY (actor_stix_id)  REFERENCES ThreatActor (stix_id) LABEL INDICATES_ACTOR PROPERTIES ALL COLUMNS
+--   );

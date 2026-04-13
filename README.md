@@ -97,15 +97,6 @@ Cloud Scheduler             — daily ETL trigger (03:00 JST)
 Secret Manager              — API tokens and credentials
 ```
 
-## Implementation Phases
-
-| Phase | Scope | Status |
-|-------|-------|--------|
-| Phase 1 | Spanner Graph schema + OpenCTI → STIX ETL | Complete |
-| Phase 2 | Internal asset data + PIR application + attack path queries | Complete |
-| Phase 3 | FollowedBy weights + visualization + Slack/GHE notifications | Complete |
-| Phase 4 | Caldera integration + IR feedback loop + Analysis API | Complete |
-
 ## License
 
 Apache-2.0 — see [LICENSE](LICENSE)

@@ -68,8 +68,10 @@ docker stop spanner-emulator && docker rm spanner-emulator
 オプション:
 
 ```sh
-uv run python cmd/visualize_graph.py --no-open      # ブラウザ自動起動を抑制
-uv run python cmd/visualize_graph.py --limit 200    # テーブルごとの行数を制限
+uv run python cmd/visualize_combined.py --no-open   # 統合ビュー、ブラウザ自動起動を抑制
+uv run python cmd/visualize_combined.py --limit 200 # テーブルごとの行数を制限
+uv run python cmd/visualize_graph.py --no-open      # 攻撃グラフのみ
+uv run python cmd/visualize_attack_flow.py --no-open # 攻撃フローのみ
 ```
 
 ---

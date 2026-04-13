@@ -94,14 +94,20 @@ uv run python cmd/query_attack_paths.py --actor-id intrusion-set--xxxxxxxx-xxxx-
 Generates an interactive HTML file and opens it in your browser. Nodes are color-coded by type, draggable, and zoomable. Runs locally against production Spanner.
 
 ```sh
-# Full attack graph
+# Combined view (attack graph + attack flow with FollowedBy weights)
+uv run python cmd/visualize_combined.py --output /tmp/sage_combined.html
+
+# Filter to a specific actor
+uv run python cmd/visualize_combined.py --actor-id "intrusion-set--xxx"
+
+# Attack graph only (all nodes, uniform edges)
 uv run python cmd/visualize_graph.py --output /tmp/sage_graph.html
 
-# TTP attack flow with FollowedBy weights
+# Attack flow only (TTP transitions with FollowedBy weights)
 uv run python cmd/visualize_attack_flow.py --output /tmp/attack_flow.html
 
 # Suppress auto-open / limit rows per table
-uv run python cmd/visualize_graph.py --no-open --limit 200
+uv run python cmd/visualize_combined.py --no-open --limit 200
 ```
 
 > `make visualize` is a shortcut for local/emulator use. For production data, run the command directly as shown above.

@@ -30,7 +30,7 @@
 | `pytest` | `>=8.3.0` | MIT | テストランナー |
 | `pytest-cov` | `>=5.0.0` | MIT | `make test` 用カバレッジレポート |
 | `pip-audit` | `>=2.7.0` | Apache-2.0 | 依存パッケージの既知脆弱性スキャン（ルール 21）。`make audit` / `make check` で実行。|
-| `pyvis` | `>=0.3.2` | BSD-3-Clause | インタラクティブグラフの HTML 生成（`visualize_graph.py`、`visualize_attack_flow.py`）|
+| `pyvis` | `>=0.3.2` | BSD-3-Clause | インタラクティブグラフの HTML 生成（`visualize_combined.py`、`visualize_graph.py`、`visualize_attack_flow.py`）|
 | `httpx` | `>=0.27.0` | BSD-3-Clause | FastAPI `TestClient` に必要（Starlette の依存）。`tests/test_api.py` でのみ使用。|
 
 ---

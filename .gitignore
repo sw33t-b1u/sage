@@ -55,6 +55,7 @@ logs/
 # Input files (contain sensitive org context — assets, PIR)
 # The input/ directory is created manually; see docs/setup.md
 input/
+output/
 config/pir.json
 
 # Ruff cache

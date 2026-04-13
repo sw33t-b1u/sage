@@ -37,6 +37,7 @@ SAGE/
 │   ├── query_attack_paths.py   # Query attack paths or actor TTPs
 │   ├── visualize_graph.py      # Generate interactive attack graph HTML
 │   ├── visualize_attack_flow.py# Generate interactive attack flow HTML
+│   ├── visualize_combined.py   # Combined graph + flow visualization
 │   ├── analysis_api.py         # Start the Analysis API server
 │   ├── sync_caldera.py         # Sync actor TTPs to Caldera adversary profile
 │   ├── create_ir_template.py   # Create IR incident template as GHE Issue

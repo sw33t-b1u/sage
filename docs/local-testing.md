@@ -64,8 +64,10 @@ docker stop spanner-emulator && docker rm spanner-emulator
 
 Options:
 ```sh
-uv run python cmd/visualize_graph.py --no-open      # suppress auto-open
-uv run python cmd/visualize_graph.py --limit 200    # cap rows per table
+uv run python cmd/visualize_combined.py --no-open   # combined view, suppress auto-open
+uv run python cmd/visualize_combined.py --limit 200 # cap rows per table
+uv run python cmd/visualize_graph.py --no-open      # attack graph only
+uv run python cmd/visualize_attack_flow.py --no-open # attack flow only
 ```
 
 ---

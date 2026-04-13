@@ -1,12 +1,8 @@
-"""Spanner Graph query functions.
+"""Spanner query functions.
 
 Provides analytical queries for Attack Flow and Attack Graph sub-graphs.
-
-- Path traversal (find_attack_paths, find_actor_ttps): uses GQL (Property Graph syntax)
-- Aggregation (find_choke_points, find_asset_exposure): uses standard SQL
-
-NOTE: The Spanner emulator has limited GQL support, so these functions are tested
-      by mocking snapshots with unittest.mock rather than running against the emulator.
+All queries use standard SQL (no GQL / Property Graph dependency) so they
+work on Spanner Standard edition and the local emulator.
 """
 
 from __future__ import annotations
@@ -18,43 +14,41 @@ from google.cloud.spanner_v1.database import Database
 
 logger = structlog.get_logger(__name__)
 
-# Maximum hops for GQL traversal (ConnectedTo paths between Assets)
-_MAX_HOPS = 5
-
 
 def find_attack_paths(
     database: Database,
     asset_id: str,
     limit: int = 10,
 ) -> list[dict[str, Any]]:
-    """Return attack paths reaching the specified asset, ordered by FollowedBy weight.
+    """Return attack paths reaching the specified asset, ordered by confidence.
 
-    Uses GQL to traverse ThreatActor → TTP → ... → TTP → Asset paths.
-    Each path is returned as a dict with (actor_stix_id, ttp_sequence, total_weight).
+    Joins ThreatActor → Targets → Asset and ThreatActor → Uses → TTP.
 
     Returns:
         [
           {
             "actor_stix_id": "intrusion-set--xxx",
             "actor_name": "APT99",
-            "ttp_sequence": ["attack-pattern--t1078", ...],
-            "total_weight": 0.85,
+            "ttp_stix_id": "attack-pattern--t1078",
+            "ttp_name": "Valid Accounts",
+            "confidence": 90,
           },
           ...
         ]
     """
-    gql = """
-    GRAPH ThreatIntelGraph
-    MATCH
-      (actor:ThreatActor)-[tgt:TARGETS]->(asset:Asset {id: @asset_id}),
-      (actor)-[u:USES]->(ttp:TTP)
-    RETURN
-      actor.stix_id  AS actor_stix_id,
-      actor.name     AS actor_name,
-      ttp.stix_id    AS ttp_stix_id,
-      ttp.name       AS ttp_name,
-      u.confidence   AS confidence
-    ORDER BY confidence DESC
+    sql = """
+    SELECT
+      a.stix_id    AS actor_stix_id,
+      a.name       AS actor_name,
+      t.stix_id    AS ttp_stix_id,
+      t.name       AS ttp_name,
+      u.confidence AS confidence
+    FROM Targets tgt
+    JOIN ThreatActor a ON a.stix_id = tgt.actor_stix_id
+    JOIN Uses u        ON u.actor_stix_id = a.stix_id
+    JOIN TTP t         ON t.stix_id = u.ttp_stix_id
+    WHERE tgt.asset_id = @asset_id
+    ORDER BY u.confidence DESC
     LIMIT @limit
     """
     params = {"asset_id": asset_id, "limit": limit}
@@ -65,7 +59,7 @@ def find_attack_paths(
 
     rows = []
     with database.snapshot() as snap:
-        result = snap.execute_sql(gql, params=params, param_types=param_types)
+        result = snap.execute_sql(sql, params=params, param_types=param_types)
         for row in result:
             rows.append(
                 {
@@ -87,7 +81,7 @@ def find_actor_ttps(
 ) -> list[dict[str, Any]]:
     """Return the TTP attack flow for the specified actor, ordered by FollowedBy weight.
 
-    Uses GQL to traverse actor -[USES]-> TTP -[FOLLOWED_BY*]-> TTP paths.
+    Joins Uses → TTP (src) → FollowedBy → TTP (dst) for the given actor.
 
     Returns:
         [
@@ -102,26 +96,27 @@ def find_actor_ttps(
           ...
         ]
     """
-    gql = """
-    GRAPH ThreatIntelGraph
-    MATCH
-      (actor:ThreatActor {stix_id: @actor_id})-[:USES]->(src:TTP),
-      (src)-[fb:FOLLOWED_BY]->(dst:TTP)
-    RETURN
+    sql = """
+    SELECT
       src.stix_id  AS src_ttp_stix_id,
       src.name     AS src_ttp_name,
       dst.stix_id  AS dst_ttp_stix_id,
       dst.name     AS dst_ttp_name,
       fb.weight    AS weight,
       fb.source    AS source
-    ORDER BY weight DESC
+    FROM Uses u
+    JOIN TTP src        ON src.stix_id = u.ttp_stix_id
+    JOIN FollowedBy fb  ON fb.src_ttp_stix_id = src.stix_id
+    JOIN TTP dst        ON dst.stix_id = fb.dst_ttp_stix_id
+    WHERE u.actor_stix_id = @actor_id
+    ORDER BY fb.weight DESC
     """
     params = {"actor_id": actor_stix_id}
     param_types = {"actor_id": _str_type()}
 
     rows = []
     with database.snapshot() as snap:
-        result = snap.execute_sql(gql, params=params, param_types=param_types)
+        result = snap.execute_sql(sql, params=params, param_types=param_types)
         for row in result:
             rows.append(
                 {

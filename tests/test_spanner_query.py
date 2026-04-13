@@ -1,6 +1,5 @@
 """sage.spanner.query のユニットテスト。
 
-Spanner エミュレーターの GQL サポートが限定的なため、
 database.snapshot() をモックして各クエリ関数の出力形式・ロジックを検証する。
 """
 

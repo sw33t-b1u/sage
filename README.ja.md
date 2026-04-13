@@ -99,15 +99,6 @@ Cloud Scheduler             — 日次 ETL トリガー（03:00 JST）
 Secret Manager              — API トークンと認証情報
 ```
 
-## 実装フェーズ
-
-| フェーズ | 内容 | 状態 |
-|---------|------|------|
-| Phase 1 | Spanner Graph スキーマ + OpenCTI → STIX ETL | 完了 |
-| Phase 2 | 内部資産データ + PIR 適用 + 攻撃経路クエリ | 完了 |
-| Phase 3 | FollowedBy 重み計算 + 可視化 + Slack/GHE 通知 | 完了 |
-| Phase 4 | Caldera 連携 + IR フィードバックループ + Analysis API | 完了 |
-
 ## ライセンス
 
 Apache-2.0 — [LICENSE](LICENSE) を参照

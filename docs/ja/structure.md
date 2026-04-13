@@ -39,6 +39,7 @@ SAGE/
 │   ├── query_attack_paths.py   # 攻撃経路または脅威アクター TTP のクエリ
 │   ├── visualize_graph.py      # インタラクティブな攻撃グラフ HTML を生成
 │   ├── visualize_attack_flow.py# インタラクティブな攻撃フロー HTML を生成
+│   ├── visualize_combined.py   # グラフ＋フロー統合可視化
 │   ├── analysis_api.py         # Analysis API サーバーの起動
 │   ├── sync_caldera.py         # 脅威アクター TTP を Caldera アドバーサリプロファイルに同期
 │   ├── create_ir_template.py   # IR インシデントテンプレートを GHE Issue として作成

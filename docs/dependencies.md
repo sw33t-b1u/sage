@@ -29,7 +29,7 @@ per [project Rule 18](../../docs/RULES.md).
 | `pytest` | `>=8.3.0` | MIT | Test runner. |
 | `pytest-cov` | `>=5.0.0` | MIT | Coverage reporting for `make test`. |
 | `pip-audit` | `>=2.7.0` | Apache-2.0 | Dependency vulnerability scanning (Rule 21). |
-| `pyvis` | `>=0.3.2` | BSD-3-Clause | Interactive graph HTML generation (`visualize_graph.py`, `visualize_attack_flow.py`). |
+| `pyvis` | `>=0.3.2` | BSD-3-Clause | Interactive graph HTML generation (`visualize_combined.py`, `visualize_graph.py`, `visualize_attack_flow.py`). |
 | `httpx` | `>=0.27.0` | BSD-3-Clause | Required by FastAPI `TestClient` (Starlette dependency). Used only in `tests/test_api.py`. |
 
 ---

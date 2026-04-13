@@ -98,14 +98,20 @@ uv run python cmd/query_attack_paths.py --actor-id intrusion-set--xxxxxxxx-xxxx-
 インタラクティブな HTML ファイルを生成してブラウザで開く。ノードはタイプ別に色分けされ、ドラッグ・ズームが可能。本番 Spanner に対してローカルで動作する。
 
 ```sh
-# 完全な攻撃グラフ
+# 統合ビュー（攻撃グラフ + FollowedBy 重み付き攻撃フロー）
+uv run python cmd/visualize_combined.py --output /tmp/sage_combined.html
+
+# 特定アクターに絞る
+uv run python cmd/visualize_combined.py --actor-id "intrusion-set--xxx"
+
+# 攻撃グラフのみ（全ノード、均一エッジ）
 uv run python cmd/visualize_graph.py --output /tmp/sage_graph.html
 
-# FollowedBy 重みを持つ TTP 攻撃フロー
+# 攻撃フローのみ（FollowedBy 重み付き TTP 遷移）
 uv run python cmd/visualize_attack_flow.py --output /tmp/attack_flow.html
 
-# ブラウザ自動起動を抑制 / テーブルごとの行数を制限
-uv run python cmd/visualize_graph.py --no-open --limit 200
+# ブラウザ自動起���を抑制 / テーブルごとの行数を制限
+uv run python cmd/visualize_combined.py --no-open --limit 200
 ```
 
 > `make visualize` はローカル/エミュレーター用のショートカット。本番データに対しては上記コマンドを直接実行する。
