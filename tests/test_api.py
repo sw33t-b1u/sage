@@ -24,13 +24,37 @@ def client():
     mock_config = MagicMock()
     mock_config.caldera_url = ""
     mock_config.caldera_api_key = ""
+    mock_config.api_auth_token = ""  # Auth disabled — existing tests run without tokens
 
-    app.state.database = mock_db
-    app.state.config = mock_config
+    # lifespan 内の Config.from_env() と Spanner 接続をモックして env var 依存を排除
+    with (
+        patch("sage.api.app.Config.from_env", return_value=mock_config),
+        patch("sage.api.app.spanner.Client"),
+    ):
+        with TestClient(app, raise_server_exceptions=True) as c:
+            # lifespan が app.state を上書きするため、起動後に差し替える
+            c.app.state.database = mock_db
+            c.app.state.config = mock_config
+            yield c, mock_db
 
-    # lifespan をスキップして TestClient を使用
-    with TestClient(app, raise_server_exceptions=True) as c:
-        yield c, mock_db
+
+@pytest.fixture()
+def authed_client():
+    """Client with API authentication enabled (SAGE_API_AUTH_TOKEN set)."""
+    mock_db = MagicMock()
+    mock_config = MagicMock()
+    mock_config.caldera_url = ""
+    mock_config.caldera_api_key = ""
+    mock_config.api_auth_token = "test-secret-token"
+
+    with (
+        patch("sage.api.app.Config.from_env", return_value=mock_config),
+        patch("sage.api.app.spanner.Client"),
+    ):
+        with TestClient(app, raise_server_exceptions=True) as c:
+            c.app.state.database = mock_db
+            c.app.state.config = mock_config
+            yield c, mock_db
 
 
 # ---------------------------------------------------------------------------
@@ -177,3 +201,57 @@ class TestCalderaAdversary:
         # 後処理: config を元に戻す
         app.state.config.caldera_url = ""
         app.state.config.caldera_api_key = ""
+
+
+# ---------------------------------------------------------------------------
+# Authentication
+# ---------------------------------------------------------------------------
+
+
+class TestAuthentication:
+    def test_no_token_returns_401(self, authed_client):
+        c, _ = authed_client
+        resp = c.get("/choke-points")
+        assert resp.status_code == 401
+
+    def test_wrong_token_returns_403(self, authed_client):
+        c, _ = authed_client
+        resp = c.get("/choke-points", headers={"Authorization": "Bearer wrong-token"})
+        assert resp.status_code == 403
+
+    def test_valid_token_allows_access(self, authed_client):
+        c, _ = authed_client
+        rows = [{"asset_id": "asset-001", "choke_score": 27.0}]
+        with patch("sage.api.app.find_choke_points", return_value=rows):
+            resp = c.get(
+                "/choke-points",
+                headers={"Authorization": "Bearer test-secret-token"},
+            )
+        assert resp.status_code == 200
+
+    def test_auth_disabled_allows_all(self, client):
+        """When api_auth_token is empty, all requests pass without token."""
+        c, _ = client
+        rows = [{"asset_id": "asset-001", "choke_score": 27.0}]
+        with patch("sage.api.app.find_choke_points", return_value=rows):
+            resp = c.get("/choke-points")
+        assert resp.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Error message sanitization
+# ---------------------------------------------------------------------------
+
+
+class TestErrorSanitization:
+    def test_500_does_not_leak_internal_details(self, client):
+        c, _ = client
+        with patch(
+            "sage.api.app.find_attack_paths",
+            side_effect=Exception("Spanner connection to sage-db failed: auth expired"),
+        ):
+            resp = c.get("/attack-paths", params={"asset_id": "asset-001"})
+        assert resp.status_code == 500
+        assert "Spanner" not in resp.text
+        assert "sage-db" not in resp.text
+        assert resp.json()["detail"] == "Internal server error"

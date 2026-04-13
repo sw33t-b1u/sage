@@ -52,8 +52,9 @@ tests/output/
 *.log
 logs/
 
-# PIR config (may contain sensitive org context)
-# Remove this line if pir.json is safe to commit
+# Input files (contain sensitive org context — assets, PIR)
+# The input/ directory is created manually; see docs/setup.md
+input/
 config/pir.json
 
 # Ruff cache

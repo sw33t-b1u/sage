@@ -4,17 +4,22 @@ Exposes Spanner query results as a REST API.
 The Spanner Database instance is initialised at startup and stored in
 app.state so that all endpoints can share a single connection.
 
+Authentication:
+  Set SAGE_API_AUTH_TOKEN to require a Bearer token on every request.
+  When unset, a warning is logged at startup but no auth is enforced.
+
 Environment variables (loaded via Config.from_env()):
-  GCP_PROJECT_ID, SPANNER_INSTANCE_ID, SPANNER_DATABASE_ID, etc.
+  PROJECT_ID, SPANNER_INSTANCE, SPANNER_DB, etc.
 """
 
 from __future__ import annotations
 
+import secrets
 from contextlib import asynccontextmanager
 from typing import Any
 
 import structlog
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from google.cloud import spanner
 
 from sage.analysis.similarity import find_similar_incidents
@@ -37,6 +42,8 @@ async def lifespan(app: FastAPI):  # type: ignore[type-arg]
     instance = spanner_client.instance(config.spanner_instance_id)
     app.state.database = instance.database(config.spanner_database_id)
     app.state.config = config
+    if not config.api_auth_token:
+        logger.warning("api_auth_disabled", reason="SAGE_API_AUTH_TOKEN not set")
     logger.info("api_started", database=config.spanner_database_id)
     yield
     logger.info("api_stopped")
@@ -46,11 +53,29 @@ app = FastAPI(title="SAGE Analysis API", version="0.1.0", lifespan=lifespan)
 
 
 # ---------------------------------------------------------------------------
+# Authentication
+# ---------------------------------------------------------------------------
+
+
+async def _verify_auth(request: Request) -> None:
+    """Verify Bearer token if SAGE_API_AUTH_TOKEN is configured."""
+    config: Config = request.app.state.config
+    if not config.api_auth_token:
+        return
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
+    token = auth_header[7:]
+    if not secrets.compare_digest(token, config.api_auth_token):
+        raise HTTPException(status_code=403, detail="Invalid API token")
+
+
+# ---------------------------------------------------------------------------
 # Attack Path endpoints
 # ---------------------------------------------------------------------------
 
 
-@app.get("/attack-paths")
+@app.get("/attack-paths", dependencies=[Depends(_verify_auth)])
 def get_attack_paths(
     asset_id: str = Query(..., description="Asset ID"),
     limit: int = Query(10, ge=1, le=100),
@@ -60,10 +85,10 @@ def get_attack_paths(
         return find_attack_paths(app.state.database, asset_id, limit)
     except Exception as exc:
         logger.error("api_error", endpoint="attack-paths", error=str(exc))
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error") from exc
 
 
-@app.get("/choke-points")
+@app.get("/choke-points", dependencies=[Depends(_verify_auth)])
 def get_choke_points(
     top_n: int = Query(20, ge=1, le=100),
 ) -> list[dict[str, Any]]:
@@ -72,10 +97,10 @@ def get_choke_points(
         return find_choke_points(app.state.database, top_n)
     except Exception as exc:
         logger.error("api_error", endpoint="choke-points", error=str(exc))
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error") from exc
 
 
-@app.get("/actor-ttps")
+@app.get("/actor-ttps", dependencies=[Depends(_verify_auth)])
 def get_actor_ttps(
     actor_id: str = Query(..., description="ThreatActor STIX ID"),
 ) -> list[dict[str, Any]]:
@@ -84,17 +109,17 @@ def get_actor_ttps(
         return find_actor_ttps(app.state.database, actor_id)
     except Exception as exc:
         logger.error("api_error", endpoint="actor-ttps", error=str(exc))
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error") from exc
 
 
-@app.get("/asset-exposure")
+@app.get("/asset-exposure", dependencies=[Depends(_verify_auth)])
 def get_asset_exposure() -> list[dict[str, Any]]:
     """Return externally-exposed assets and their reachable TTP counts."""
     try:
         return find_asset_exposure(app.state.database)
     except Exception as exc:
         logger.error("api_error", endpoint="asset-exposure", error=str(exc))
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error") from exc
 
 
 # ---------------------------------------------------------------------------
@@ -102,7 +127,7 @@ def get_asset_exposure() -> list[dict[str, Any]]:
 # ---------------------------------------------------------------------------
 
 
-@app.get("/similar-incidents")
+@app.get("/similar-incidents", dependencies=[Depends(_verify_auth)])
 def get_similar_incidents(
     incident_id: str = Query(..., description="Incident STIX ID"),
     top_k: int = Query(5, ge=1, le=20),
@@ -128,7 +153,7 @@ def get_similar_incidents(
         )
     except Exception as exc:
         logger.error("api_error", endpoint="similar-incidents", error=str(exc))
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error") from exc
 
 
 # ---------------------------------------------------------------------------
@@ -136,7 +161,7 @@ def get_similar_incidents(
 # ---------------------------------------------------------------------------
 
 
-@app.post("/caldera/adversary")
+@app.post("/caldera/adversary", dependencies=[Depends(_verify_auth)])
 def post_caldera_adversary(
     actor_id: str = Query(..., description="ThreatActor STIX ID"),
 ) -> dict[str, Any]:
@@ -159,4 +184,4 @@ def post_caldera_adversary(
         return result
     except Exception as exc:
         logger.error("api_error", endpoint="caldera/adversary", error=str(exc))
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error") from exc

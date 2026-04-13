@@ -33,10 +33,11 @@ make setup
 
 | 変数 | 必須 | デフォルト | 説明 |
 |------|------|-----------|------|
-| `GCP_PROJECT_ID` | Yes | — | GCP プロジェクト ID |
-| `SPANNER_INSTANCE_ID` | Yes | — | Spanner インスタンス ID |
-| `SPANNER_DATABASE_ID` | Yes | — | Spanner データベース ID |
-| `GCS_LANDING_BUCKET` | Yes | — | 生 STIX を受け取る GCS バケット |
+| `PROJECT_ID` | Yes | — | GCP プロジェクト ID |
+| `REGION` | Yes | `us-central1` | Spanner・Cloud Run・Scheduler のリージョン |
+| `SPANNER_INSTANCE` | Yes | — | Spanner インスタンス ID |
+| `SPANNER_DB` | Yes | — | Spanner データベース ID |
+| `GCS_BUCKET` | Yes | — | 生 STIX を受け取る GCS バケット |
 | `OPENCTI_URL` | Yes | — | OpenCTI ベース URL |
 | `OPENCTI_TOKEN` | Yes | — | OpenCTI API トークン |
 | `PIR_FILE_PATH` | No | `/config/pir.json` | PIR JSON ファイルのパス |
@@ -56,11 +57,8 @@ make setup
 ## Step 3 — GCP リソースの作成
 
 ```sh
-export PROJECT_ID=your-project-id
-export REGION=us-central1
-export SPANNER_INSTANCE=sage-instance
-export SPANNER_DB=sage-db
-export GCS_BUCKET=sage-landing-${PROJECT_ID}
+# .env を読み込む（Step 2 で設定済み）— REGION を含むすべての変数が使用可能になる
+source .env
 
 # 必要な API を有効化
 gcloud services enable spanner.googleapis.com storage.googleapis.com \
@@ -98,24 +96,28 @@ make init-schema
 
 ## Step 5 — 初期資産データの投入
 
-`tests/fixtures/sample_assets.json` を実際の資産インベントリに合わせて編集し、実行する:
+`input/` ディレクトリを作成し（gitignore 対象 — 機微情報を含む場合あり）、資産ファイルを配置する:
 
 ```sh
-uv run python cmd/load_assets.py
+mkdir input
 
-# カスタムファイルを使用する場合:
-uv run python cmd/load_assets.py --file path/to/assets.json
+# BEACON で assets.json を生成するか、サンプルフィクスチャから開始:
+cp tests/fixtures/sample_assets.json input/assets.json
+# input/assets.json を実際の資産インベントリに合わせて編集
+
+uv run python cmd/load_assets.py                              # デフォルト: input/assets.json
+uv run python cmd/load_assets.py --file path/to/assets.json  # カスタムパス
 ```
 
 ---
 
 ## Step 6 — PIR ファイルの配置
 
-[BEACON](https://github.com/sw33t-b1u/beacon) で PIR JSON を生成し、`PIR_FILE_PATH` に配置する:
+[BEACON](https://github.com/sw33t-b1u/beacon)（`cmd/generate_pir.py`）で PIR JSON を生成し、`input/` に配置する:
 
 ```sh
-cp /path/to/pir_output.json /path/to/config/pir.json
-# または .env で PIR_FILE_PATH を直接指定
+cp /path/to/pir_output_<timestamp>.json input/pir.json
+# PIR_FILE_PATH=input/pir.json は .env.example に既定値として記載済み
 ```
 
 ---
@@ -135,8 +137,8 @@ make run-etl
 ## Step 8 — ETL ワーカーを Cloud Run にデプロイ
 
 ```sh
-export PROJECT_ID=your-project-id
-export REGION=us-central1
+# .env を未読み込みの場合は読み込む
+source .env
 export IMAGE=gcr.io/${PROJECT_ID}/sage-etl
 
 # コンテナイメージをビルドしてプッシュ
@@ -147,8 +149,8 @@ gcloud run deploy sage-etl \
   --image=${IMAGE} \
   --region=${REGION} \
   --no-allow-unauthenticated \
-  --set-secrets="OPENCTI_TOKEN=opencti-token:latest,GCS_LANDING_BUCKET=sage-bucket:latest" \
-  --set-env-vars="GCP_PROJECT_ID=${PROJECT_ID},SPANNER_INSTANCE_ID=sage-instance,SPANNER_DATABASE_ID=sage-db,PIR_FILE_PATH=/config/pir.json" \
+  --set-secrets="OPENCTI_TOKEN=opencti-token:latest,GCS_BUCKET=sage-bucket:latest" \
+  --set-env-vars="PROJECT_ID=${PROJECT_ID},SPANNER_INSTANCE=${SPANNER_INSTANCE},SPANNER_DB=${SPANNER_DB},PIR_FILE_PATH=/config/pir.json" \
   --project=${PROJECT_ID}
 ```
 

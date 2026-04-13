@@ -49,6 +49,8 @@ class Config:
     # Caldera: server URL and API key
     caldera_url: str = ""
     caldera_api_key: str = ""
+    # Analysis API: bearer token for authentication (omit to disable auth — NOT recommended)
+    api_auth_token: str = ""
 
     @classmethod
     def from_env(cls, dotenv_path: str = ".env") -> "Config":
@@ -56,10 +58,10 @@ class Config:
         missing = [
             k
             for k in (
-                "GCP_PROJECT_ID",
-                "SPANNER_INSTANCE_ID",
-                "SPANNER_DATABASE_ID",
-                "GCS_LANDING_BUCKET",
+                "PROJECT_ID",
+                "SPANNER_INSTANCE",
+                "SPANNER_DB",
+                "GCS_BUCKET",
                 "OPENCTI_URL",
                 "OPENCTI_TOKEN",
             )
@@ -69,10 +71,10 @@ class Config:
             raise RuntimeError(f"Required environment variables not set: {', '.join(missing)}")
 
         return cls(
-            gcp_project_id=os.environ["GCP_PROJECT_ID"],
-            spanner_instance_id=os.environ["SPANNER_INSTANCE_ID"],
-            spanner_database_id=os.environ["SPANNER_DATABASE_ID"],
-            gcs_landing_bucket=os.environ["GCS_LANDING_BUCKET"],
+            gcp_project_id=os.environ["PROJECT_ID"],
+            spanner_instance_id=os.environ["SPANNER_INSTANCE"],
+            spanner_database_id=os.environ["SPANNER_DB"],
+            gcs_landing_bucket=os.environ["GCS_BUCKET"],
             opencti_url=os.environ["OPENCTI_URL"],
             opencti_token=os.environ["OPENCTI_TOKEN"],
             pir_file_path=os.environ.get("PIR_FILE_PATH", "/config/pir.json"),
@@ -84,4 +86,5 @@ class Config:
             ghe_api_base=os.environ.get("GHE_API_BASE", "https://api.github.com"),
             caldera_url=os.environ.get("CALDERA_URL", ""),
             caldera_api_key=os.environ.get("CALDERA_API_KEY", ""),
+            api_auth_token=os.environ.get("SAGE_API_AUTH_TOKEN", ""),
         )

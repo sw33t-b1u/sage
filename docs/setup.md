@@ -31,10 +31,11 @@ Copy `.env.example` to `.env` and fill in the values.
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `GCP_PROJECT_ID` | Yes | — | GCP project ID |
-| `SPANNER_INSTANCE_ID` | Yes | — | Spanner instance ID |
-| `SPANNER_DATABASE_ID` | Yes | — | Spanner database ID |
-| `GCS_LANDING_BUCKET` | Yes | — | GCS bucket for raw STIX landing |
+| `PROJECT_ID` | Yes | — | GCP project ID |
+| `REGION` | Yes | `us-central1` | GCP region for Spanner, Cloud Run, and Scheduler |
+| `SPANNER_INSTANCE` | Yes | — | Spanner instance ID |
+| `SPANNER_DB` | Yes | — | Spanner database ID |
+| `GCS_BUCKET` | Yes | — | GCS bucket for raw STIX landing |
 | `OPENCTI_URL` | Yes | — | OpenCTI base URL |
 | `OPENCTI_TOKEN` | Yes | — | OpenCTI API token |
 | `PIR_FILE_PATH` | No | `/config/pir.json` | Path to PIR JSON file |
@@ -54,11 +55,8 @@ Copy `.env.example` to `.env` and fill in the values.
 ## Step 3 — Create GCP resources
 
 ```sh
-export PROJECT_ID=your-project-id
-export REGION=us-central1
-export SPANNER_INSTANCE=sage-instance
-export SPANNER_DB=sage-db
-export GCS_BUCKET=sage-landing-${PROJECT_ID}
+# Load .env (set in Step 2) — all variables including REGION are now available
+source .env
 
 # Enable required APIs
 gcloud services enable spanner.googleapis.com storage.googleapis.com \
@@ -96,24 +94,28 @@ make init-schema
 
 ## Step 5 — Load initial asset data
 
-Edit `tests/fixtures/sample_assets.json` to reflect your actual asset inventory, then run:
+Create the `input/` directory (gitignored — may contain sensitive data) and place your asset file:
 
 ```sh
-uv run python cmd/load_assets.py
+mkdir input
 
-# To use a custom file:
-uv run python cmd/load_assets.py --file path/to/assets.json
+# Generate assets.json with BEACON, or start from the sample fixture:
+cp tests/fixtures/sample_assets.json input/assets.json
+# Edit input/assets.json to reflect your actual asset inventory
+
+uv run python cmd/load_assets.py            # reads input/assets.json by default
+uv run python cmd/load_assets.py --file path/to/assets.json   # custom path
 ```
 
 ---
 
 ## Step 6 — Place PIR file
 
-Generate a PIR JSON with [BEACON](https://github.com/sw33t-b1u/beacon) and place it at `PIR_FILE_PATH`:
+Generate a PIR JSON with [BEACON](https://github.com/sw33t-b1u/beacon) (`cmd/generate_pir.py`) and place it in `input/`:
 
 ```sh
-cp /path/to/pir_output.json /path/to/config/pir.json
-# or point PIR_FILE_PATH directly in .env
+cp /path/to/pir_output_<timestamp>.json input/pir.json
+# PIR_FILE_PATH=input/pir.json is already set in .env.example
 ```
 
 ---
@@ -133,8 +135,8 @@ make run-etl
 ## Step 8 — Deploy ETL worker to Cloud Run
 
 ```sh
-export PROJECT_ID=your-project-id
-export REGION=us-central1
+# Load .env if not already sourced
+source .env
 export IMAGE=gcr.io/${PROJECT_ID}/sage-etl
 
 # Build and push container image
@@ -145,8 +147,8 @@ gcloud run deploy sage-etl \
   --image=${IMAGE} \
   --region=${REGION} \
   --no-allow-unauthenticated \
-  --set-secrets="OPENCTI_TOKEN=opencti-token:latest,GCS_LANDING_BUCKET=sage-bucket:latest" \
-  --set-env-vars="GCP_PROJECT_ID=${PROJECT_ID},SPANNER_INSTANCE_ID=sage-instance,SPANNER_DATABASE_ID=sage-db,PIR_FILE_PATH=/config/pir.json" \
+  --set-secrets="OPENCTI_TOKEN=opencti-token:latest,GCS_BUCKET=sage-bucket:latest" \
+  --set-env-vars="PROJECT_ID=${PROJECT_ID},SPANNER_INSTANCE=${SPANNER_INSTANCE},SPANNER_DB=${SPANNER_DB},PIR_FILE_PATH=/config/pir.json" \
   --project=${PROJECT_ID}
 ```
 

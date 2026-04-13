@@ -34,7 +34,7 @@ structlog.configure(
 )
 logger = structlog.get_logger(__name__)
 
-DEFAULT_ASSET_FILE = Path(__file__).parent.parent / "tests" / "fixtures" / "sample_assets.json"
+DEFAULT_ASSET_FILE = Path(__file__).parent.parent / "input" / "assets.json"
 
 
 def _now() -> datetime:

@@ -2,14 +2,14 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# uv をインストール
+# Install uv
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-# 依存関係をインストール（キャッシュ最適化）
+# Install dependencies (cache-optimized)
 COPY pyproject.toml uv.lock* ./
 RUN uv sync --no-dev --frozen
 
-# ソースをコピー
+# Copy source code
 COPY src/ ./src/
 COPY cmd/ ./cmd/
 COPY schema/ ./schema/
