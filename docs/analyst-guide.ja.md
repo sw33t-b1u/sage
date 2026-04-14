@@ -110,7 +110,7 @@ uv run python cmd/visualize_graph.py --output /tmp/sage_graph.html
 # 攻撃フローのみ（FollowedBy 重み付き TTP 遷移）
 uv run python cmd/visualize_attack_flow.py --output /tmp/attack_flow.html
 
-# ブラウザ自動起���を抑制 / テーブルごとの行数を制限
+# ブラウザ自動起動を抑制 / テーブルごとの行数を制限
 uv run python cmd/visualize_combined.py --no-open --limit 200
 ```
 
