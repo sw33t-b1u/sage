@@ -19,7 +19,7 @@ uv run pytest --cov=src/sage --cov-report=term-missing
 
 Covers the complete workflow: Attack Flow (STIX threat intel) + Attack Graph (internal assets).
 
-**Requires Docker.**
+**Requires Docker or Podman.**
 
 ```sh
 # 1. Start the Spanner emulator
@@ -44,6 +44,31 @@ make visualize
 # 6. Stop and remove the emulator when done
 docker stop spanner-emulator && docker rm spanner-emulator
 ```
+
+### Using Podman instead of Docker
+
+Podman is a drop-in replacement — every `docker` subcommand above works identically with `podman`. No flags or image name changes.
+
+On macOS, Podman requires a VM (one-time setup):
+
+```sh
+podman machine init
+podman machine start
+```
+
+Then substitute `podman` for `docker` in steps 1 and 6:
+
+```sh
+# Step 1
+podman run -d --name spanner-emulator -p 9010:9010 -p 9020:9020 \
+  gcr.io/cloud-spanner-emulator/emulator
+export SPANNER_EMULATOR_HOST=localhost:9010
+
+# Step 6
+podman stop spanner-emulator && podman rm spanner-emulator
+```
+
+Steps 2–5 (uv and `make` commands) are unchanged.
 
 ---
 

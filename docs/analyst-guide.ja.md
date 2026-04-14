@@ -1,6 +1,6 @@
 # SAGE — アナリスト利用ガイド
 
-英語版（正本）: [`docs/analyst-guide.md`](../analyst-guide.md)
+英語版（正本）: [`docs/analyst-guide.md`](analyst-guide.md)
 
 CTI アナリストおよびブルーチームメンバー向けの日常ワークフローを説明する。
 

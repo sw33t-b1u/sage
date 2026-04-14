@@ -1,6 +1,6 @@
 # SAGE — データモデル
 
-英語版（正本）: [`docs/data-model.md`](../data-model.md)
+英語版（正本）: [`docs/data-model.md`](data-model.md)
 
 ## グラフの概要
 

@@ -1,9 +1,9 @@
 # SAGE — 依存パッケージ一覧
 
-このドキュメントは [プロジェクトルール 18](../../../docs/RULES.md) に従い、
+このドキュメントは [プロジェクトルール 18](../../docs/RULES.md) に従い、
 すべてのサードパーティ依存パッケージの目的・選定理由・ライセンスを記録します。
 
-英語版（正本）: [`docs/dependencies.md`](../dependencies.md)
+英語版（正本）: [`docs/dependencies.md`](dependencies.md)
 
 ---
 

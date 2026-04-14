@@ -57,7 +57,7 @@ SAGE/
 │   ├── local-testing.md        # Spanner emulator setup and unit test instructions
 │   ├── dependencies.md         # Third-party dependency rationale and licenses
 │   ├── structure.md            # This file — directory layout reference
-│   └── ja/                     # Japanese translations (kept in sync with English)
+│   └── *.ja.md                 # Japanese translations alongside each English doc
 │
 ├── .githooks/                  # Git hooks (install with: make setup)
 │   ├── pre-commit              # Runs make vet lint before every commit
@@ -77,5 +77,5 @@ SAGE/
 - **`src/sage/`** contains all reusable library code. Each sub-package has a single responsibility.
 - **`cmd/`** contains thin CLI scripts that parse arguments, load configuration, and delegate to `src/sage/` modules. No business logic lives here.
 - **`schema/`** is the single source of truth for the Spanner Graph DDL.
-- **`docs/`** holds user-facing documentation in English; `docs/ja/` holds Japanese translations.
+- **`docs/`** holds user-facing documentation. English files use the base name (e.g. `setup.md`); Japanese translations are siblings with the `.ja.md` suffix (e.g. `setup.ja.md`).
 - **`high-level-design.md`** must be updated before any architectural change is implemented (Rule 27).

@@ -1,6 +1,6 @@
 # SAGE — ローカルテスト
 
-英語版（正本）: [`docs/local-testing.md`](../local-testing.md)
+英語版（正本）: [`docs/local-testing.md`](local-testing.md)
 
 ## ユニットテスト（GCP 不要）
 
@@ -22,7 +22,7 @@ uv run pytest --cov=src/sage --cov-report=term-missing
 
 Attack Flow（STIX 脅威インテリジェンス）と Attack Graph（内部資産）の完全なワークフローを検証する。
 
-**Docker が必要。**
+**Docker または Podman が必要。**
 
 ```sh
 # 1. Spanner エミュレーターを起動
@@ -47,6 +47,31 @@ make visualize
 # 6. 完了後にエミュレーターを停止・削除
 docker stop spanner-emulator && docker rm spanner-emulator
 ```
+
+### Docker の代わりに Podman を使う
+
+Podman は Docker のドロップイン代替であり、上記の `docker` サブコマンドはすべて `podman` でそのまま動作する。フラグやイメージ名の変更は不要。
+
+macOS では Podman は VM を必要とする（初回のみ）:
+
+```sh
+podman machine init
+podman machine start
+```
+
+その後、ステップ 1 と 6 で `docker` を `podman` に置き換える:
+
+```sh
+# ステップ 1
+podman run -d --name spanner-emulator -p 9010:9010 -p 9020:9020 \
+  gcr.io/cloud-spanner-emulator/emulator
+export SPANNER_EMULATOR_HOST=localhost:9010
+
+# ステップ 6
+podman stop spanner-emulator && podman rm spanner-emulator
+```
+
+ステップ 2〜5（uv と `make` コマンド）は変更不要。
 
 ---
 

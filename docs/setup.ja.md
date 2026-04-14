@@ -1,6 +1,6 @@
 # SAGE — セットアップガイド
 
-英語版（正本）: [`docs/setup.md`](../setup.md)
+英語版（正本）: [`docs/setup.md`](setup.md)
 
 ## 前提条件
 

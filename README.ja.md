@@ -55,11 +55,11 @@
 
 | ドキュメント | 内容 |
 |-------------|------|
-| [docs/ja/setup.md](docs/ja/setup.md) | GCP リソース作成、スキーマ初期化、Cloud Run・Scheduler デプロイ |
-| [docs/ja/analyst-guide.md](docs/ja/analyst-guide.md) | 日常利用: ETL・チョークポイント・グラフ可視化・PIR 更新・IR ワークフロー |
-| [docs/ja/data-model.md](docs/ja/data-model.md) | ノード/エッジ定義、PIR 重み付け計算式、FollowedBy 重み計算 |
-| [docs/ja/local-testing.md](docs/ja/local-testing.md) | Spanner エミュレーター、ユニットテスト、サンプルフィクスチャ |
-| [docs/ja/dependencies.md](docs/ja/dependencies.md) | 依存パッケージの選定理由とライセンス情報 |
+| [docs/setup.ja.md](docs/setup.ja.md) | GCP リソース作成、スキーマ初期化、Cloud Run・Scheduler デプロイ |
+| [docs/analyst-guide.ja.md](docs/analyst-guide.ja.md) | 日常利用: ETL・チョークポイント・グラフ可視化・PIR 更新・IR ワークフロー |
+| [docs/data-model.ja.md](docs/data-model.ja.md) | ノード/エッジ定義、PIR 重み付け計算式、FollowedBy 重み計算 |
+| [docs/local-testing.ja.md](docs/local-testing.ja.md) | Spanner エミュレーター、ユニットテスト、サンプルフィクスチャ |
+| [docs/dependencies.ja.md](docs/dependencies.ja.md) | 依存パッケージの選定理由とライセンス情報 |
 
 ## クイックスタート
 
@@ -71,11 +71,11 @@ cp .env.example .env   # GCP_PROJECT_ID, SPANNER_*, GCS_*, OPENCTI_* を入力
 make setup             # Git フックをインストール
 ```
 
-詳細なセットアップ手順は [docs/ja/setup.md](docs/ja/setup.md) を参照。
+詳細なセットアップ手順は [docs/setup.ja.md](docs/setup.ja.md) を参照。
 
 ## ディレクトリ構成
 
-詳細なディレクトリレイアウトと設計方針は [docs/ja/structure.md](docs/ja/structure.md) を参照。
+詳細なディレクトリレイアウトと設計方針は [docs/structure.ja.md](docs/structure.ja.md) を参照。
 
 ## 開発
 
