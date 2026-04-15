@@ -120,6 +120,7 @@ _TABLE_COLUMNS: dict[str, list[str]] = {
         "stix_id",
     ],
     "Targets": ["actor_stix_id", "asset_id", "confidence", "source"],
+    "TargetsAsset": ["ttp_stix_id", "asset_id", "match_reason"],
     "HasVulnerability": [
         "asset_id",
         "vuln_stix_id",

@@ -184,6 +184,14 @@ CREATE TABLE Targets (
   source        STRING(32),              -- pir_auto | manual | stix
 ) PRIMARY KEY (actor_stix_id, asset_id);
 
+-- TTP → Asset (derived from ATT&CK technique-ID → asset-tag matching;
+-- see src/sage/analysis/ttp_asset_matcher.py)
+CREATE TABLE TargetsAsset (
+  ttp_stix_id  STRING(128) NOT NULL,
+  asset_id     STRING(36)  NOT NULL,
+  match_reason STRING(64),              -- matched tag (e.g. "identity", "database")
+) PRIMARY KEY (ttp_stix_id, asset_id);
+
 -- Asset → Vulnerability
 CREATE TABLE HasVulnerability (
   asset_id           STRING(36) NOT NULL,

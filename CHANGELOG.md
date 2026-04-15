@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [Unreleased]
+
+### Added
+
+**TTP → Asset derived edges (`TargetsAsset`)**
+- `schema/spanner_ddl.sql` — New `TargetsAsset` edge table (ttp_stix_id,
+  asset_id, match_reason).
+- `src/sage/analysis/ttp_asset_matcher.py` — ATT&CK technique-ID prefix →
+  asset-tag mapping. Replaces the earlier requirement that assets
+  declare CVEs to link TTPs; now TTPs link to assets via stable tag
+  signals (`identity`, `database`, `external-facing`, `ot`, etc.).
+- `src/sage/etl/worker.py` — ETL emits TargetsAsset edges after
+  loading TTP and Asset rows.
+- `cmd/visualize_combined.py`, `cmd/visualize_graph.py` — Render
+  TargetsAsset edges so TTP → Asset exposure is visible without a
+  populated CVE inventory.
+- `tests/test_ttp_asset_matcher.py` — Unit tests for the matcher.
+
+### Fixed
+
+- `src/sage/spanner/query.py` — `load_pir_edges()` now uses
+  `multi_use=True` on the snapshot so its three SELECT queries share a
+  single snapshot. Previously raised `Cannot re-use single-use snapshot`,
+  causing visualizers to silently skip PIR node rendering.
+
 ## [0.5.0] - 2026-04-15
 
 ### Added

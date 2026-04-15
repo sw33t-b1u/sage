@@ -20,6 +20,7 @@ from typing import Any
 import structlog
 from google.cloud.spanner_v1.database import Database
 
+from sage.analysis.ttp_asset_matcher import build_ttp_asset_edges
 from sage.config import TLP_LEVELS
 from sage.pir.filter import PIRFilter
 from sage.spanner.upsert import update_pir_criticality, upsert_followed_by, upsert_rows
@@ -170,6 +171,13 @@ class ETLWorker:
         else:
             stats["targets"] = 0
             stats["pir_criticality_updated"] = 0
+
+        # --- TargetsAsset: TTP → Asset edges via ATT&CK technique → asset-tag match ---
+        if asset_rows:
+            ttp_asset_rows = build_ttp_asset_edges(ttp_rows, asset_rows)
+            stats["targets_asset"] = upsert_rows(self._db, "TargetsAsset", ttp_asset_rows)
+        else:
+            stats["targets_asset"] = 0
 
         # --- PIR node + Strategic→Operational→Tactical cascade edges ---
         stats["pirs"] = upsert_rows(self._db, "PIR", self._pir.build_pir_nodes())

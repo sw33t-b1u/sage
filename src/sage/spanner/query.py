@@ -361,7 +361,7 @@ def load_pir_edges(database: Database) -> dict[str, list[dict[str, Any]]]:
         "PirPrioritizesTTP": [],
         "PirWeightsAsset": [],
     }
-    with database.snapshot() as snap:
+    with database.snapshot(multi_use=True) as snap:
         for row in snap.execute_sql(actor_sql):
             result["PirPrioritizesActor"].append(
                 {"pir_id": row[0], "actor_stix_id": row[1], "overlap_ratio": row[2]}

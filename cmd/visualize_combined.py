@@ -72,6 +72,7 @@ _EDGE_TABLES = [
     ("MalwareUsesTTP", "malware_stix_id", "ttp_stix_id", "MALWARE_USES"),
     ("Exploits", "ttp_stix_id", "vuln_stix_id", "EXPLOITS"),
     ("Targets", "actor_stix_id", "asset_id", "TARGETS"),
+    ("TargetsAsset", "ttp_stix_id", "asset_id", "TARGETS_ASSET"),
     ("HasVulnerability", "asset_id", "vuln_stix_id", "HAS_VULN"),
     ("ConnectedTo", "src_asset_id", "dst_asset_id", "CONNECTED_TO"),
     ("ProtectedBy", "asset_id", "control_id", "PROTECTED_BY"),
