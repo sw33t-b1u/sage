@@ -99,6 +99,15 @@ Cloud Scheduler             — 日次 ETL トリガー（03:00 JST）
 Secret Manager              — API トークンと認証情報
 ```
 
+## PIR 方法論の参考資料
+
+SAGE は [BEACON](https://github.com/sw33t-b1u/beacon) が生成した PIR JSON を消費します。PIR モデルは以下に準拠:
+
+- [FIRST CTI-SIG — Priority Intelligence Requirements カリキュラム](https://www.first.org/global/sigs/cti/curriculum/pir)
+- [SANS — Bridging Gaps in CTI: A Practical Guide to Threat-Informed Security PIRs](https://www.sans.org/blog/bridging-gaps-cti-practical-guide-threat-informed-security-pirs)
+
+PIR は Operational TAP（脅威アクター優先度付け）と Tactical PTTP（優先 TTP）にカスケードします。このカスケードは Spanner グラフ上で PIR ノードとエッジとして実装されます（フェーズ 2 ロードマップ参照）。
+
 ## ライセンス
 
 Apache-2.0 — [LICENSE](LICENSE) を参照

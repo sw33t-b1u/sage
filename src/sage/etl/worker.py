@@ -171,6 +171,22 @@ class ETLWorker:
             stats["targets"] = 0
             stats["pir_criticality_updated"] = 0
 
+        # --- PIR node + Strategic→Operational→Tactical cascade edges ---
+        stats["pirs"] = upsert_rows(self._db, "PIR", self._pir.build_pir_nodes())
+        pir_actor_edges = self._pir.build_pir_actor_edges(actor_rows)
+        stats["pir_prioritizes_actor"] = upsert_rows(
+            self._db, "PirPrioritizesActor", pir_actor_edges
+        )
+        stats["pir_prioritizes_ttp"] = upsert_rows(
+            self._db, "PirPrioritizesTTP", self._pir.build_pir_ttp_edges(uses_rows, pir_actor_edges)
+        )
+        if asset_rows:
+            stats["pir_weights_asset"] = upsert_rows(
+                self._db, "PirWeightsAsset", self._pir.build_pir_asset_edges(asset_rows)
+            )
+        else:
+            stats["pir_weights_asset"] = 0
+
         # --- FollowedBy(threat_intel): 4-factor weight calculation ---
         # ir_feedback pairs are used as ir_multiplier.
         ttp_vuln_data = _build_ttp_vuln_data(exploits_rows, vuln_rows)

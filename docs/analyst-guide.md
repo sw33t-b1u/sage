@@ -50,7 +50,8 @@ Example output:
 
 | Rank | Asset                  | choke_score | pir_adjusted_criticality | Targeting Actors  |
 |------|------------------------|-------------|--------------------------|-------------------|
-| 1    | 統合認証基盤            | 42.0        | 10.0                     | APT10, Lazarus    |
+| 1    | Unified Auth Platform  | 42.0        | 10.0                     | APT10, Lazarus    |
+| 2    | Messaging Platform     | 30.0        | 10.0                     | APT10             |
 ```
 
 ---

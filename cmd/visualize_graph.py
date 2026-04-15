@@ -24,6 +24,7 @@ from pyvis.network import Network
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from sage.config import Config
+from sage.spanner.query import load_pir_edges, load_pirs
 
 structlog.configure(
     processors=[
@@ -43,6 +44,7 @@ _NODE_COLORS: dict[str, str] = {
     "Incident": "#e91e63",  # ピンク
     "Asset": "#3498db",  # 青
     "SecurityControl": "#95a5a6",  # グレー
+    "PIR": "#f5b301",  # 金
 }
 
 # エッジテーブル定義: (テーブル名, ソースキー列, 宛先キー列, ラベル)
@@ -133,6 +135,8 @@ def fetch_edges(
 def build_network(
     nodes: dict[str, dict],
     edges: list[tuple[str, str, str]],
+    pirs: list[dict] | None = None,
+    pir_edges: dict[str, list[dict]] | None = None,
 ) -> Network:
     """pyvis Network オブジェクトを構築して返す。"""
     net = Network(
@@ -155,6 +159,50 @@ def build_network(
 
     for src, dst, label in edges:
         net.add_edge(src, dst, label=label, color="#aaaaaa", arrows="to")
+
+    for pir in pirs or []:
+        decision = pir.get("decision_point") or pir["pir_id"]
+        net.add_node(
+            pir["pir_id"],
+            label=str(decision)[:40],
+            title=f"[PIR] {pir['pir_id']}\n{decision}",
+            color=_NODE_COLORS["PIR"],
+            size=28,
+            shape="hexagon",
+        )
+
+    pir_edges = pir_edges or {}
+    known = set(nodes.keys()) | {p["pir_id"] for p in (pirs or [])}
+    for e in pir_edges.get("PirPrioritizesActor", []):
+        if e["pir_id"] in known and e["actor_stix_id"] in known:
+            net.add_edge(
+                e["pir_id"],
+                e["actor_stix_id"],
+                label="TAP",
+                color="#f5b301",
+                dashes=True,
+                arrows="to",
+            )
+    for e in pir_edges.get("PirPrioritizesTTP", []):
+        if e["pir_id"] in known and e["ttp_stix_id"] in known:
+            net.add_edge(
+                e["pir_id"],
+                e["ttp_stix_id"],
+                label="PTTP",
+                color="#d4a017",
+                dashes=[2, 6],
+                arrows="to",
+            )
+    for e in pir_edges.get("PirWeightsAsset", []):
+        if e["pir_id"] in known and e["asset_id"] in known:
+            net.add_edge(
+                e["pir_id"],
+                e["asset_id"],
+                label=f"×{e.get('criticality_multiplier')}",
+                color="#e09f00",
+                dashes=True,
+                arrows="to",
+            )
 
     return net
 
@@ -192,6 +240,7 @@ def main() -> None:
     parser.add_argument("--output", default="tests/output/graph.html", help="出力HTMLファイルパス")
     parser.add_argument("--limit", type=int, default=500, help="テーブルごとの取得上限行数")
     parser.add_argument("--no-open", action="store_true", help="ブラウザを自動で開かない")
+    parser.add_argument("--pir-id", default=None, help="特定 PIR にスコープしたサブグラフのみ表示")
     args = parser.parse_args()
 
     config = Config.from_env()
@@ -199,19 +248,56 @@ def main() -> None:
     instance = spanner_client.instance(config.spanner_instance_id)
     database = instance.database(config.spanner_database_id)
 
+    try:
+        pirs = load_pirs(database)
+        pir_edges = load_pir_edges(database)
+    except Exception as exc:
+        logger.warning("pir_load_skip", error=str(exc))
+        pirs, pir_edges = (
+            [],
+            {
+                "PirPrioritizesActor": [],
+                "PirPrioritizesTTP": [],
+                "PirWeightsAsset": [],
+            },
+        )
+
+    if args.pir_id:
+        pirs = [p for p in pirs if p["pir_id"] == args.pir_id]
+        pir_edges = {k: [e for e in v if e["pir_id"] == args.pir_id] for k, v in pir_edges.items()}
+        scoped_actors = {e["actor_stix_id"] for e in pir_edges["PirPrioritizesActor"]}
+        scoped_ttps = {e["ttp_stix_id"] for e in pir_edges["PirPrioritizesTTP"]}
+        scoped_assets = {e["asset_id"] for e in pir_edges["PirWeightsAsset"]}
+    else:
+        scoped_actors = scoped_ttps = scoped_assets = set()
+
     nodes = fetch_nodes(database, args.limit)
-    if not nodes:
+    if not nodes and not pirs:
         logger.error("no_nodes_found", message="データが存在しません。ETLを先に実行してください。")
         sys.exit(1)
 
+    if scoped_actors or scoped_ttps or scoped_assets:
+        nodes = {
+            nid: a
+            for nid, a in nodes.items()
+            if (a["node_type"] == "ThreatActor" and nid in scoped_actors)
+            or (a["node_type"] == "TTP" and nid in scoped_ttps)
+            or (a["node_type"] == "Asset" and nid in scoped_assets)
+            or a["node_type"] not in {"ThreatActor", "TTP", "Asset"}
+        }
+
     edges = fetch_edges(database, set(nodes.keys()), args.limit)
 
-    net = build_network(nodes, edges)
+    net = build_network(nodes, edges, pirs=pirs, pir_edges=pir_edges)
 
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     net.write_html(str(output_path))
-    add_legend_html(output_path, nodes)
+    if pirs:
+        nodes_for_legend = {**nodes, "__pir__": {"node_type": "PIR"}}
+    else:
+        nodes_for_legend = nodes
+    add_legend_html(output_path, nodes_for_legend)
 
     logger.info(
         "graph_written",

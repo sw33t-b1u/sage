@@ -316,6 +316,76 @@ def find_all_incident_ttps(
     return result_map
 
 
+def load_pirs(database: Database) -> list[dict[str, Any]]:
+    """Return all PIR rows for visualizers and analysis tooling."""
+    sql = """
+    SELECT pir_id, intelligence_level, organizational_scope, decision_point,
+           description, rationale, recommended_action, threat_actor_tags,
+           risk_composite, valid_from, valid_until
+    FROM PIR
+    ORDER BY pir_id
+    """
+    rows: list[dict[str, Any]] = []
+    with database.snapshot() as snap:
+        for row in snap.execute_sql(sql):
+            rows.append(
+                {
+                    "pir_id": row[0],
+                    "intelligence_level": row[1],
+                    "organizational_scope": row[2],
+                    "decision_point": row[3],
+                    "description": row[4],
+                    "rationale": row[5],
+                    "recommended_action": row[6],
+                    "threat_actor_tags": list(row[7] or []),
+                    "risk_composite": row[8],
+                    "valid_from": row[9],
+                    "valid_until": row[10],
+                }
+            )
+    logger.info("load_pirs", count=len(rows))
+    return rows
+
+
+def load_pir_edges(database: Database) -> dict[str, list[dict[str, Any]]]:
+    """Return PIR cascade edges keyed by edge-table name.
+
+    Keys: "PirPrioritizesActor", "PirPrioritizesTTP", "PirWeightsAsset".
+    """
+    actor_sql = "SELECT pir_id, actor_stix_id, overlap_ratio FROM PirPrioritizesActor"
+    ttp_sql = "SELECT pir_id, ttp_stix_id FROM PirPrioritizesTTP"
+    asset_sql = "SELECT pir_id, asset_id, matched_tag, criticality_multiplier FROM PirWeightsAsset"
+
+    result: dict[str, list[dict[str, Any]]] = {
+        "PirPrioritizesActor": [],
+        "PirPrioritizesTTP": [],
+        "PirWeightsAsset": [],
+    }
+    with database.snapshot() as snap:
+        for row in snap.execute_sql(actor_sql):
+            result["PirPrioritizesActor"].append(
+                {"pir_id": row[0], "actor_stix_id": row[1], "overlap_ratio": row[2]}
+            )
+        for row in snap.execute_sql(ttp_sql):
+            result["PirPrioritizesTTP"].append({"pir_id": row[0], "ttp_stix_id": row[1]})
+        for row in snap.execute_sql(asset_sql):
+            result["PirWeightsAsset"].append(
+                {
+                    "pir_id": row[0],
+                    "asset_id": row[1],
+                    "matched_tag": row[2],
+                    "criticality_multiplier": row[3],
+                }
+            )
+    logger.info(
+        "load_pir_edges",
+        actors=len(result["PirPrioritizesActor"]),
+        ttps=len(result["PirPrioritizesTTP"]),
+        assets=len(result["PirWeightsAsset"]),
+    )
+    return result
+
+
 # ---------------------------------------------------------------------------
 # Type helpers (Spanner param_types)
 # ---------------------------------------------------------------------------

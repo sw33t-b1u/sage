@@ -147,6 +147,34 @@ _TABLE_COLUMNS: dict[str, list[str]] = {
         "last_calculated",
     ],
     "IncidentUsesTTP": ["incident_stix_id", "ttp_stix_id", "sequence_order"],
+    "PIR": [
+        "pir_id",
+        "intelligence_level",
+        "organizational_scope",
+        "decision_point",
+        "description",
+        "rationale",
+        "recommended_action",
+        "threat_actor_tags",
+        "risk_composite",
+        "valid_from",
+        "valid_until",
+        "last_updated",
+    ],
+    "PirPrioritizesActor": ["pir_id", "actor_stix_id", "overlap_ratio"],
+    "PirPrioritizesTTP": ["pir_id", "ttp_stix_id"],
+    "PirWeightsAsset": [
+        "pir_id",
+        "asset_id",
+        "matched_tag",
+        "criticality_multiplier",
+    ],
+}
+
+# Columns that must be written with spanner.COMMIT_TIMESTAMP when a row does
+# not provide an explicit value (matches ALLOW_COMMIT_TIMESTAMP in the DDL).
+_COMMIT_TIMESTAMP_COLUMNS: dict[str, set[str]] = {
+    "PIR": {"last_updated"},
 }
 
 # Batch size (Spanner mutation limit is 20,000 mutations/transaction)
@@ -163,10 +191,17 @@ def upsert_rows(
         return 0
 
     columns = _TABLE_COLUMNS[table]
+    ct_cols = _COMMIT_TIMESTAMP_COLUMNS.get(table, set())
     total = 0
 
     for batch in _chunk(rows, _BATCH_SIZE):
-        values = [_row_to_values(r, columns) for r in batch]
+        values = []
+        for r in batch:
+            row_vals = _row_to_values(r, columns)
+            for i, col in enumerate(columns):
+                if col in ct_cols and row_vals[i] is None:
+                    row_vals[i] = spanner.COMMIT_TIMESTAMP
+            values.append(row_vals)
         with database.batch() as b:
             b.insert_or_update(table=table, columns=columns, values=values)
         total += len(batch)

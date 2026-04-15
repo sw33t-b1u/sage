@@ -97,6 +97,15 @@ Cloud Scheduler             — daily ETL trigger (03:00 JST)
 Secret Manager              — API tokens and credentials
 ```
 
+## PIR Methodology References
+
+SAGE consumes PIR JSON produced by [BEACON](https://github.com/sw33t-b1u/beacon). The PIR model follows:
+
+- [FIRST CTI-SIG — Priority Intelligence Requirements curriculum](https://www.first.org/global/sigs/cti/curriculum/pir)
+- [SANS — Bridging Gaps in CTI: A Practical Guide to Threat-Informed Security PIRs](https://www.sans.org/blog/bridging-gaps-cti-practical-guide-threat-informed-security-pirs)
+
+PIRs cascade into Operational TAP (Threat Actor Prioritization) and Tactical PTTPs (Priority TTPs) — this cascade will be materialized as PIR nodes and edges in the Spanner graph (see phase 2 roadmap).
+
 ## License
 
 Apache-2.0 — see [LICENSE](LICENSE)

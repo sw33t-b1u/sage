@@ -23,6 +23,7 @@ Cross-domain join: `Targets` edge links ThreatActor → Asset.
 | `SecurityControl` | Defensive controls: EDR, WAF, SIEM, firewall, IAM |
 | `Observable` | IoCs — IPs, domains, hashes, emails, URLs with TLP and confidence |
 | `Incident` | IR incidents including diamond model and kill chain phases |
+| `PIR` | Priority Intelligence Requirement — one decision point per node (Strategic layer of the intel cascade) |
 
 ## Edges
 
@@ -40,6 +41,14 @@ Cross-domain join: `Targets` edge links ThreatActor → Asset.
 | `ProtectedBy` | Asset → SecurityControl | Asset is covered by a control |
 | `IndicatesTTP` | Observable → TTP | IoC is attributed to a TTP |
 | `IndicatesActor` | Observable → ThreatActor | IoC is attributed to a threat actor |
+| `PirPrioritizesActor` | PIR → ThreatActor | TAP — actor matches a PIR's `threat_actor_tags` (carries `overlap_ratio`) |
+| `PirPrioritizesTTP` | PIR → TTP | PTTP — derived transitively via `Uses` from prioritized actors |
+| `PirWeightsAsset` | PIR → Asset | Asset matches a PIR's `asset_weight_rules` (carries `matched_tag` + max `criticality_multiplier`) |
+
+PIR cascade edges are built at ETL time from the loaded PIR JSON together
+with the actor / asset / `Uses` rows. They materialize the
+Strategic (PIR) → Operational (TAP) → Tactical (PTTP) cascade so analysts
+can scope a subgraph to a single PIR.
 
 ---
 

@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.5.0] - 2026-04-15
+
+### Added
+
+**PIR as first-class graph node**
+- `schema/spanner_ddl.sql` — New tables: `PIR`, `PirPrioritizesActor` (TAP),
+  `PirPrioritizesTTP` (PTTP, derived transitively via Uses), `PirWeightsAsset`
+  (asset weight rule match)
+- `src/sage/pir/filter.py` — Added `build_pir_nodes()`,
+  `build_pir_actor_edges()`, `build_pir_ttp_edges()`,
+  `build_pir_asset_edges()` row builders implementing the Strategic →
+  Operational → Tactical cascade
+- `src/sage/etl/worker.py` — Upserts PIR node + cascade edges after actor /
+  TTP / asset loading; emits `pirs`, `pir_prioritizes_actor`,
+  `pir_prioritizes_ttp`, `pir_weights_asset` counters
+- `src/sage/spanner/query.py` — Added `load_pirs()` and `load_pir_edges()`
+  helpers for visualizers and analysis tooling
+- `tests/test_pir_filter.py` — 8 new tests covering the four row builders
+
+PIR JSON consumers should now provide narrow, per-decision-point PIRs (≤5
+per run) as produced by BEACON's clusterer; legacy single-PIR JSON still
+loads unchanged.
+
+---
+
 ## [0.4.0] - 2026-04-04
 
 ### Added
@@ -149,6 +174,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `tests/test_pir_filter.py` — Unit tests for PIR filtering and asset criticality adjustment
 - `tests/fixtures/` — Test fixture data (STIX bundles, PIR JSON)
 
+[0.5.0]: https://github.com/your-org/sage/releases/tag/v0.5.0
 [0.4.0]: https://github.com/your-org/sage/releases/tag/v0.4.0
 [0.3.0]: https://github.com/your-org/sage/releases/tag/v0.3.0
 [0.2.0]: https://github.com/your-org/sage/releases/tag/v0.2.0

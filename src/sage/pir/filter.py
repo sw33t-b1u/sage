@@ -234,3 +234,113 @@ class PIRFilter:
             return 0.0
         # Presence of actor_rows means this TTP is used by a PIR-relevant actor
         return 1.0
+
+    # -----------------------------------------------------------------------
+    # PIR as first-class graph node — row builders for Spanner upsert.
+    # Each method returns a list of dicts that maps 1:1 to the DDL columns.
+    # -----------------------------------------------------------------------
+
+    def build_pir_nodes(self) -> list[dict]:
+        """Return one PIR row per loaded PIR, ready for Spanner upsert."""
+        rows: list[dict] = []
+        for pir in self._pirs:
+            rows.append(
+                {
+                    "pir_id": pir["pir_id"],
+                    "intelligence_level": pir.get("intelligence_level", "operational"),
+                    "organizational_scope": pir.get("organizational_scope"),
+                    "decision_point": pir.get("decision_point"),
+                    "description": pir.get("description", ""),
+                    "rationale": pir.get("rationale"),
+                    "recommended_action": pir.get("recommended_action"),
+                    "threat_actor_tags": list(pir.get("threat_actor_tags", [])),
+                    "risk_composite": (pir.get("risk_score") or {}).get("composite"),
+                    "valid_from": pir.get("valid_from"),
+                    "valid_until": pir.get("valid_until"),
+                }
+            )
+        return rows
+
+    def build_pir_actor_edges(self, actor_rows: list[dict]) -> list[dict]:
+        """PIR → ThreatActor edges (TAP). Emits one edge per (PIR, actor) where
+        tags intersect. `overlap_ratio` is the fraction of PIR tags matched.
+        """
+        edges: list[dict] = []
+        for pir in self._pirs:
+            pir_tags = set(pir.get("threat_actor_tags", []))
+            if not pir_tags:
+                continue
+            for actor in actor_rows:
+                actor_tags = set(actor.get("tags") or [])
+                overlap = pir_tags & actor_tags
+                if not overlap:
+                    continue
+                edges.append(
+                    {
+                        "pir_id": pir["pir_id"],
+                        "actor_stix_id": actor["stix_id"],
+                        "overlap_ratio": round(len(overlap) / len(pir_tags), 4),
+                    }
+                )
+        return edges
+
+    def build_pir_ttp_edges(
+        self,
+        uses_rows: list[dict],
+        pir_actor_edges: list[dict],
+    ) -> list[dict]:
+        """PIR → TTP edges (PTTP), derived transitively: for each PIR, union of
+        TTPs used by its prioritized actors (via Uses edges).
+        """
+        pir_to_actors: dict[str, set[str]] = defaultdict(set)
+        for edge in pir_actor_edges:
+            pir_to_actors[edge["pir_id"]].add(edge["actor_stix_id"])
+
+        actor_to_ttps: dict[str, set[str]] = defaultdict(set)
+        for u in uses_rows:
+            actor_to_ttps[u["actor_stix_id"]].add(u["ttp_stix_id"])
+
+        seen: set[tuple[str, str]] = set()
+        edges: list[dict] = []
+        for pir_id, actor_ids in pir_to_actors.items():
+            for actor_id in actor_ids:
+                for ttp_id in actor_to_ttps.get(actor_id, set()):
+                    key = (pir_id, ttp_id)
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    edges.append({"pir_id": pir_id, "ttp_stix_id": ttp_id})
+        return edges
+
+    def build_pir_asset_edges(self, asset_rows: list[dict]) -> list[dict]:
+        """PIR → Asset edges. For each (PIR, asset) where any
+        asset_weight_rules[*].tag intersects asset.tags, keep the highest
+        multiplier seen.
+        """
+        best: dict[tuple[str, str], dict] = {}
+        for pir in self._pirs:
+            rules = pir.get("asset_weight_rules", [])
+            if not rules:
+                continue
+            for asset in asset_rows:
+                asset_tags = set(asset.get("tags") or [])
+                best_match: tuple[float, str] | None = None
+                for rule in rules:
+                    tag = rule.get("tag")
+                    if tag in asset_tags:
+                        mult = float(rule.get("criticality_multiplier", 1.0))
+                        if best_match is None or mult > best_match[0]:
+                            best_match = (mult, tag)
+                if best_match is None:
+                    continue
+                key = (pir["pir_id"], asset["id"])
+                mult, tag = best_match
+                existing = best.get(key)
+                if existing is None or (existing["criticality_multiplier"] or 0) < mult:
+                    best[key] = {
+                        "pir_id": pir["pir_id"],
+                        "asset_id": asset["id"],
+                        "matched_tag": tag,
+                        "criticality_multiplier": mult,
+                    }
+        return list(best.values())

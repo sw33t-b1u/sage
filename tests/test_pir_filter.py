@@ -248,3 +248,80 @@ class TestUpdateAssetCriticality:
     def test_empty_assets_returns_empty(self, pir_filter):
         result = pir_filter.update_asset_criticality([], [], [])
         assert result == []
+
+
+# ---------------------------------------------------------------------------
+# PIR ノード／カスケードエッジ生成
+# ---------------------------------------------------------------------------
+
+
+class TestBuildPirNodes:
+    def test_emits_one_row_per_pir(self, pir_filter):
+        rows = pir_filter.build_pir_nodes()
+        assert len(rows) == 1
+        row = rows[0]
+        assert row["pir_id"] == "PIR-2025-001"
+        assert row["intelligence_level"] == "operational"
+        assert row["threat_actor_tags"] == ["ransomware", "apt", "targets-japan"]
+
+    def test_empty_pir_returns_empty(self, empty_pir_filter):
+        assert empty_pir_filter.build_pir_nodes() == []
+
+
+class TestBuildPirActorEdges:
+    def test_emits_edge_for_overlapping_actor(self, pir_filter):
+        actors = [
+            {"stix_id": "actor-1", "tags": ["ransomware", "apt", "targets-japan"]},
+            {"stix_id": "actor-2", "tags": ["botnet"]},
+        ]
+        edges = pir_filter.build_pir_actor_edges(actors)
+        assert len(edges) == 1
+        assert edges[0]["pir_id"] == "PIR-2025-001"
+        assert edges[0]["actor_stix_id"] == "actor-1"
+        assert edges[0]["overlap_ratio"] == pytest.approx(1.0)
+
+    def test_partial_overlap(self, pir_filter):
+        actors = [{"stix_id": "actor-1", "tags": ["apt"]}]
+        edges = pir_filter.build_pir_actor_edges(actors)
+        assert edges[0]["overlap_ratio"] == pytest.approx(round(1 / 3, 4))
+
+
+class TestBuildPirTtpEdges:
+    def test_transitive_ttp_edges_from_uses(self, pir_filter):
+        actors = [{"stix_id": "actor-1", "tags": ["apt"]}]
+        pir_actor_edges = pir_filter.build_pir_actor_edges(actors)
+        uses = [
+            {"actor_stix_id": "actor-1", "ttp_stix_id": "ttp-A"},
+            {"actor_stix_id": "actor-1", "ttp_stix_id": "ttp-B"},
+            {"actor_stix_id": "actor-2", "ttp_stix_id": "ttp-C"},
+        ]
+        edges = pir_filter.build_pir_ttp_edges(uses, pir_actor_edges)
+        ttp_ids = {e["ttp_stix_id"] for e in edges}
+        assert ttp_ids == {"ttp-A", "ttp-B"}
+        assert all(e["pir_id"] == "PIR-2025-001" for e in edges)
+
+    def test_dedupes_same_pair(self, pir_filter):
+        actors = [
+            {"stix_id": "actor-1", "tags": ["apt"]},
+            {"stix_id": "actor-2", "tags": ["ransomware"]},
+        ]
+        pir_actor_edges = pir_filter.build_pir_actor_edges(actors)
+        uses = [
+            {"actor_stix_id": "actor-1", "ttp_stix_id": "ttp-A"},
+            {"actor_stix_id": "actor-2", "ttp_stix_id": "ttp-A"},
+        ]
+        edges = pir_filter.build_pir_ttp_edges(uses, pir_actor_edges)
+        assert len(edges) == 1
+
+
+class TestBuildPirAssetEdges:
+    def test_picks_max_multiplier(self, pir_filter):
+        assets = [{"id": "a1", "tags": ["external-facing", "s3"]}]
+        edges = pir_filter.build_pir_asset_edges(assets)
+        assert len(edges) == 1
+        assert edges[0]["criticality_multiplier"] == pytest.approx(2.0)
+        assert edges[0]["matched_tag"] == "external-facing"
+
+    def test_no_matching_tag_skipped(self, pir_filter):
+        assets = [{"id": "a1", "tags": ["database"]}]
+        assert pir_filter.build_pir_asset_edges(assets) == []

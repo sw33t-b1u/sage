@@ -29,6 +29,7 @@ from pyvis.network import Network
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from sage.config import Config
+from sage.spanner.query import load_pir_edges, load_pirs
 
 structlog.configure(
     processors=[
@@ -241,6 +242,8 @@ def build_network(
     all_nodes: dict[str, dict],
     followed_by_edges: list[dict],
     uses_edges: list[dict],
+    pirs: list[dict] | None = None,
+    pir_ttp_edges: list[dict] | None = None,
 ) -> Network:
     """pyvis Network を構築する。"""
     net = Network(
@@ -291,6 +294,31 @@ def build_network(
             arrows="to",
         )
 
+    for pir in pirs or []:
+        decision = pir.get("decision_point") or pir["pir_id"]
+        net.add_node(
+            pir["pir_id"],
+            label=str(decision)[:35],
+            title=f"[PIR] {pir['pir_id']}\n{decision}",
+            color="#f5b301",
+            size=30,
+            shape="hexagon",
+        )
+
+    known = set(all_nodes.keys()) | {p["pir_id"] for p in (pirs or [])}
+    for e in pir_ttp_edges or []:
+        if e["pir_id"] in known and e["ttp_stix_id"] in known:
+            net.add_edge(
+                e["pir_id"],
+                e["ttp_stix_id"],
+                label="PTTP",
+                color="#d4a017",
+                width=1.0,
+                dashes=[2, 6],
+                arrows="to",
+                title="PirPrioritizesTTP",
+            )
+
     return net
 
 
@@ -321,6 +349,10 @@ def add_legend_html(html_path: Path) -> None:
   <div style="margin:4px 0">&#9473; 実線 = threat_intel</div>
   <div style="margin:4px 0">&#9476; 破線 = ir_feedback</div>
   <div style="margin:4px 0">幅・色 = weight (低→高: 赤→緑)</div>
+  <hr style="border-color:#555;margin:8px 0">
+  <b>PIR</b><br>
+  <div style="margin:4px 0">&#11042; 金六角形 = PIR (Strategic)</div>
+  <div style="margin:4px 0">… 金点線 = PTTP (PIR→TTP)</div>
 </div>
 """
     content = html_path.read_text()
@@ -351,6 +383,7 @@ def main() -> None:
         action="store_true",
         help="ブラウザを自動で開かない",
     )
+    parser.add_argument("--pir-id", default=None, help="特定 PIR にスコープしたサブグラフのみ表示")
     args = parser.parse_args()
 
     config = Config.from_env()
@@ -358,10 +391,30 @@ def main() -> None:
     instance = spanner_client.instance(config.spanner_instance_id)
     database = instance.database(config.spanner_database_id)
 
+    try:
+        pirs = load_pirs(database)
+        pir_edges_all = load_pir_edges(database)
+    except Exception as exc:
+        logger.warning("pir_load_skip", error=str(exc))
+        pirs, pir_edges_all = [], {"PirPrioritizesTTP": [], "PirPrioritizesActor": []}
+
+    if args.pir_id:
+        pirs = [p for p in pirs if p["pir_id"] == args.pir_id]
+        pir_ttp_edges = [
+            e for e in pir_edges_all["PirPrioritizesTTP"] if e["pir_id"] == args.pir_id
+        ]
+        scoped_ttp_ids = {e["ttp_stix_id"] for e in pir_ttp_edges}
+    else:
+        pir_ttp_edges = pir_edges_all["PirPrioritizesTTP"]
+        scoped_ttp_ids = set()
+
     ttp_nodes = fetch_ttp_nodes(database, args.actor_id, args.limit)
-    if not ttp_nodes:
+    if not ttp_nodes and not pirs:
         logger.error("no_ttps_found", hint="ETL を先に実行してください")
         sys.exit(1)
+
+    if scoped_ttp_ids:
+        ttp_nodes = {nid: a for nid, a in ttp_nodes.items() if nid in scoped_ttp_ids}
 
     ttp_ids = set(ttp_nodes.keys())
     actor_nodes = fetch_actor_nodes(database, args.actor_id, ttp_ids, args.limit)
@@ -372,7 +425,9 @@ def main() -> None:
     followed_by_edges = fetch_followed_by_edges(database, ttp_ids, args.limit)
     uses_edges = fetch_uses_edges(database, set(actor_nodes.keys()), ttp_ids, args.limit)
 
-    net = build_network(all_nodes, followed_by_edges, uses_edges)
+    net = build_network(
+        all_nodes, followed_by_edges, uses_edges, pirs=pirs, pir_ttp_edges=pir_ttp_edges
+    )
 
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)

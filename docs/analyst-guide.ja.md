@@ -55,6 +55,7 @@ uv run python cmd/report_choke_points.py --ghe
 | Rank | Asset                  | choke_score | pir_adjusted_criticality | Targeting Actors  |
 |------|------------------------|-------------|--------------------------|-------------------|
 | 1    | 統合認証基盤            | 42.0        | 10.0                     | APT10, Lazarus    |
+| 2    | メッセージング基盤      | 30.0        | 10.0                     | APT10             |
 ```
 
 ---

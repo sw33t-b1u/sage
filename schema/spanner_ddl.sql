@@ -227,6 +227,49 @@ CREATE TABLE IndicatesActor (
   stix_id            STRING(128),
 ) PRIMARY KEY (observable_stix_id, actor_stix_id);
 
+-- -----------------------------------------------------------------------------
+-- PIR (Priority Intelligence Requirement) — first-class graph node + edges
+-- -----------------------------------------------------------------------------
+-- A PIR is the Strategic layer of the intel cascade:
+--   PIR → TAP (PirPrioritizesActor)  → PTTP (PirPrioritizesTTP)
+-- Edges are derived at ETL time from PIR JSON + loaded actor/uses/asset rows.
+
+CREATE TABLE PIR (
+  pir_id               STRING(64) NOT NULL,
+  intelligence_level   STRING(16) NOT NULL,         -- strategic | operational | tactical
+  organizational_scope STRING(256),
+  decision_point       STRING(256),
+  description          STRING(MAX) NOT NULL,
+  rationale            STRING(MAX),
+  recommended_action   STRING(MAX),
+  threat_actor_tags    ARRAY<STRING(128)>,
+  risk_composite       INT64,
+  valid_from           DATE,
+  valid_until          DATE,
+  last_updated         TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true),
+) PRIMARY KEY (pir_id);
+
+-- PIR → ThreatActor (TAP: Threat Actor Prioritization)
+CREATE TABLE PirPrioritizesActor (
+  pir_id        STRING(64) NOT NULL,
+  actor_stix_id STRING(128) NOT NULL,
+  overlap_ratio FLOAT64,                -- |PIR.tags ∩ actor.tags| / |PIR.tags|
+) PRIMARY KEY (pir_id, actor_stix_id);
+
+-- PIR → TTP (PTTP: Priority TTPs; derived transitively via Uses from prioritized actors)
+CREATE TABLE PirPrioritizesTTP (
+  pir_id      STRING(64) NOT NULL,
+  ttp_stix_id STRING(128) NOT NULL,
+) PRIMARY KEY (pir_id, ttp_stix_id);
+
+-- PIR → Asset (weight rule match)
+CREATE TABLE PirWeightsAsset (
+  pir_id                 STRING(64) NOT NULL,
+  asset_id               STRING(36) NOT NULL,
+  matched_tag            STRING(128),
+  criticality_multiplier FLOAT64,
+) PRIMARY KEY (pir_id, asset_id);
+
 -- =============================================================================
 -- PROPERTY GRAPH (optional — requires Enterprise edition)
 -- =============================================================================
