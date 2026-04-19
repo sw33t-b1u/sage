@@ -77,6 +77,10 @@
 IR チームがインシデント対応完了後、OpenCTI へ `incident` オブジェクトを登録する（TTP sequence 付き）。
 OpenCTI の通常ポーリングで GCS Landing Zone に取り込まれ、ETL により Incident ノード・IncidentUsesTTP エッジ・FollowedBy(ir_feedback) に変換される。
 
+**注:** ETL 現行実装では `Incident.source` は `ir_feedback` 固定。将来、OpenCTI 由来の通常
+`incident` オブジェクトを `threat_intel` として区別する設計余地があるが、現時点では
+全インシデントを IR 実績として扱う。
+
 **GCS Landing Zone 構造:**
 ```
 gs://threat-intel-landing/
@@ -437,11 +441,13 @@ CREATE PROPERTY GRAPH ThreatIntelGraph
 ### 5.1 FollowedBy.weight の算出（source="threat_intel"）
 
 ```
-weight(src_ttp → dst_ttp) =
+weight(src_ttp → dst_ttp) = min(
   base_prob           -- ATT&CK kill chain上の遷移頻度（STIX観測数から算出）
   × activity_score    -- 直近90日のOpenCTI観測頻度（0.0-2.0）
   × exploit_ease      -- CVSSv3 Exploitability + EPSS（該当する場合。なければ 1.0）
-  × ir_multiplier     -- 自社IR実績で同一遷移が観測された場合に補正（後述）
+  × ir_multiplier,    -- 自社IR実績で同一遷移が観測された場合に補正（後述）
+  1.0                 -- 4因子の積が 1.0 を超える場合は正規化
+)
 ```
 
 各因子の算出方法:
@@ -449,8 +455,8 @@ weight(src_ttp → dst_ttp) =
 | 因子 | 算出式 | 備考 |
 |------|--------|------|
 | `base_prob` | 当該遷移を行うアクター数 / 全アクター数（上限 1.0） | Kill Chain 順でソートした連続TTPペアを遷移候補とする |
-| `activity_score` | min(直近90日の Uses 観測数 / 全観測数 × 2.0, 2.0) | OpenCTI の `last_observed` から算出 |
-| `exploit_ease` | Exploits エッジあり: cvss_score/10 × 0.5 + epss_score × 0.5<br>Exploits エッジなし: **1.0（ニュートラル）** | CVEが存在しないTTP（ソーシャルエンジニアリング、フィッシング等）は技術的脆弱性の悪用がないため 1.0 とし、使用頻度の高さは base_prob・activity_score で表現する |
+| `activity_score` | min(直近90日の Uses 観測数 / 全観測数 × 2.0, 2.0) | OpenCTI の `last_observed` から算出。`last_observed=None` の TTP は観測率を中立値 0.5（× 2.0 = 1.0）として扱う |
+| `exploit_ease` | CVSS・EPSS 両方あり: cvss_score/10 × 0.5 + epss_score × 0.5<br>CVSS のみ: cvss_score / 10<br>EPSS のみ: epss_score（そのまま）<br>両方なし（Exploits エッジなし含む）: **1.0（ニュートラル）** | CVEが存在しないTTP（ソーシャルエンジニアリング、フィッシング等）は技術的脆弱性の悪用がないため 1.0 とし、使用頻度の高さは base_prob・activity_score で表現する |
 | `ir_multiplier` | ir_feedback source の FollowedBy が同一ペアに存在: 1.5 / なし: 1.0 | threat_intel weight 計算後に乗算 |
 
 ### 5.2 IR Feedback → FollowedBy 還元（source="ir_feedback"）
@@ -486,6 +492,14 @@ for each active PIR:
 PIR が更新された場合、`source="pir_auto"` の Targets エッジを再計算する。
 `source="manual"` や `source="stix"` のエッジは保持する。
 
+`Targets.source` の運用区分:
+
+| source | 用途 |
+|--------|------|
+| `pir_auto` | ETL が PIR タグマッチングから自動生成（本節のロジック）。PIR 更新時に再計算される |
+| `manual` | アナリストが個別調査の結果を直接 upsert。自動再計算の対象外 |
+| `stix` | 将来 STIX `targets` relationship を直接マッピングする場合に予約（現行実装では未使用） |
+
 ### 5.4 PIR による資産重み付け更新
 
 ```
@@ -512,6 +526,19 @@ GCS Landing Zone
         ├─ FollowedBy weight 再計算（影響ノードのみ差分計算）
         └─ Spanner Graph upsert
 ```
+
+### TLP フィルタリング
+
+TLP レベルは数値で比較し、設定された最大レベル以下のオブジェクトのみ Spanner に格納する（デフォルトは amber 以下）。
+
+| TLP | 数値 |
+|-----|------|
+| white | 0 |
+| green | 1 |
+| amber | 2 |
+| red   | 3 |
+
+`red` は既定で除外され、アナリストへの通知のみに使用する。実装は `src/sage/config.py:TLP_LEVELS` と `src/sage/etl/worker.py:_passes_tlp()` を参照。
 
 ### 更新スケジュール
 
