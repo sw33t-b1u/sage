@@ -8,6 +8,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+**PIR tag vocabulary — follow-up for BEACON 0.8**
+- `docs/data-model.md` — "Available threat_actor_tags" table rewritten to
+  match BEACON's MITRE+MISP-derived vocabulary: nation-state as
+  `apt-<country-slug>` (MISP `cfr-suspected-state-sponsor`), non-state
+  motivation as `espionage` / `financial-crime` / `sabotage` / `subversion`
+  (MISP `cfr-type-of-incident`), plus `cybercriminal`. Removed vocabulary
+  listed for back-reference.
+- `docs/data-model.md` / `docs/data-model.ja.md`, `high-level-design.md`,
+  `schema/spanner_ddl.sql`, `src/sage/pir/filter.py` — example PIR tags
+  and the ThreatActor.tags column comment updated from legacy values
+  (`ransomware`, `financially-motivated`, `targets-japan`) to the new
+  vocabulary.
+- `src/sage/pir/filter.py` logic is unchanged: tag matching is pure set
+  intersection, so existing PIRs in `input/pir_output.json` (legacy tags)
+  continue to load and match against `ThreatActor.labels` as before.
+  Fixtures and unit tests still exercise the legacy vocabulary to verify
+  vocabulary-agnostic behavior.
+
 ### Added
 
 **TTP → Asset derived edges (`TargetsAsset`)**

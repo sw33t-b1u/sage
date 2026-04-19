@@ -95,7 +95,7 @@ gs://threat-intel-landing/
 {
   "pir_id": "PIR-2025-001",
   "description": "ランサムウェアグループへの耐性強化",
-  "threat_actor_tags": ["ransomware", "financially-motivated"],
+  "threat_actor_tags": ["apt-china", "espionage"],
   "asset_weight_rules": [
     { "tag": "external-facing",  "criticality_multiplier": 2.0 },
     { "tag": "s3",               "criticality_multiplier": 1.8 },
@@ -151,7 +151,7 @@ CREATE TABLE ThreatActor (
   aliases        ARRAY<STRING(256)>,
   sophistication STRING(64),            -- minimal/intermediate/advanced/expert
   motivation     STRING(64),            -- financial/espionage/hacktivism 等
-  tags           ARRAY<STRING(128)>,    -- "ransomware","apt","targets-japan" 等 (PIR紐付け用)
+  tags           ARRAY<STRING(128)>,    -- STIX labels（"apt-china","espionage" 等、PIR 紐付け用）
   first_seen     TIMESTAMP,
   last_seen      TIMESTAMP,
   stix_modified  TIMESTAMP NOT NULL,

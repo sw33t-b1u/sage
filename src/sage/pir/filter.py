@@ -28,7 +28,7 @@ class PIRFilter:
       "pir_id": "PIR-2025-001",
       "organizational_scope": "Financial Crime Intelligence Team (department)",
       "description": "...",
-      "threat_actor_tags": ["ransomware", "financially-motivated"],
+      "threat_actor_tags": ["apt-china", "espionage"],
       "asset_weight_rules": [
         {"tag": "external-facing", "criticality_multiplier": 2.0},
         ...

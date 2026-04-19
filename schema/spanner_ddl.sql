@@ -16,7 +16,7 @@ CREATE TABLE ThreatActor (
   aliases        ARRAY<STRING(256)>,
   sophistication STRING(64),            -- minimal/intermediate/advanced/expert
   motivation     STRING(64),            -- financial/espionage/hacktivism 等
-  tags           ARRAY<STRING(128)>,    -- "ransomware","apt","targets-japan" 等 (PIR紐付け用)
+  tags           ARRAY<STRING(128)>,    -- STIX labels ("apt-china","espionage" 等、PIR 紐付け用)
   first_seen     TIMESTAMP,
   last_seen      TIMESTAMP,
   stix_modified  TIMESTAMP NOT NULL,

@@ -68,7 +68,7 @@ BEACON generates the following structure. SAGE processes the fields marked **[us
   "intelligence_level": "strategic",
   "description": "Strengthen defenses against nation-state actors targeting PLM systems",
   "rationale": "Likelihood=5, Impact=5 — state_sponsored.China / OT connectivity risk",
-  "threat_actor_tags": ["apt-china", "espionage", "ip-theft", "ot-targeting"],
+  "threat_actor_tags": ["apt-china", "espionage"],
   "asset_weight_rules": [
     { "tag": "plm",  "criticality_multiplier": 2.5 },
     { "tag": "ot",   "criticality_multiplier": 2.0 }
@@ -88,13 +88,15 @@ Remaining fields (`intelligence_level`, `description`, `rationale`, `collection_
 
 ### Available threat_actor_tags
 
+The vocabulary is derived from MITRE ATT&CK + MISP Galaxy `threat-actor` cluster and is the exhaustive set BEACON currently emits. Exact contents evolve with upstream feeds; regenerate `BEACON/schema/threat_taxonomy.json` to refresh.
+
 | Category | Tags |
 |----------|------|
-| Nation-state | `apt-china`, `apt-russia`, `apt-north-korea`, `apt-iran`, `apt-india` |
-| Motivation | `espionage`, `ip-theft`, `financially-motivated`, `destructive`, `hacktivism`, `bec`, `fraud`, `double-extortion`, `insider-threat` |
-| Target type | `ot-targeting`, `critical-infrastructure`, `cloud-targeting`, `supply-chain-attack`, `phi-targeting`, `erp-targeting`, `msp-targeting`, `software-supply-chain`, `source-code-theft`, `research-theft` |
-| Geography | `targets-japan`, `targets-sea`, `targets-usa`, `targets-europe`, `targets-south-korea`, `targets-taiwan`, `targets-uk`, `targets-germany`, `targets-australia`, `targets-middle-east` |
-| Crime | `ransomware`, `raas`, `cybercriminal`, `initial-access-broker` |
+| Nation-state | `apt-<country-slug>` — one per MISP `cfr-suspected-state-sponsor` bucket (e.g., `apt-china`, `apt-russia`, `apt-north-korea`, `apt-iran`, `apt-india`, `apt-south-korea`, `apt-vietnam`, `apt-united-states`, `apt-israel`, `apt-pakistan`, `apt-lebanon`, `apt-france`, `apt-spain`, `apt-belarus`, `apt-palestine`, `apt-united-arab-emirates`) |
+| Non-state motivation | `espionage`, `financial-crime`, `sabotage`, `subversion` — from MISP `cfr-type-of-incident` |
+| Crime | `cybercriminal` |
+
+**Removed in BEACON 0.8 (Phase 7)**: `ip-theft`, `financially-motivated`, `destructive`, `hacktivism`, `bec`, `fraud`, `double-extortion`, `insider-threat`, `ot-targeting`, `critical-infrastructure`, `cloud-targeting`, `supply-chain-attack`, `phi-targeting`, `erp-targeting`, `msp-targeting`, `software-supply-chain`, `source-code-theft`, `research-theft`, `targets-*`, `ransomware`, `raas`, `initial-access-broker`. SAGE's PIR filter is tag-vocabulary-agnostic (pure set intersection), so older PIRs containing these tags still load, but no new PIRs will produce them.
 
 ### Available asset_weight_rules tags
 
