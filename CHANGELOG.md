@@ -8,6 +8,93 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-05-09
+
+### Added — Identity SDO support (paired with TRACE 1.0.0)
+
+`identity` (STIX 2.1 §4.4) now produces a first-class graph node, and
+the `targets` relationship from threat-actor / intrusion-set sources
+now produces an `ActorTargetsIdentity` edge. This closes the
+credential / org-targeting blind spot that Verizon DBIR 2025
+(stolen-credentials = #1 initial-access vector at 22%) and CrowdStrike
+GTR 2025 (valid-account abuse = #1 cloud vector at 35%) made
+unavoidable.
+
+#### `Identity` node
+
+```sql
+CREATE TABLE Identity (
+  stix_id          STRING(128) NOT NULL,
+  name             STRING(256) NOT NULL,
+  identity_class   STRING(32),                  -- STIX identity-class-ov
+  sectors          ARRAY<STRING(64)>,
+  description      STRING(MAX),
+  contact_information STRING(MAX),
+  roles            ARRAY<STRING(64)>,
+  deleted_at       TIMESTAMP,                   -- soft-delete (NULL = active)
+  stix_modified    TIMESTAMP NOT NULL,
+) PRIMARY KEY (stix_id);
+```
+
+`deleted_at` is a SAGE-internal soft-delete marker (NULL = active).
+Distinct from STIX `revoked` because identities can leave an
+organisation (HR action) without the upstream STIX object being
+revoked. Set by SAGE-side workflows, not by parser.
+
+#### `ActorTargetsIdentity` edge
+
+```sql
+CREATE TABLE ActorTargetsIdentity (
+  actor_stix_id    STRING(128) NOT NULL,
+  identity_stix_id STRING(128) NOT NULL,
+  confidence       INT64,
+  description      STRING(MAX),
+  first_observed   TIMESTAMP,
+  stix_id          STRING(128),
+) PRIMARY KEY (actor_stix_id, identity_stix_id);
+```
+
+Restricted to `threat-actor` / `intrusion-set` source per STIX 2.1
+§4.13's suggested subset. Other sources (`malware`, `tool`, etc.)
+return `None` from `map_relationship` and are dropped with a
+structured-log warning at the caller.
+
+#### `parser.SUPPORTED_TYPES` += `identity`
+
+Bundles emitted by TRACE 1.0.0 carry `identity` SDOs; the SAGE parser
+now ingests them.
+
+#### Property graph (commented Enterprise block)
+
+`Identity` added to `NODE TABLES`; `ActorTargetsIdentity` added to
+`EDGE TABLES` (source: `ThreatActor.stix_id`, destination:
+`Identity.stix_id`).
+
+### Tests
+
+- 7 new cases in `tests/test_mapper.py`:
+  - 3 in `TestMapIdentity` — minimal identity, full identity with all
+    optional fields, non-identity type returning None.
+  - 4 in `TestMapTargetsRelationship` — actor source → emit edge,
+    intrusion-set source → also emit edge, malware source → drop,
+    actor → vulnerability target (out-of-scope for 1.0.0) → drop.
+
+### Future scope
+
+- `HasAccess` edge (Identity → Asset) deferred to 0.6.0+ — requires
+  BEACON-side identity-asset metadata which is not yet emitted.
+- `user-account` SCO support (via observed-data SDO or indicator
+  patterns) deferred to 0.6.0+ — covers credential-level granularity
+  beyond the per-person Identity node.
+- Other `targets` source types (attack-pattern → identity, malware
+  → identity) deferred — empirical demand not yet confirmed.
+
+### Security
+
+- Pinned `pip>=26.1` in dev extras to address CVE-2026-6357 in the transitive
+  `pip-api` → `pip` chain pulled by `pip-audit`. CVE-2026-3219 (also in `pip`)
+  has no fix release as of this version; tracked upstream.
+
 ### Changed
 
 **PIR tag vocabulary — follow-up for BEACON 0.8**

@@ -122,6 +122,27 @@ class StixMapper:
             "stix_modified": _to_ts(obj.get("modified")) or _now(),
         }
 
+    def map_identity(self, obj: dict) -> dict | None:
+        """Map a STIX 2.1 §4.4 ``identity`` SDO to an Identity row.
+
+        Added in SAGE 0.5.0 alongside TRACE 1.0.0's identity extraction.
+        ``deleted_at`` defaults to NULL — SAGE-internal soft-delete is
+        managed by HR-side workflows, not by the upstream STIX object.
+        """
+        if obj["type"] != "identity":
+            return None
+        return {
+            "stix_id": obj["id"],
+            "name": obj["name"],
+            "identity_class": obj.get("identity_class"),
+            "sectors": list(obj.get("sectors", [])),
+            "description": obj.get("description"),
+            "contact_information": obj.get("contact_information"),
+            "roles": list(obj.get("roles", [])),
+            "deleted_at": None,
+            "stix_modified": _to_ts(obj.get("modified")) or _now(),
+        }
+
     def map_incident(self, obj: dict) -> dict | None:
         if obj["type"] != "incident":
             return None
@@ -225,6 +246,22 @@ class StixMapper:
                     "observable_stix_id": src,
                     "actor_stix_id": dst,
                     "confidence": confidence,
+                    "stix_id": stix_id,
+                }
+
+        # SAGE 0.5.0: actor → identity targeting from TRACE-emitted reports.
+        # STIX 2.1 §4.13 permits other source types (attack-pattern, malware,
+        # tool, campaign) but only actor sources are stored as graph edges
+        # in 1.0.0 — other sources are dropped with a structured-log warning
+        # at the caller (etl/worker.py).
+        if rel_type == "targets" and dst.startswith("identity--"):
+            if src.startswith(("threat-actor--", "intrusion-set--")):
+                return "ActorTargetsIdentity", {
+                    "actor_stix_id": src,
+                    "identity_stix_id": dst,
+                    "confidence": confidence,
+                    "description": obj.get("description"),
+                    "first_observed": _to_ts(obj.get("start_time")),
                     "stix_id": stix_id,
                 }
 

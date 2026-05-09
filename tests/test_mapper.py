@@ -370,3 +370,122 @@ class TestMapIncidentTTPEdges:
         for r in fb_rows:
             assert r["source"] == "ir_feedback"
             assert r["weight"] == pytest.approx(1.0)
+
+
+# ---------------------------------------------------------------------------
+# SAGE 0.5.0 — identity SDO + actor→identity targets edge
+# ---------------------------------------------------------------------------
+
+
+class TestMapIdentity:
+    def test_minimal_identity_maps_with_required_fields(self, mapper):
+        obj = {
+            "type": "identity",
+            "id": "identity--11111111-1111-4111-8111-111111111111",
+            "name": "CFO",
+            "spec_version": "2.1",
+            "created": "2026-01-01T00:00:00.000Z",
+            "modified": "2026-01-01T00:00:00.000Z",
+        }
+        row = mapper.map_identity(obj)
+        assert row is not None
+        assert row["stix_id"] == obj["id"]
+        assert row["name"] == "CFO"
+        assert row["identity_class"] is None
+        assert row["sectors"] == []
+        assert row["roles"] == []
+        assert row["deleted_at"] is None
+
+    def test_full_identity_round_trips_optional_fields(self, mapper):
+        obj = {
+            "type": "identity",
+            "id": "identity--22222222-2222-4222-8222-222222222222",
+            "name": "Acme Finance Department",
+            "identity_class": "group",
+            "sectors": ["finance"],
+            "description": "Finance ops team",
+            "contact_information": "ops@example.com",
+            "roles": ["manager"],
+            "spec_version": "2.1",
+            "created": "2026-01-01T00:00:00.000Z",
+            "modified": "2026-02-15T00:00:00.000Z",
+        }
+        row = mapper.map_identity(obj)
+        assert row is not None
+        assert row["identity_class"] == "group"
+        assert row["sectors"] == ["finance"]
+        assert row["roles"] == ["manager"]
+        assert row["contact_information"] == "ops@example.com"
+
+    def test_non_identity_type_returns_none(self, mapper):
+        obj = {"type": "threat-actor", "id": "threat-actor--xxx", "name": "FIN7"}
+        assert mapper.map_identity(obj) is None
+
+
+class TestMapTargetsRelationship:
+    def test_actor_targets_identity_emitted(self, mapper):
+        obj = {
+            "type": "relationship",
+            "id": "relationship--33333333-3333-4333-8333-333333333333",
+            "spec_version": "2.1",
+            "relationship_type": "targets",
+            "source_ref": "threat-actor--aaaa1111-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "target_ref": "identity--bbbb2222-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+            "confidence": 80,
+            "description": "FIN7 spear-phishes finance staff",
+            "start_time": "2026-01-15T00:00:00.000Z",
+        }
+        result = mapper.map_relationship(obj)
+        assert result is not None
+        table, row = result
+        assert table == "ActorTargetsIdentity"
+        assert row["actor_stix_id"] == obj["source_ref"]
+        assert row["identity_stix_id"] == obj["target_ref"]
+        assert row["confidence"] == 80
+        assert row["description"] == "FIN7 spear-phishes finance staff"
+        assert row["first_observed"] is not None
+
+    def test_intrusion_set_targets_identity_also_handled(self, mapper):
+        obj = {
+            "type": "relationship",
+            "id": "relationship--44444444-4444-4444-8444-444444444444",
+            "spec_version": "2.1",
+            "relationship_type": "targets",
+            "source_ref": "intrusion-set--cccc3333-cccc-4ccc-8ccc-cccccccccccc",
+            "target_ref": "identity--bbbb2222-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        }
+        result = mapper.map_relationship(obj)
+        assert result is not None
+        assert result[0] == "ActorTargetsIdentity"
+
+    def test_malware_targets_identity_dropped(self, mapper):
+        # STIX 2.1 §4.13 permits malware→identity targets but SAGE 1.0.0
+        # only stores actor-sourced edges. Other sources return None
+        # (caller drops with a structured-log warning at etl/worker.py).
+        obj = {
+            "type": "relationship",
+            "id": "relationship--55555555-5555-4555-8555-555555555555",
+            "spec_version": "2.1",
+            "relationship_type": "targets",
+            "source_ref": "malware--dddd4444-dddd-4ddd-8ddd-dddddddddddd",
+            "target_ref": "identity--bbbb2222-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        }
+        assert mapper.map_relationship(obj) is None
+
+    def test_actor_targets_asset_uses_existing_targets_table(self, mapper):
+        # Sanity check: existing actor→asset Targets edge still routes
+        # to the legacy Targets table rather than ActorTargetsIdentity.
+        # (Placeholder — actor→asset edges are produced by PIR
+        # auto-targeting in the worker, not by map_relationship.)
+        obj = {
+            "type": "relationship",
+            "id": "relationship--66666666-6666-4666-8666-666666666666",
+            "spec_version": "2.1",
+            "relationship_type": "targets",
+            "source_ref": "threat-actor--aaaa1111-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+            "target_ref": "vulnerability--vvvv5555-vvvv-4vvv-8vvv-vvvvvvvvvvvv",
+        }
+        # `targets vulnerability` is permitted by STIX but not handled by
+        # the mapper today (no Asset/Vulnerability targets edge for actor
+        # sources). Returns None — verifies we did not over-broaden.
+        assert mapper.map_relationship(obj) is None

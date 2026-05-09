@@ -26,6 +26,7 @@ SUPPORTED_TYPES = frozenset(
         "tool",
         "indicator",
         "relationship",
+        "identity",  # SAGE 0.5.0 — credential / org-targeting graph node
         "incident",  # IR feedback
         "sighting",  # reserved for future use
     }

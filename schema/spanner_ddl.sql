@@ -77,6 +77,26 @@ CREATE TABLE Incident (
   stix_modified     TIMESTAMP NOT NULL,
 ) PRIMARY KEY (stix_id);
 
+-- Identity (SAGE 0.5.0) — STIX 2.1 §4.4 identity SDO. Represents
+-- individuals / groups / systems / organizations targeted by threat
+-- actors. Added in lockstep with TRACE 1.0.0, which emits identity
+-- objects from CTI reports and `targets` relationships actor → identity.
+--
+-- `deleted_at` is a SAGE-internal soft-delete marker (NULL = active).
+-- Distinct from STIX `revoked` because identities can leave an org
+-- (HR action) without the STIX object being revoked at upstream.
+CREATE TABLE Identity (
+  stix_id          STRING(128) NOT NULL,
+  name             STRING(256) NOT NULL,
+  identity_class   STRING(32),                  -- individual | group | system | organization | class | unspecified
+  sectors          ARRAY<STRING(64)>,           -- finance / healthcare / energy ...
+  description      STRING(MAX),
+  contact_information STRING(MAX),
+  roles            ARRAY<STRING(64)>,
+  deleted_at       TIMESTAMP,                   -- soft-delete (NULL = active)
+  stix_modified    TIMESTAMP NOT NULL,
+) PRIMARY KEY (stix_id);
+
 -- -----------------------------------------------------------------------------
 -- NODE TABLES — 内部データ (UUID PK)
 -- =============================================================================
@@ -235,6 +255,23 @@ CREATE TABLE IndicatesActor (
   stix_id            STRING(128),
 ) PRIMARY KEY (observable_stix_id, actor_stix_id);
 
+-- ThreatActor / IntrusionSet → Identity (SAGE 0.5.0)
+-- Source comes from STIX `targets` relationships emitted by TRACE 1.0.0+
+-- when CTI reports describe attribution of attacks against specific
+-- people / groups / systems / organizations.
+--
+-- Restricted to actor-source per STIX 2.1 §4.13 suggested subset
+-- (other sources like attack-pattern→identity are dropped at mapping
+-- time with a structured-log warning).
+CREATE TABLE ActorTargetsIdentity (
+  actor_stix_id    STRING(128) NOT NULL,
+  identity_stix_id STRING(128) NOT NULL,
+  confidence       INT64,
+  description      STRING(MAX),
+  first_observed   TIMESTAMP,
+  stix_id          STRING(128),
+) PRIMARY KEY (actor_stix_id, identity_stix_id);
+
 -- -----------------------------------------------------------------------------
 -- PIR (Priority Intelligence Requirement) — first-class graph node + edges
 -- -----------------------------------------------------------------------------
@@ -298,6 +335,7 @@ CREATE TABLE PirWeightsAsset (
 --     MalwareTool     KEY (stix_id)  LABEL MalwareTool     PROPERTIES ALL COLUMNS,
 --     Observable      KEY (stix_id)  LABEL Observable      PROPERTIES ALL COLUMNS,
 --     Incident        KEY (stix_id)  LABEL Incident        PROPERTIES ALL COLUMNS,
+--     Identity        KEY (stix_id)  LABEL Identity        PROPERTIES ALL COLUMNS,
 --     Asset           KEY (id)       LABEL Asset           PROPERTIES ALL COLUMNS,
 --     SecurityControl KEY (id)       LABEL SecurityControl PROPERTIES ALL COLUMNS
 --   )
@@ -325,5 +363,7 @@ CREATE TABLE PirWeightsAsset (
 --     IndicatesTTP   SOURCE KEY (observable_stix_id) REFERENCES Observable (stix_id)
 --                    DESTINATION KEY (ttp_stix_id)    REFERENCES TTP (stix_id)         LABEL INDICATES_TTP PROPERTIES ALL COLUMNS,
 --     IndicatesActor SOURCE KEY (observable_stix_id) REFERENCES Observable (stix_id)
---                    DESTINATION KEY (actor_stix_id)  REFERENCES ThreatActor (stix_id) LABEL INDICATES_ACTOR PROPERTIES ALL COLUMNS
+--                    DESTINATION KEY (actor_stix_id)  REFERENCES ThreatActor (stix_id) LABEL INDICATES_ACTOR PROPERTIES ALL COLUMNS,
+--     ActorTargetsIdentity SOURCE KEY (actor_stix_id) REFERENCES ThreatActor (stix_id)
+--                    DESTINATION KEY (identity_stix_id) REFERENCES Identity (stix_id)  LABEL ACTOR_TARGETS_IDENTITY PROPERTIES ALL COLUMNS
 --   );
