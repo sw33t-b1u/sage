@@ -8,6 +8,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] — 2026-05-10
+
+### Fixed — Documentation alignment with current schema
+
+Several documents drifted from the implemented schema between
+`0.4.x` and `0.5.0`. This release contains documentation-only fixes
+(no code or schema changes).
+
+#### CHANGELOG: `0.5.0` duplicate disambiguated
+
+The CHANGELOG previously contained two `[0.5.0]` entries — one dated
+`2026-04-15` (PIR-as-first-class-node + TargetsAsset) and one dated
+`2026-05-09` (Identity SDO + ActorTargetsIdentity, the formally
+tagged `v0.5.0` release). The 04-15 entry was renumbered to
+`[0.4.1] - 2026-04-15` because that work was committed but never
+tagged as a separate release; the formally tagged `v0.5.0` covers
+the Identity SDO addition. SemVer caveat noted in the entry: new
+tables would normally warrant a minor bump, but the patch number is
+used here only because it is retroactive documentation of unreleased
+internal changes.
+
+#### `high-level-design.md` (local-only, gitignored): brought up to date
+
+Added missing entries for tables that have shipped but were not
+reflected in the design doc: `Identity`, `PIR`, `TargetsAsset`,
+`ActorTargetsIdentity`, `PirPrioritizesActor`, `PirPrioritizesTTP`,
+`PirWeightsAsset`. Updated the `CREATE PROPERTY GRAPH` block. Local
+to maintainer; the doc is gitignored.
+
+#### `README.md` / `README.ja.md`
+
+- Architecture diagram now shows TRACE as a STIX bundle source and
+  BEACON → TRACE → SAGE validation flow for `assets.json` /
+  `pir_output.json`.
+- Multi-source ingestion list adds TRACE.
+- "PIR cascade will be materialized... see phase 2 roadmap" replaced
+  with the actual `PIR` / `PirPrioritizes*` / `PirWeightsAsset` edge
+  inventory (already shipped in `0.4.1`, generalized in `0.5.0`).
+- New "Identity targeting" feature line covering `Identity` SDO and
+  `ActorTargetsIdentity` (paired with TRACE 1.0.0+).
+
+#### `docs/data-model.md` / `data-model.ja.md`
+
+- Added `Identity` to the Nodes table with the `deleted_at` rationale.
+- Added `TargetsAsset` (TTP → Asset) and `ActorTargetsIdentity`
+  (ThreatActor → Identity) to the Edges table.
+
+#### `docs/setup.md` / `setup.ja.md`
+
+- Step 5 (load assets) now points at `TRACE/cmd/validate_assets.py`
+  before `cmd/load_assets.py`.
+- Step 6 (PIR file) calls out `TRACE/cmd/validate_pir.py --pir … --assets …`.
+- Step 7 (ETL) explains TRACE-emitted bundle envelopes carry
+  `x_trace_*` metadata which the SAGE parser ignores
+  (forward-compatible).
+
+### Tests
+
+No code changes; existing test suite unchanged.
+
 ## [0.5.0] — 2026-05-09
 
 ### Added — Identity SDO support (paired with TRACE 1.0.0)
@@ -138,7 +198,15 @@ now ingests them.
   single snapshot. Previously raised `Cannot re-use single-use snapshot`,
   causing visualizers to silently skip PIR node rendering.
 
-## [0.5.0] - 2026-04-15
+## [0.4.1] - 2026-04-15
+
+> **Note:** Originally drafted as a duplicate `0.5.0` entry. Renumbered
+> to `0.4.1` because this work was committed but never tagged as a
+> separate release; the formally tagged `v0.5.0` (2026-05-09) covers
+> the Identity SDO addition. Per SemVer the new tables would warrant a
+> minor bump; the patch number is used here only because it is
+> retroactive documentation of unreleased internal changes between
+> `v0.4.0` (2026-04-04) and `v0.5.0` (2026-05-09).
 
 ### Added
 

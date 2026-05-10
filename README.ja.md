@@ -11,9 +11,11 @@
 
 ## 主な機能
 
-- **マルチソース取り込み** — OpenCTI（STIX 2.1）、AWS Security Hub、GCP Security Command Center、アナリスト手動入力 API
+- **マルチソース取り込み** — OpenCTI（STIX 2.1）、AWS Security Hub、GCP Security Command Center、[TRACE](https://github.com/sw33t-b1u/trace)（PIR 駆動の Web/PDF 収集 + 検証ゲート通過済 STIX）、アナリスト手動入力 API
 - **アタックグラフ** — 資産間の接続性と到達可能な攻撃経路をモデル化。PIR に基づく資産重要度を ETL 時に動的調整
 - **アタックフロー** — TTP の時系列遷移を重み付き `FollowedBy` エッジで追跡
+- **PIR カスケード** — `PIR` をグラフのノードとして格納し、`PirPrioritizesActor`(TAP) / `PirPrioritizesTTP`(PTTP) / `PirWeightsAsset` エッジで Strategic → Operational → Tactical のカスケードを表現
+- **Identity ターゲティング** — `Identity` SDO と `ActorTargetsIdentity` エッジで認証情報・組織を狙う攻撃の帰属を捕捉（TRACE 1.0.0+ と連動）
 - **Analysis API** — 攻撃経路・チョークポイント・アクター TTP・資産露出クエリを提供する内部 REST API（Cloud Run、VPC 内、IAP 保護）
 - **チーム別出力** — GitHub Enterprise プレイブック Issue、Slack 優先度別アラート、Caldera レッドチーム用 Adversary プロファイル生成
 - **TLP 制御** — TLP Red オブジェクトはストレージ除外。`white`/`green`/`amber` のみ取り込む
@@ -22,17 +24,23 @@
 ## システム構成
 
 ```
-[OpenCTI]──STIX 2.1──┐
-[Security Hub]────────┼──→ [GCS: Landing Zone]
-[SCC]─────────────────┘
-[アナリスト Input API]──→ （手動）
+[OpenCTI]──STIX 2.1───────┐
+[Security Hub]─────────────┤
+[SCC]──────────────────────┼──→ [GCS: Landing Zone]
+[TRACE: 検証済 STIX]───────┤      (PIR 駆動 L2 ゲート +
+[アナリスト Input API]─手動─┘      意味検証 + stix2-validator)
+
+[BEACON: assets.json / pir_output.json]
+       │ (TRACE: validate_assets / validate_pir で検証通過後)
+       ▼
+[SAGE: load_assets / PIR 取込]
 
         │
         ▼
 [ETL ワーカー — Cloud Run]
-  ├── STIX パース + 重複排除
+  ├── STIX パース + 重複排除（identity SDO 含む）
   ├── TLP 制御
-  ├── PIR 関連性フィルタリング
+  ├── PIR カスケード生成 (TAP/PTTP/WeightsAsset)
   ├── FollowedBy 重み再計算
   └── Spanner Graph upsert
 
@@ -45,6 +53,7 @@
 [Analysis API — Cloud Run、VPC 内]
   GET /attack-paths  GET /choke-points
   GET /actor-ttps    GET /asset-exposure
+  GET /similar-incidents  POST /caldera/adversary
 
         │
         ▼
@@ -101,12 +110,12 @@ Secret Manager              — API トークンと認証情報
 
 ## PIR 方法論の参考資料
 
-SAGE は [BEACON](https://github.com/sw33t-b1u/beacon) が生成した PIR JSON を消費します。PIR モデルは以下に準拠:
+SAGE は [BEACON](https://github.com/sw33t-b1u/beacon) が生成し、[TRACE](https://github.com/sw33t-b1u/trace) で検証された PIR JSON を消費します。PIR モデルは以下に準拠:
 
 - [FIRST CTI-SIG — Priority Intelligence Requirements カリキュラム](https://www.first.org/global/sigs/cti/curriculum/pir)
 - [SANS — Bridging Gaps in CTI: A Practical Guide to Threat-Informed Security PIRs](https://www.sans.org/blog/bridging-gaps-cti-practical-guide-threat-informed-security-pirs)
 
-PIR は Operational TAP（脅威アクター優先度付け）と Tactical PTTP（優先 TTP）にカスケードします。このカスケードは Spanner グラフ上で PIR ノードとエッジとして実装されます（フェーズ 2 ロードマップ参照）。
+PIR は Operational TAP（脅威アクター優先度付け）と Tactical PTTP（優先 TTP）にカスケードします。このカスケードは Spanner グラフ上で `PIR` ノード + `PirPrioritizesActor` / `PirPrioritizesTTP` / `PirWeightsAsset` エッジとして実装済（0.4.1 で導入、0.5.0 で一般化）。
 
 ## ライセンス
 

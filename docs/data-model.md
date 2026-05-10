@@ -19,6 +19,7 @@ Cross-domain join: `Targets` edge links ThreatActor → Asset.
 | `TTP` | ATT&CK techniques/sub-techniques with detection difficulty level |
 | `Vulnerability` | CVEs with CVSS score, EPSS score, and affected platforms |
 | `MalwareTool` | Malware families and attacker tools |
+| `Identity` | Targeted persons / groups / systems / organizations (STIX 2.1 §4.4 SDO). Emitted by TRACE 1.0.0+ and addressed by `ActorTargetsIdentity`. SAGE-internal soft-delete column `deleted_at` is independent of STIX `revoked` — it captures HR-side departures the upstream STIX object cannot represent. |
 | `Asset` | Internal assets (server, endpoint, SaaS, storage, network device) with PIR-adjusted criticality. Network segment info (name, CIDR, zone) stored as properties. |
 | `SecurityControl` | Defensive controls: EDR, WAF, SIEM, firewall, IAM |
 | `Observable` | IoCs — IPs, domains, hashes, emails, URLs with TLP and confidence |
@@ -36,6 +37,8 @@ Cross-domain join: `Targets` edge links ThreatActor → Asset.
 | `FollowedBy` | TTP → TTP | TTP time-series transition with probability weight |
 | `IncidentUsesTTP` | Incident → TTP | IR incident observed using a technique |
 | `Targets` | ThreatActor → Asset | Actor targets an internal asset (auto-generated via PIR tag matching) |
+| `TargetsAsset` | TTP → Asset | TTP technique-id matches asset tags (e.g. `T1078` → assets tagged `identity`); fills in exposure when no CVE link exists. Implemented by `src/sage/analysis/ttp_asset_matcher.py`. |
+| `ActorTargetsIdentity` | ThreatActor → Identity | Sourced from STIX `targets` relationships emitted by TRACE 1.0.0+ (restricted to `threat-actor` / `intrusion-set` source per STIX 2.1 §4.13 suggested subset) |
 | `HasVulnerability` | Asset → Vulnerability | Asset has an unpatched CVE |
 | `ConnectedTo` | Asset ↔ Asset | Network reachability between assets |
 | `ProtectedBy` | Asset → SecurityControl | Asset is covered by a control |

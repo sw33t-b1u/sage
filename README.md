@@ -11,9 +11,11 @@ real-time SIEM detection, endpoint protection, vulnerability scanning automation
 
 ## Features
 
-- **Multi-source ingestion** — OpenCTI (STIX 2.1), AWS Security Hub, GCP Security Command Center, and analyst manual input via API
+- **Multi-source ingestion** — OpenCTI (STIX 2.1), AWS Security Hub, GCP Security Command Center, [TRACE](https://github.com/sw33t-b1u/trace) (web/PDF crawler with PIR-driven validation gate), and analyst manual input via API
 - **Attack Graph** — Models asset connectivity and reachable attack paths. Asset criticality is dynamically adjusted per PIR at ETL time
 - **Attack Flow** — Tracks TTP time-series transitions as weighted `FollowedBy` edges
+- **PIR cascade** — `PIR` is a first-class graph node with `PirPrioritizesActor` (TAP), `PirPrioritizesTTP` (PTTP), and `PirWeightsAsset` edges materializing the Strategic → Operational → Tactical cascade
+- **Identity targeting** — `Identity` SDO and `ActorTargetsIdentity` edges capture credential / org-targeting attribution (paired with TRACE 1.0.0+)
 - **Analysis API** — Internal REST API (Cloud Run, VPC-internal, IAP-protected) exposing attack paths, choke points, actor TTPs, and asset exposure queries
 - **Team outputs** — GitHub Enterprise playbook issues, Slack priority alerts, Caldera adversary profiles for red team simulations
 - **TLP enforcement** — TLP Red objects excluded from storage; only `white`/`green`/`amber` ingested
@@ -22,17 +24,23 @@ real-time SIEM detection, endpoint protection, vulnerability scanning automation
 ## Architecture
 
 ```
-[OpenCTI]──STIX 2.1──┐
-[Security Hub]────────┼──→ [GCS: Landing Zone]
-[SCC]─────────────────┘
-[Analyst Input API]──────→ (manual)
+[OpenCTI]──STIX 2.1───────┐
+[Security Hub]─────────────┤
+[SCC]──────────────────────┼──→ [GCS: Landing Zone]
+[TRACE: validated STIX]────┤      (PIR-driven L2 gate +
+[Analyst Input API]─manual─┘       semantic + stix2-validator)
+
+[BEACON: assets.json / pir_output.json]
+       │ (TRACE: validate_assets / validate_pir で検証通過後)
+       ▼
+[SAGE: load_assets / PIR ingest]
 
         │
         ▼
 [ETL Worker — Cloud Run]
-  ├── STIX parsing + deduplication
+  ├── STIX parsing + deduplication (identity SDO 含む)
   ├── TLP enforcement
-  ├── PIR relevance filtering
+  ├── PIR cascade build (TAP/PTTP/WeightsAsset)
   ├── FollowedBy weight recalculation
   └── Spanner Graph upsert
 
@@ -45,6 +53,7 @@ real-time SIEM detection, endpoint protection, vulnerability scanning automation
 [Analysis API — Cloud Run, VPC-internal]
   GET /attack-paths  GET /choke-points
   GET /actor-ttps    GET /asset-exposure
+  GET /similar-incidents  POST /caldera/adversary
 
         │
         ▼
@@ -99,12 +108,12 @@ Secret Manager              — API tokens and credentials
 
 ## PIR Methodology References
 
-SAGE consumes PIR JSON produced by [BEACON](https://github.com/sw33t-b1u/beacon). The PIR model follows:
+SAGE consumes PIR JSON produced by [BEACON](https://github.com/sw33t-b1u/beacon), validated by [TRACE](https://github.com/sw33t-b1u/trace) before ingestion. The PIR model follows:
 
 - [FIRST CTI-SIG — Priority Intelligence Requirements curriculum](https://www.first.org/global/sigs/cti/curriculum/pir)
 - [SANS — Bridging Gaps in CTI: A Practical Guide to Threat-Informed Security PIRs](https://www.sans.org/blog/bridging-gaps-cti-practical-guide-threat-informed-security-pirs)
 
-PIRs cascade into Operational TAP (Threat Actor Prioritization) and Tactical PTTPs (Priority TTPs) — this cascade will be materialized as PIR nodes and edges in the Spanner graph (see phase 2 roadmap).
+PIRs cascade into Operational TAP (Threat Actor Prioritization) and Tactical PTTPs (Priority TTPs). This cascade is materialized in the Spanner graph as `PIR` nodes plus `PirPrioritizesActor` / `PirPrioritizesTTP` / `PirWeightsAsset` edges (added in 0.4.1, generalized in 0.5.0).
 
 ## License
 

@@ -102,7 +102,18 @@ mkdir input
 # Generate assets.json with BEACON, or start from the sample fixture:
 cp tests/fixtures/sample_assets.json input/assets.json
 # Edit input/assets.json to reflect your actual asset inventory
+```
 
+> **Validate before loading.** Pass the file through TRACE first so SAGE
+> never ingests an artifact that fails schema or semantic checks
+> ([TRACE](https://github.com/sw33t-b1u/trace) is the single validation
+> gate for `assets.json`, `pir_output.json`, and STIX bundles):
+>
+> ```sh
+> cd ../TRACE && uv run python cmd/validate_assets.py --input ../SAGE/input/assets.json
+> ```
+
+```sh
 uv run python cmd/load_assets.py            # reads input/assets.json by default
 uv run python cmd/load_assets.py --file path/to/assets.json   # custom path
 ```
@@ -118,9 +129,26 @@ cp /path/to/pir_output_<timestamp>.json input/pir.json
 # PIR_FILE_PATH=input/pir.json is already set in .env.example
 ```
 
+> **Validate via TRACE before ETL.** TRACE checks Pydantic schema,
+> threat-taxonomy presence of every `threat_actor_tags[*]`, and that
+> each `asset_weight_rules[*].tag` matches at least one tag in your
+> assets file:
+>
+> ```sh
+> cd ../TRACE && uv run python cmd/validate_pir.py \
+>   --pir ../SAGE/input/pir.json --assets ../SAGE/input/assets.json
+> ```
+
 ---
 
 ## Step 7 — Run ETL manually (first-time verification)
+
+> **STIX bundle source.** SAGE accepts STIX bundles from OpenCTI,
+> Security Hub, SCC, or [TRACE](https://github.com/sw33t-b1u/trace).
+> When using TRACE-produced bundles, run `validate_stix.py` first —
+> SAGE will silently skip dangling references but TRACE catches them
+> upfront. TRACE-emitted bundles carry `x_trace_*` envelope metadata
+> which the SAGE parser ignores (forward-compatible).
 
 ```sh
 # No OpenCTI required — use a local STIX bundle

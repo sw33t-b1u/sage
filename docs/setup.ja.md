@@ -104,7 +104,18 @@ mkdir input
 # BEACON で assets.json を生成するか、サンプルフィクスチャから開始:
 cp tests/fixtures/sample_assets.json input/assets.json
 # input/assets.json を実際の資産インベントリに合わせて編集
+```
 
+> **load_assets 前に TRACE で検証する。** SAGE は schema / 意味論違反の
+> ある artifact を取り込むべきでない。`assets.json` / `pir_output.json` /
+> STIX bundle の検証ゲートは [TRACE](https://github.com/sw33t-b1u/trace)
+> に集約されている:
+>
+> ```sh
+> cd ../TRACE && uv run python cmd/validate_assets.py --input ../SAGE/input/assets.json
+> ```
+
+```sh
 uv run python cmd/load_assets.py                              # デフォルト: input/assets.json
 uv run python cmd/load_assets.py --file path/to/assets.json  # カスタムパス
 ```
@@ -120,9 +131,25 @@ cp /path/to/pir_output_<timestamp>.json input/pir.json
 # PIR_FILE_PATH=input/pir.json は .env.example に既定値として記載済み
 ```
 
+> **ETL 前に TRACE で検証する。** Pydantic スキーマ、`threat_actor_tags[*]`
+> の脅威タクソノミー存在確認、`asset_weight_rules[*].tag` が assets の
+> いずれかのタグにマッチするかを TRACE 側でチェックする:
+>
+> ```sh
+> cd ../TRACE && uv run python cmd/validate_pir.py \
+>   --pir ../SAGE/input/pir.json --assets ../SAGE/input/assets.json
+> ```
+
 ---
 
 ## Step 7 — ETL の手動実行（初回確認）
+
+> **STIX バンドルのソース。** SAGE は OpenCTI / Security Hub / SCC /
+> [TRACE](https://github.com/sw33t-b1u/trace) からの STIX bundle を受理
+> する。TRACE 由来 bundle の場合は事前に `validate_stix.py` を通すこと
+> （SAGE は dangling reference を sliently skip するが、TRACE は upfront
+> で捕捉する）。TRACE 由来 bundle は envelope に `x_trace_*` メタデータ
+> を持つが、SAGE parser は未知 `x_*` を無視する forward-compatible 設計。
 
 ```sh
 # OpenCTI 不要 — ローカルの STIX バンドルを使用
