@@ -34,15 +34,22 @@ DDL_PATH = Path(__file__).parent.parent / "schema" / "spanner_ddl.sql"
 def split_ddl_statements(ddl: str) -> list[str]:
     """DDL をセミコロンで分割してステートメントリストを返す。
 
-    コメント行を除去し、空のステートメントをスキップする。
-    CREATE PROPERTY GRAPH は複数行にまたがるため、単純な split ではなく
-    セミコロンを最終デリミタとして処理する。
-    """
-    # コメント行を除去
-    lines = [line for line in ddl.splitlines() if not line.strip().startswith("--")]
-    cleaned = "\n".join(lines)
+    コメント行および行末のインラインコメント (``-- ...``) を除去してから
+    セミコロンで分割する。インラインコメントを残すと、コメント内の
+    ``;`` がステートメント終端として誤認識される (例: ``confidence INT64,
+    -- 0-100; trace edges typically <50`` の ``;`` で statement が割れる)。
 
-    # セミコロンで分割
+    SAGE 0.6.0+: コメント中に ``;`` を含む DDL を許容する。
+    """
+    # 1) 各行から行末のインラインコメントを剥がす (full-line, partial 両対応)。
+    stripped: list[str] = []
+    for raw in ddl.splitlines():
+        idx = raw.find("--")
+        line = raw if idx < 0 else raw[:idx]
+        stripped.append(line)
+    cleaned = "\n".join(stripped)
+
+    # 2) セミコロンで分割
     statements = [s.strip() for s in cleaned.split(";")]
     return [s for s in statements if s]
 

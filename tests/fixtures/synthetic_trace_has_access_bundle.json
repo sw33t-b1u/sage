@@ -1,0 +1,64 @@
+{
+  "type": "bundle",
+  "id": "bundle--00000000-0000-4000-8000-000000000001",
+  "objects": [
+    {
+      "type": "extension-definition",
+      "id": "extension-definition--11111111-1111-4111-8111-111111111111",
+      "spec_version": "2.1",
+      "created": "2026-05-10T08:00:00.000Z",
+      "modified": "2026-05-10T08:00:00.000Z",
+      "name": "TRACE bundle metadata extension",
+      "description": "TRACE-emitted top-level bundle properties (synthetic test fixture)",
+      "schema": "https://github.com/sw33t-b1u/trace/extensions/x-trace-bundle-metadata-v1",
+      "version": "1.0.0",
+      "extension_types": ["toplevel-property-extension"],
+      "extension_properties": [
+        "x_trace_source_url",
+        "x_trace_collected_at",
+        "x_trace_matched_pir_ids",
+        "x_trace_relevance_score"
+      ]
+    },
+    {
+      "type": "identity",
+      "id": "identity--22222222-2222-4222-8222-222222222222",
+      "spec_version": "2.1",
+      "created": "2026-05-10T08:00:00.000Z",
+      "modified": "2026-05-10T08:00:00.000Z",
+      "name": "External Auditor Group",
+      "description": "External financial-services auditor with read access to payment systems (synthetic test identity for trace-source HasAccess verification)",
+      "identity_class": "group",
+      "sectors": ["financial-services"],
+      "roles": ["auditor"]
+    },
+    {
+      "type": "x-asset-internal",
+      "id": "x-asset-internal--f6761eb5-ab89-5503-9f5f-ccfc7bf3ed22",
+      "spec_version": "2.1",
+      "created": "2026-05-10T08:00:00.000Z",
+      "modified": "2026-05-10T08:00:00.000Z",
+      "asset_id": "asset-CA-001"
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--33333333-3333-4333-8333-333333333333",
+      "spec_version": "2.1",
+      "created": "2026-05-10T08:00:00.000Z",
+      "modified": "2026-05-10T08:00:00.000Z",
+      "relationship_type": "x-trace-has-access",
+      "source_ref": "identity--22222222-2222-4222-8222-222222222222",
+      "target_ref": "x-asset-internal--f6761eb5-ab89-5503-9f5f-ccfc7bf3ed22",
+      "description": "External auditor read-only access for compliance review",
+      "confidence": 80
+    }
+  ],
+  "extensions": {
+    "extension-definition--11111111-1111-4111-8111-111111111111": {
+      "extension_type": "toplevel-property-extension"
+    }
+  },
+  "x_trace_source_url": "synthetic://test/trace-has-access-fixture",
+  "x_trace_collected_at": "2026-05-10T08:00:00.000Z",
+  "x_trace_relevance_score": 0.9
+}

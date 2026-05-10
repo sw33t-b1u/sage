@@ -8,6 +8,129 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.2] — 2026-05-10
+
+### Fixed — `x-trace-has-access` parser rejection (TRACE 1.2.1 paired)
+
+E2E verification of the trace-source HasAccess path failed at the
+SAGE parser: ``stix2`` library raised ``Invalid value for
+Relationship 'target_ref': not a valid STIX identifier`` for every
+``x-trace-has-access`` relationship targeting
+``x-asset-internal--asset-CA-001``. STIX 2.1 §2.7 requires the
+identifier suffix to be a UUIDv4 or UUIDv5; ``asset-CA-001`` was
+neither.
+
+TRACE 1.2.1 changed the synthesized id to
+``x-asset-internal--<uuid5(NAMESPACE, asset_id)>`` and moved the
+actual SAGE asset_id into a property on the object. SAGE 0.6.2 picks
+up that property:
+
+#### Parser
+
+`SUPPORTED_TYPES` adds ``x-asset-internal``. The stix2 library
+already accepts custom types via ``allow_custom=True``; the only
+needed change here is to stop dropping the object as "unsupported"
+during parse so the worker can read it.
+
+#### Worker
+
+`process_bundle` now pre-builds an
+``x_asset_internal_map: dict[stix_id, asset_id]`` from
+``by_type["x-asset-internal"]`` before the relationship loop. The
+map is empty for non-TRACE bundles (OpenCTI, manual input) — those
+flows are unaffected.
+
+#### Mapper
+
+`map_relationship` accepts an optional ``x_asset_internal_map``
+keyword argument. The ``x-trace-has-access`` branch consults it to
+resolve ``target_ref → asset_id``; if the map is absent (mapper-only
+unit tests) it falls back to extracting the suffix from the
+``target_ref`` string for backward compatibility with 0.6.0 fixtures.
+
+The worker passes the map on every call, so production code uses
+the property-based path; the fallback exists only for test
+ergonomics and never executes in production.
+
+#### Parser bypass for x-asset-internal
+
+A second issue surfaced during the synthetic-bundle re-verification:
+``stix2.parse(..., allow_custom=True)`` returns x-asset-internal as a
+plain dict (no STIX class binding), and the subsequent
+``parsed.serialize()`` call in `_parse_object` raises
+``AttributeError: 'dict' object has no attribute 'serialize'`` —
+caught by the `except Exception` so the parse failure is silently
+logged and the object dropped. With the object missing, the worker's
+`x_asset_internal_map` was empty, and the mapper fell back to
+extracting the asset_id from the relationship's target_ref suffix
+(producing the raw UUID5 string instead of `asset-CA-001`).
+
+`_parse_object` now special-cases ``x-asset-internal`` and returns
+the raw dict unchanged, bypassing the stix2 round-trip. Since this
+is TRACE's own custom type with no validation requirements beyond
+the format already enforced by the bundle assembler, the bypass is
+safe.
+
+### Tests
+
+2 new cases in `tests/test_worker.py::TestXAssetInternalResolution`:
+
+- end-to-end: identity + x-asset-internal + x-trace-has-access
+  bundle resolves correctly and writes one HasAccess row
+- target_ref pointing at an x-asset-internal id with no matching
+  object falls back to suffix extraction (no crash)
+
+3 new cases in `tests/test_parser.py::TestXAssetInternalPassthrough`:
+
+- ``asset_id`` property survives parse (regression guard for the
+  silent-drop bug)
+- ``extension-definition`` continues to be silently skipped (not
+  affected by the bypass)
+- end-to-end ``x-trace-has-access`` relationship + x-asset-internal
+  + identity bundle parses cleanly
+
+Synthetic fixture `tests/fixtures/synthetic_trace_has_access_bundle.json`
+updated to use the UUID5 form (asset-CA-001 →
+``f6761eb5-ab89-5503-9f5f-ccfc7bf3ed22``).
+
+All 187 tests pass; 0 vulnerabilities.
+
+### Migration notes
+
+- TRACE 1.2.1 is required upstream (1.2.0 emits the bug-format ids
+  that SAGE rejects). Lockstep release.
+- Existing BEACON-source HasAccess rows (0.6.0+) are unaffected —
+  they go through `cmd/load_identity_assets.py`, not the bundle
+  parser.
+
+## [0.6.1] — 2026-05-10
+
+### Fixed — `init_schema.py` semicolon-in-comment DDL splitter bug
+
+`make init-schema` failed against the 0.6.0 schema with a
+``Syntax error on line 9, column 55: Expecting ')' but found 'EOF'``.
+Root cause: the DDL splitter only stripped full-line ``--`` comments,
+leaving inline trailing comments intact. The HasAccess table's
+``confidence INT64, -- 0-100; trace edges typically <50`` comment
+contained a semicolon that the naive ``.split(";")`` treated as a
+statement terminator, splitting the CREATE TABLE in half.
+
+`split_ddl_statements` now strips everything after ``--`` on each
+line (full-line and trailing inline alike) before splitting on
+``;``. DDL files no longer need to avoid ``;`` inside comments.
+
+### Tests
+
+4 new cases in `tests/test_init_schema.py::TestSemicolonInComment`:
+
+- inline comment with semicolon does not split the surrounding
+  statement
+- full-line comment continues to be stripped (regression guard)
+- multiple statements split correctly when no comments interfere
+- the specific HasAccess case (regression replay)
+
+All 182 tests pass; 0 vulnerabilities.
+
 ## [0.6.0] — 2026-05-10
 
 ### Added — Initiative A: Identity-Asset HasAccess edge

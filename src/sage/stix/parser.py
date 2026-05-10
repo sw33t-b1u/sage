@@ -29,6 +29,12 @@ SUPPORTED_TYPES = frozenset(
         "identity",  # SAGE 0.5.0 — credential / org-targeting graph node
         "incident",  # IR feedback
         "sighting",  # reserved for future use
+        # SAGE 0.6.2 / Initiative A: TRACE 1.2.1+ synthesizes one
+        # ``x-asset-internal`` object per resolved internal asset and
+        # references it from ``x-trace-has-access`` relationships. The
+        # object carries an ``asset_id`` property; the worker builds a
+        # stix_id → asset_id map at ETL time so the mapper can resolve.
+        "x-asset-internal",
     }
 )
 
@@ -72,7 +78,18 @@ def _parse_object(raw: dict[str, Any]) -> dict[str, Any]:
 
     The stix2 library validates the object during parsing.
     On failure it raises stix2.exceptions.STIXError or a subclass.
+
+    SAGE 0.6.2: ``x-asset-internal`` is a TRACE-internal custom type with
+    a bespoke ``asset_id`` property. ``stix2.parse(...)`` with
+    ``allow_custom=True`` returns it as a plain dict (no STIX class
+    binding), which then breaks ``parsed.serialize()`` with
+    ``AttributeError: 'dict' object has no attribute 'serialize'``. We
+    own the format, so bypass the stix2 round-trip and pass the raw dict
+    through unchanged. The worker then reads ``asset_id`` directly to
+    build the resolution map.
     """
+    if raw.get("type") == "x-asset-internal":
+        return dict(raw)
     parsed = stix2.parse(json.dumps(raw), allow_custom=True)
     # Return as a plain dict (easier to handle in Spanner upsert code)
     return json.loads(parsed.serialize())

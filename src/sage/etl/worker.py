@@ -74,6 +74,19 @@ class ETLWorker:
 
         stats: dict[str, int] = {}
 
+        # SAGE 0.6.2 / Initiative A: build stix_id → asset_id map from any
+        # ``x-asset-internal`` objects TRACE 1.2.1+ synthesized.  Used by
+        # ``mapper.map_relationship`` to resolve x-trace-has-access
+        # ``target_ref`` (a UUID5-form id) back to the real SAGE asset_id.
+        # Empty when the bundle has no x-asset-internal objects (e.g.
+        # OpenCTI feeds, manual bundles).
+        x_asset_internal_map: dict[str, str] = {}
+        for obj in by_type.get("x-asset-internal", []):
+            stix_id = obj.get("id")
+            asset_id = obj.get("asset_id")
+            if isinstance(stix_id, str) and isinstance(asset_id, str) and asset_id:
+                x_asset_internal_map[stix_id] = asset_id
+
         # --- ThreatActor ---
         actor_rows = []
         for obj in by_type["threat-actor"] + by_type["intrusion-set"]:
@@ -146,7 +159,7 @@ class ETLWorker:
         dangling_dropped = 0
 
         for obj in by_type["relationship"]:
-            result = self._mapper.map_relationship(obj)
+            result = self._mapper.map_relationship(obj, x_asset_internal_map=x_asset_internal_map)
             if not result:
                 continue
             table, row = result

@@ -213,7 +213,11 @@ class StixMapper:
     # Edge mappers
     # -----------------------------------------------------------------------
 
-    def map_relationship(self, obj: dict) -> tuple[str, dict] | None:
+    def map_relationship(
+        self,
+        obj: dict,
+        x_asset_internal_map: dict[str, str] | None = None,
+    ) -> tuple[str, dict] | None:
         """Map a STIX relationship to (table_name, row dict). Returns None if not applicable."""
         if obj["type"] != "relationship":
             return None
@@ -293,13 +297,27 @@ class StixMapper:
                 }
 
         # SAGE 0.6.0 / Initiative A: identity → internal asset access from
-        # TRACE 1.2.0+ bundles. The target is a `x-asset-internal--<asset_id>`
-        # synthetic STIX object that TRACE's bundle assembler creates after
-        # resolving the LLM's free-form asset reference.
+        # TRACE 1.2.0+ bundles. 0.6.2 changed the resolution path: TRACE
+        # 1.2.1+ uses ``x-asset-internal--<uuid5>`` (STIX 2.1 §2.7
+        # compliant) and carries the actual ``asset_id`` as a property on
+        # the ``x-asset-internal`` object. The worker pre-builds a
+        # stix_id → asset_id map and passes it here.
         if rel_type == "x-trace-has-access" and src.startswith("identity--"):
             if not dst.startswith("x-asset-internal--"):
                 return None
-            asset_id = dst[len("x-asset-internal--") :]
+            # Resolve via the worker-built map. Fall back to the legacy
+            # 1.2.0 form (``x-asset-internal--<asset_id>``) only when the
+            # map is absent — preserves the unit-test contract for
+            # mapper-only tests that don't run the worker pre-pass.
+            asset_id: str | None = None
+            if x_asset_internal_map is not None:
+                asset_id = x_asset_internal_map.get(dst)
+            if asset_id is None:
+                # Legacy / unit-test fallback. Production worker always
+                # supplies the map.
+                asset_id = dst[len("x-asset-internal--") :]
+            if not asset_id:
+                return None
             return "HasAccess", {
                 "identity_stix_id": src,
                 "asset_id": asset_id,
