@@ -92,6 +92,13 @@ class ETLWorker:
         ]
         stats["vulnerabilities"] = upsert_rows(self._db, "Vulnerability", vuln_rows)
 
+        # --- Identity (SAGE 0.5.3 wiring; SDO added in 0.5.0) ---
+        # 0.5.0 added the schema, mapper, and parser support for STIX 2.1 §4.4
+        # identity SDOs but the worker dispatch was missed. CISA AA22-108a E2E
+        # surfaced the gap: 22 identities silently dropped. (Filed in TODO #67.)
+        identity_rows = [r for obj in by_type["identity"] if (r := self._mapper.map_identity(obj))]
+        stats["identities"] = upsert_rows(self._db, "Identity", identity_rows)
+
         # --- MalwareTool ---
         mt_rows = [
             r
@@ -120,6 +127,17 @@ class ETLWorker:
         ind_ttp_rows: list[dict] = []
         ind_actor_rows: list[dict] = []
         incident_ttp_rows: list[dict] = []
+        actor_targets_identity_rows: list[dict] = []
+
+        # PIR-filtered referential integrity (0.5.4): the PIR filter drops
+        # actor rows whose tags don't intersect the PIR. Edges that reference
+        # those actors must also be dropped — otherwise the graph holds
+        # `Uses`, `UsesTool`, `ActorTargetsIdentity`, `IndicatesActor` edges
+        # with foreign keys pointing at non-existent ThreatActor rows.
+        # Spanner does not enforce FK constraints on these tables, so the
+        # writes would silently leave dangling references.
+        kept_actor_ids = {r["stix_id"] for r in actor_rows}
+        dangling_dropped = 0
 
         for obj in by_type["relationship"]:
             result = self._mapper.map_relationship(obj)
@@ -127,17 +145,41 @@ class ETLWorker:
                 continue
             table, row = result
             if table == "Uses":
+                if row["actor_stix_id"] not in kept_actor_ids:
+                    dangling_dropped += 1
+                    continue
                 uses_rows.append(row)
             elif table == "MalwareUsesTTP":
                 malware_uses_ttp_rows.append(row)
             elif table == "UsesTool":
+                if row["actor_stix_id"] not in kept_actor_ids:
+                    dangling_dropped += 1
+                    continue
                 uses_tool_rows.append(row)
             elif table == "Exploits":
                 exploits_rows.append(row)
             elif table == "IndicatesTTP":
                 ind_ttp_rows.append(row)
             elif table == "IndicatesActor":
+                if row["actor_stix_id"] not in kept_actor_ids:
+                    dangling_dropped += 1
+                    continue
                 ind_actor_rows.append(row)
+            elif table == "ActorTargetsIdentity":
+                # SAGE 0.5.3: dispatch the actor → identity edge that was
+                # missed in 0.5.0 wiring. Other `targets` source types
+                # (attack-pattern, malware, etc.) are dropped at the mapper
+                # level (returns None) per STIX 2.1 §4.13 suggested subset.
+                if row["actor_stix_id"] not in kept_actor_ids:
+                    dangling_dropped += 1
+                    continue
+                actor_targets_identity_rows.append(row)
+
+        if dangling_dropped:
+            logger.info(
+                "edges_dropped_pir_filtered_actor",
+                count=dangling_dropped,
+            )
 
         # IncidentUsesTTP is generated directly from incident objects (includes sequence_order)
         for obj in by_type["incident"]:
@@ -151,6 +193,9 @@ class ETLWorker:
         stats["indicates_ttp"] = upsert_rows(self._db, "IndicatesTTP", ind_ttp_rows)
         stats["indicates_actor"] = upsert_rows(self._db, "IndicatesActor", ind_actor_rows)
         stats["incident_uses_ttp"] = upsert_rows(self._db, "IncidentUsesTTP", incident_ttp_rows)
+        stats["actor_targets_identity"] = upsert_rows(
+            self._db, "ActorTargetsIdentity", actor_targets_identity_rows
+        )
 
         # --- FollowedBy(ir_feedback): derived from IncidentUsesTTP ---
         ir_fb_rows, ir_feedback_pairs = build_ir_feedback_followed_by(incident_ttp_rows)

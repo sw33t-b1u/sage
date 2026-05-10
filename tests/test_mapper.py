@@ -86,6 +86,67 @@ class TestMapVulnerability:
         assert row["cve_id"] == "CVE-2025-55182"
         assert row["description"] == "権限昇格を可能にするカーネルの脆弱性"
 
+    def test_skips_vulnerability_without_parseable_cve(self, mapper):
+        # 0.5.2 defensive guard: TRACE 1.0.3 already drops these, but SAGE
+        # must remain robust against other STIX sources (OpenCTI etc.).
+        obj = {
+            "type": "vulnerability",
+            "id": "vulnerability--abc",
+            "name": "Common Vulnerabilities and Exposures (CVEs)",
+            "modified": "2026-05-10T00:00:00.000Z",
+        }
+        assert mapper.map_vulnerability(obj) is None
+
+    def test_extracts_cve_from_external_references_external_id(self, mapper):
+        obj = {
+            "type": "vulnerability",
+            "id": "vulnerability--def",
+            "name": "Path traversal in Foo",
+            "external_references": [{"source_name": "cve", "external_id": "CVE-2023-9999"}],
+            "modified": "2026-05-10T00:00:00.000Z",
+        }
+        row = mapper.map_vulnerability(obj)
+        assert row is not None
+        assert row["cve_id"] == "CVE-2023-9999"
+
+    def test_extracts_cve_from_external_references_url(self, mapper):
+        obj = {
+            "type": "vulnerability",
+            "id": "vulnerability--ghi",
+            "name": "Some advisory",
+            "external_references": [
+                {
+                    "source_name": "cve",
+                    "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-4242",
+                }
+            ],
+            "modified": "2026-05-10T00:00:00.000Z",
+        }
+        row = mapper.map_vulnerability(obj)
+        assert row is not None
+        assert row["cve_id"] == "CVE-2025-4242"
+
+    def test_skips_when_only_unrelated_external_references(self, mapper):
+        obj = {
+            "type": "vulnerability",
+            "id": "vulnerability--jkl",
+            "name": "Generic mention",
+            "external_references": [{"source_name": "mitre-attack", "url": "https://example.com"}],
+            "modified": "2026-05-10T00:00:00.000Z",
+        }
+        assert mapper.map_vulnerability(obj) is None
+
+    def test_canonical_cve_id_in_name_passes_through(self, mapper):
+        obj = {
+            "type": "vulnerability",
+            "id": "vulnerability--mno",
+            "name": "CVE-2024-1234",
+            "modified": "2026-05-10T00:00:00.000Z",
+        }
+        row = mapper.map_vulnerability(obj)
+        assert row is not None
+        assert row["cve_id"] == "CVE-2024-1234"
+
 
 # ---------------------------------------------------------------------------
 # Observable

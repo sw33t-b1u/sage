@@ -11,6 +11,16 @@ from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import structlog
+
+logger = structlog.get_logger(__name__)
+
+# CVE identifier format per CVE Numbering Authority rules. The Spanner
+# `Vulnerability.cve_id` column is STRING(32); reject anything that does
+# not parse as a CVE id rather than truncate (lossy and would silently
+# corrupt analysis). Same regex as TRACE's _CVE_ID_PATTERN.
+_CVE_ID_PATTERN = re.compile(r"^CVE-\d{4}-\d{4,}$")
+
 # ATT&CK kill chain phase order (used for FollowedBy weight calculation)
 PHASE_ORDER: dict[str, int] = {
     "reconnaissance": 0,
@@ -80,9 +90,26 @@ class StixMapper:
     def map_vulnerability(self, obj: dict) -> dict | None:
         if obj["type"] != "vulnerability":
             return None
+        # Defensive CVE id resolution (0.5.2): TRACE 1.0.3 already drops
+        # vulnerabilities without a parseable CVE, but SAGE must remain
+        # robust against other STIX sources (OpenCTI, Security Hub, manual
+        # input). Resolution order:
+        #   1. external_references[*] with source_name=="cve" → external_id
+        #      or CVE id parsed from url.
+        #   2. obj["name"] when it parses as a CVE id.
+        # Anything else is dropped with a structured-log warning rather than
+        # truncated into the STRING(32) column.
+        cve_id = _extract_cve_id(obj)
+        if cve_id is None:
+            logger.warning(
+                "vulnerability_skipped_no_cve",
+                stix_id=obj.get("id"),
+                name=obj.get("name"),
+            )
+            return None
         return {
             "stix_id": obj["id"],
-            "cve_id": obj.get("name"),
+            "cve_id": cve_id,
             "description": obj.get("description"),
             "cvss_score": _cvss_score(obj),
             "epss_score": None,  # Set when EPSS API integration is enabled
@@ -484,6 +511,44 @@ def _cvss_score(obj: dict) -> float | None:
         metrics = ref.get("x_cvss", {})
         if metrics and "base_score" in metrics:
             return float(metrics["base_score"])
+    return None
+
+
+def _extract_cve_id(obj: dict) -> str | None:
+    """Resolve a canonical CVE id for a vulnerability object, or return
+    ``None`` when no CVE id can be derived.
+
+    Resolution order:
+
+    1. ``external_references[*]`` with ``source_name == "cve"``
+       (case-insensitive). ``external_id`` is checked first; if absent or
+       malformed, a CVE token is extracted from ``url`` via regex.
+    2. ``obj["name"]`` when it parses as a CVE id.
+
+    Defensive against TRACE 1.0.2-and-older bundles, OpenCTI, Security
+    Hub, and manual input where the LLM / upstream pipeline may have
+    written prose into ``name``. Such entries break the
+    ``Vulnerability.cve_id STRING(32)`` constraint and have no analytical
+    value because no actual CVE is identified.
+    """
+    refs = obj.get("external_references") or []
+    if isinstance(refs, list):
+        for ref in refs:
+            if not isinstance(ref, dict):
+                continue
+            if (ref.get("source_name") or "").lower() != "cve":
+                continue
+            ext_id = ref.get("external_id")
+            if isinstance(ext_id, str) and _CVE_ID_PATTERN.fullmatch(ext_id.strip()):
+                return ext_id.strip()
+            url = ref.get("url")
+            if isinstance(url, str):
+                m = re.search(r"CVE-\d{4}-\d{4,}", url)
+                if m and _CVE_ID_PATTERN.fullmatch(m.group()):
+                    return m.group()
+    name = obj.get("name")
+    if isinstance(name, str) and _CVE_ID_PATTERN.fullmatch(name.strip()):
+        return name.strip()
     return None
 
 

@@ -8,6 +8,172 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.3] — 2026-05-10
+
+### Fixed — Identity / ActorTargetsIdentity wiring missed in 0.5.0 (worker + upsert)
+
+End-to-end verification (BEACON 0.10.2 → TRACE 1.0.3 → SAGE 0.5.2)
+on the CISA AA22-108a Lazarus advisory revealed that the 0.5.0
+release added the `Identity` table, `ActorTargetsIdentity` table,
+mapper.map_identity, mapper.map_relationship targets dispatch, and
+parser.SUPPORTED_TYPES += "identity" — but **never wired any of
+this into etl/worker.py or spanner/upsert.py**. Two distinct gaps:
+
+The bundle contained 22 identity SDOs and 26 `targets` relationships;
+ETL silently dropped all of them because:
+
+- `process_bundle` had no `by_type["identity"]` loop and never called
+  `map_identity`.
+- The relationship dispatch had no `elif table == "ActorTargetsIdentity":`
+  branch — `map_relationship` returned the (table, row) tuple, the
+  worker matched none of its branches, and the row was discarded.
+
+The unit tests covered `map_identity` and `map_relationship` in
+isolation, but no test exercised the worker's full dispatch table —
+which is why the gap survived 0.5.0 release.
+
+#### Wiring added — `etl/worker.py`
+
+```python
+# After Vulnerability upsert:
+identity_rows = [
+    r for obj in by_type["identity"] if (r := self._mapper.map_identity(obj))
+]
+stats["identities"] = upsert_rows(self._db, "Identity", identity_rows)
+
+# In the relationship dispatch loop:
+elif table == "ActorTargetsIdentity":
+    actor_targets_identity_rows.append(row)
+
+# After the relationship loop:
+stats["actor_targets_identity"] = upsert_rows(
+    self._db, "ActorTargetsIdentity", actor_targets_identity_rows
+)
+```
+
+#### Column registration added — `spanner/upsert.py::_TABLE_COLUMNS`
+
+The first re-run after the worker fix surfaced a second gap:
+`upsert_rows("Identity", ...)` raised `KeyError: 'Identity'` because
+the column-name list was never registered. Same root cause — schema
+DDL added in 0.5.0 with no callsite update. Both `Identity` and
+`ActorTargetsIdentity` entries added with column ordering aligned to
+`schema/spanner_ddl.sql` (Spanner mutations are positional).
+
+### Fixed — PIR-filtered actors no longer leave dangling FK edges
+
+The second re-run with full Identity wiring revealed a structural
+problem: PIR-filtered actors were dropped from the `ThreatActor`
+table but their dependent edges (`Uses`, `UsesTool`,
+`IndicatesActor`, `ActorTargetsIdentity`) were still written —
+producing dangling foreign key references in the graph. The CISA
+AA22-108a Lazarus advisory (financial-crime PIR mismatch) wrote
+47 such dangling edges.
+
+`worker.process_bundle` now computes
+`kept_actor_ids = {r["stix_id"] for r in actor_rows}` after the
+PIR filter and discards relationship rows whose `actor_stix_id`
+falls outside that set. The drop is logged at INFO with
+`edges_dropped_pir_filtered_actor` and a count.
+
+Tables affected (filter applied):
+
+- `Uses` — actor_stix_id is the source
+- `UsesTool` — actor_stix_id is the source
+- `IndicatesActor` — actor_stix_id is the target
+- `ActorTargetsIdentity` — actor_stix_id is the source
+
+Tables not affected (no actor reference):
+
+- `MalwareUsesTTP`, `Exploits`, `IndicatesTTP`, `IncidentUsesTTP`
+- `Targets`, `TargetsAsset` — already filtered at the
+  PIR-tag-matching stage
+
+Spanner does not enforce FK constraints on these tables (they share
+no parent/child relationship), so the issue would have manifested
+only as silent graph traversal dead-ends. Future
+`MERGE` / `Spanner Graph` queries from Identity nodes would have
+returned partial results.
+
+`stats` now exposes two additional keys: `identities` and
+`actor_targets_identity`. Existing dashboards / log consumers that
+iterate `stats.items()` will see them automatically.
+
+### Tests — `tests/test_worker.py` (new, 11 cases)
+
+Filed in response to the 0.5.0 → 0.5.3 incident. The worker had no
+dedicated test file; mapper-level unit tests covered isolated
+methods but never the by_type loop or relationship dispatch. Three
+test classes:
+
+- `TestIdentityDispatch` (3) — single / multiple Identity objects
+  upserted; non-identity objects don't pollute the Identity table.
+- `TestActorTargetsIdentityDispatch` (2) — actor → identity edge
+  reaches the table; non-identity targets dropped at mapper level
+  before ever reaching dispatch.
+- `TestPirFilterReferentialIntegrity` (5) — Lazarus + financial-
+  crime PIR scenario reproducing the dangling-FK bug. Filtered
+  actor's Uses / UsesTool / ActorTargetsIdentity edges drop;
+  Identity nodes stay (not actor-dependent); kept actors keep
+  their dependent edges.
+- `TestRelationshipDispatchCompleteness` (1) — invariant guard:
+  every mapper relationship table has a worker stats key. New
+  mapper tables added without a worker branch will fail this test
+  immediately, preventing a repeat of the 0.5.0 wiring miss.
+
+Spanner is fully mocked via `_mock_db()` which records every
+`batch.insert_or_update(...)` call so tests can assert on table
+names and row counts without a live emulator.
+
+All 165 tests pass; 0 vulnerabilities.
+
+## [0.5.2] — 2026-05-10
+
+### Fixed — Vulnerability ETL halted on non-CVE `name` (defensive guard)
+
+End-to-end verification (BEACON 0.10.2 → TRACE 1.0.2 → SAGE 0.5.1)
+on the CISA AA22-108a Lazarus advisory aborted ETL with
+`Vulnerability.cve_id` exceeding the STRING(32) limit. The bundle
+contained a vulnerability with
+``name = "Common Vulnerabilities and Exposures (CVEs)"`` (43 chars)
+that the L3 LLM had hallucinated from a generic prose mention.
+
+TRACE 1.0.3 now drops these at the bundle assembly stage, but SAGE
+must remain robust against other STIX sources (OpenCTI, Security
+Hub, manual input) and against TRACE bundles that pre-date 1.0.3.
+
+#### `_extract_cve_id` resolution order
+
+`mapper.map_vulnerability` now resolves the CVE id via:
+
+1. ``external_references[*]`` with ``source_name == "cve"``
+   (case-insensitive). ``external_id`` is checked first; ``url`` is
+   regex-scanned for a ``CVE-YYYY-NNNN`` token if needed.
+2. Falls back to ``obj["name"]`` when it parses as a CVE id.
+
+Vulnerabilities yielding no CVE id return ``None`` from
+`map_vulnerability` and are dropped by the worker with a
+`vulnerability_skipped_no_cve` structured-log warning. The Spanner
+schema is unchanged; the column constraint now never reaches commit
+on malformed data.
+
+CVE format: ``^CVE-\d{4}-\d{4,}$`` (matches TRACE's regex). High-
+volume years exceed 6 digits, so no upper bound on the trailing
+block.
+
+### Tests
+
+5 new cases in `tests/test_mapper.py::TestMapVulnerability`:
+
+- skips vulnerability without parseable CVE
+- extracts CVE from `external_references[*].external_id`
+- extracts CVE from `external_references[*].url` (NVD-style)
+- skips when only unrelated external_references exist (e.g.
+  ``mitre-attack`` source)
+- canonical CVE id in `name` passes through unchanged
+
+All 154 tests pass; 0 vulnerabilities.
+
 ## [0.5.1] — 2026-05-10
 
 ### Fixed — Documentation alignment with current schema

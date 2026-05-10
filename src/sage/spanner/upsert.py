@@ -78,6 +78,22 @@ _TABLE_COLUMNS: dict[str, list[str]] = {
         "source",
         "stix_modified",
     ],
+    # SAGE 0.5.3: column mapping for the Identity SDO node added in 0.5.0.
+    # The 0.5.0 release added the schema and mapper but missed both the
+    # worker dispatch (filed in 0.5.3) and this column registration. Order
+    # must match `schema/spanner_ddl.sql` exactly — Spanner mutations are
+    # positional.
+    "Identity": [
+        "stix_id",
+        "name",
+        "identity_class",
+        "sectors",
+        "description",
+        "contact_information",
+        "roles",
+        "deleted_at",
+        "stix_modified",
+    ],
     "Asset": [
         "id",
         "name",
@@ -138,6 +154,16 @@ _TABLE_COLUMNS: dict[str, list[str]] = {
     "ProtectedBy": ["asset_id", "control_id"],
     "IndicatesTTP": ["observable_stix_id", "ttp_stix_id", "confidence", "stix_id"],
     "IndicatesActor": ["observable_stix_id", "actor_stix_id", "confidence", "stix_id"],
+    # SAGE 0.5.3: column mapping for the actor → identity edge added in 0.5.0.
+    # Same release omission as the Identity table; restored together.
+    "ActorTargetsIdentity": [
+        "actor_stix_id",
+        "identity_stix_id",
+        "confidence",
+        "description",
+        "first_observed",
+        "stix_id",
+    ],
     "FollowedBy": [
         "src_ttp_stix_id",
         "dst_ttp_stix_id",
