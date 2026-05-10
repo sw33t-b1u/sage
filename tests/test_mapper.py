@@ -148,6 +148,67 @@ class TestMapVulnerability:
         assert row["cve_id"] == "CVE-2024-1234"
 
 
+class TestMapHasAccessRelationship:
+    """SAGE 0.6.0 / Initiative A — identity → asset HasAccess edge from
+    TRACE 1.2.0+ x-trace-has-access relationships.
+    """
+
+    def test_identity_to_x_asset_internal_returns_has_access(self, mapper):
+        obj = {
+            "type": "relationship",
+            "id": "relationship--abc",
+            "relationship_type": "x-trace-has-access",
+            "source_ref": "identity--alice",
+            "target_ref": "x-asset-internal--asset-CA-001",
+            "description": "ERP admin",
+            "confidence": 35,
+            "modified": "2026-05-10T00:00:00.000Z",
+        }
+        result = mapper.map_relationship(obj)
+        assert result is not None
+        table, row = result
+        assert table == "HasAccess"
+        assert row["identity_stix_id"] == "identity--alice"
+        assert row["asset_id"] == "asset-CA-001"
+        assert row["source"] == "trace"
+        assert row["confidence"] == 35
+        assert row["role"] == "ERP admin"
+
+    def test_default_confidence_when_unspecified(self, mapper):
+        obj = {
+            "type": "relationship",
+            "id": "relationship--abc",
+            "relationship_type": "x-trace-has-access",
+            "source_ref": "identity--alice",
+            "target_ref": "x-asset-internal--asset-CA-001",
+            "modified": "2026-05-10T00:00:00.000Z",
+        }
+        _, row = mapper.map_relationship(obj)
+        assert row["confidence"] == 30  # default for trace-source
+
+    def test_non_identity_source_drops(self, mapper):
+        obj = {
+            "type": "relationship",
+            "id": "relationship--xyz",
+            "relationship_type": "x-trace-has-access",
+            "source_ref": "intrusion-set--lazarus",
+            "target_ref": "x-asset-internal--asset-CA-001",
+            "modified": "2026-05-10T00:00:00.000Z",
+        }
+        assert mapper.map_relationship(obj) is None
+
+    def test_non_x_asset_internal_target_drops(self, mapper):
+        obj = {
+            "type": "relationship",
+            "id": "relationship--xyz",
+            "relationship_type": "x-trace-has-access",
+            "source_ref": "identity--alice",
+            "target_ref": "asset--something-else",  # wrong target prefix
+            "modified": "2026-05-10T00:00:00.000Z",
+        }
+        assert mapper.map_relationship(obj) is None
+
+
 # ---------------------------------------------------------------------------
 # Observable
 # ---------------------------------------------------------------------------

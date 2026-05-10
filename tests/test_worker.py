@@ -363,6 +363,7 @@ class TestRelationshipDispatchCompleteness:
         "IndicatesTTP": "indicates_ttp",
         "IndicatesActor": "indicates_actor",
         "ActorTargetsIdentity": "actor_targets_identity",
+        "HasAccess": "has_access",  # SAGE 0.6.0 / Initiative A
     }
 
     def test_every_mapper_table_has_a_worker_stat_key(self, worker):

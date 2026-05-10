@@ -39,6 +39,7 @@ Cross-domain join: `Targets` edge links ThreatActor → Asset.
 | `Targets` | ThreatActor → Asset | Actor targets an internal asset (auto-generated via PIR tag matching) |
 | `TargetsAsset` | TTP → Asset | TTP technique-id matches asset tags (e.g. `T1078` → assets tagged `identity`); fills in exposure when no CVE link exists. Implemented by `src/sage/analysis/ttp_asset_matcher.py`. |
 | `ActorTargetsIdentity` | ThreatActor → Identity | Sourced from STIX `targets` relationships emitted by TRACE 1.0.0+ (restricted to `threat-actor` / `intrusion-set` source per STIX 2.1 §4.13 suggested subset) |
+| `HasAccess` | Identity → Asset | Identity-asset access edge (Initiative A). Sources: `beacon` (from BEACON `identity_assets.json`), `trace` (from TRACE 1.2.0+ `x-trace-has-access` relationships), `manual` (analyst direct upsert). Precedence at upsert: `manual > beacon > trace`. Backed by NIST SP 800-53 AC-2/3, NIST SP 800-207, ISO/IEC 27001 A.5.16/18. |
 | `HasVulnerability` | Asset → Vulnerability | Asset has an unpatched CVE |
 | `ConnectedTo` | Asset ↔ Asset | Network reachability between assets |
 | `ProtectedBy` | Asset → SecurityControl | Asset is covered by a control |

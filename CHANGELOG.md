@@ -8,6 +8,123 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-05-10
+
+### Added — Initiative A: Identity-Asset HasAccess edge
+
+Final SAGE-side slice of the 3-project Identity-Asset HasAccess
+initiative (paired with BEACON 0.11.0 and TRACE 1.1.0). Materializes
+the edge framework standards mandate (NIST SP 800-53 AC-2 / AC-3,
+NIST SP 800-207, ISO/IEC 27001 A.5.16 / A.5.18, CIS Controls v8 #5 /
+#6) — see local design doc for the full motivation.
+
+#### `HasAccess` table
+
+```sql
+CREATE TABLE HasAccess (
+  identity_stix_id STRING(128) NOT NULL,
+  asset_id         STRING(36)  NOT NULL,
+  access_level     STRING(32),                 -- read | write | admin | deny
+  role             STRING(256),
+  granted_at       TIMESTAMP,
+  revoked_at       TIMESTAMP,                  -- soft-delete (NULL=active)
+  source           STRING(32) NOT NULL,        -- beacon | trace | manual
+  confidence       INT64,                      -- 0-100
+  stix_modified    TIMESTAMP NOT NULL,
+) PRIMARY KEY (identity_stix_id, asset_id);
+```
+
+The composite primary key (identity, asset) guarantees one
+authoritative edge per pair. Multiple sources contribute through the
+precedence-aware `upsert_has_access` (see below).
+
+#### Precedence-aware upsert (`spanner/upsert.py::upsert_has_access`)
+
+Decision 2026-05-10: **`manual > beacon > trace`**. Manual analyst
+input has the highest authority — overrides everything, including
+BEACON-supplied data, so analyst corrections survive subsequent
+regeneration cycles.
+
+Implementation reads the existing `(identity_stix_id, asset_id, source)`
+keys before writing, compares precedence, and either accepts or skips
+each row. Skipped rows log `has_access_upsert_skipped` with the
+existing source for diagnostics; equal-rank writes overwrite (so
+BEACON regen can update its own rows, e.g. for `revoked_at`).
+
+#### `cmd/load_identity_assets.py` — BEACON-source ingest
+
+Reads BEACON's `identity_assets.json` and upserts both `Identity`
+nodes and `HasAccess` edges with `source = "beacon"`,
+`confidence = 100`. Identity STIX ids are deterministic UUID v5
+hashes of BEACON-supplied ids so re-loads idempotently update the
+same rows.
+
+```bash
+# After validation passes:
+uv run python cmd/load_identity_assets.py \
+  --file ../BEACON/output/identity_assets.json
+```
+
+`asset_id` is normalized to match BEACON's `_normalize_asset_id`
+convention (prefix `asset-` when missing).
+
+#### `mapper.map_relationship` extends to `x-trace-has-access`
+
+Custom relationship type emitted by TRACE 1.2.0+ from CTI report
+extraction. Source must be `identity--*`, target must be
+`x-asset-internal--<asset_id>` (TRACE's synthesized internal-asset
+reference). Other source/target combinations return None and are
+dropped at the worker. Trace-source rows default to `confidence=30`
+(below the analyst-trust threshold) when the LLM doesn't supply one.
+
+#### `worker.process_bundle` dispatches HasAccess
+
+A new branch in the relationship dispatch table; rows are funneled
+to `upsert_has_access` (precedence-aware) rather than `upsert_rows`
+(unconditional). The dispatch-completeness invariant test in
+`test_worker.py` was updated to include `HasAccess` so future
+mapper additions can't slip through silently.
+
+#### Documentation alignment
+
+- `schema/spanner_ddl.sql` — `HasAccess` DDL block placed adjacent
+  to `ActorTargetsIdentity` (Initiative A clusters identity-related
+  edges).
+
+### Tests
+
+- `tests/test_upsert_has_access.py` (new, 8 cases) — precedence
+  matrix (manual/beacon/trace combinations), new-row writes,
+  empty-input no-op, mixed accepted/skipped batch.
+- `tests/test_mapper.py::TestMapHasAccessRelationship` (4) — identity
+  → x-asset-internal happy path, default confidence,
+  non-identity-source drop, non-x-asset-internal-target drop.
+- `tests/test_worker.py::TestRelationshipDispatchCompleteness` —
+  invariant guard updated to include HasAccess.
+
+All 178 tests pass; 0 vulnerabilities.
+
+### Migration notes
+
+- BEACON 0.11.0 is required upstream — `identity_assets.json` is the
+  authoritative input.
+- TRACE 1.1.0 ships the schema + validator. TRACE 1.2.0 (deferred)
+  will add the L3-prompt-driven extraction and bundle assembler
+  emission of `x-trace-has-access`. SAGE 0.6.0 is forward-ready:
+  trace-sourced bundles will dispatch correctly when 1.2.0 lands.
+- No existing schema is modified — `HasAccess` is purely additive,
+  so 0.5.x ETL flows continue unaffected.
+
+### Future scope (Phase 2 evaluation gate)
+
+Phase 2 review triggers (per design doc): ≥3 BEACON regen cycles +
+≥1 TRACE-sourced HasAccess emission + ≥1 manual analyst override.
+Candidate work: PIR-weighted HasAccess propagation, automated
+revocation lifecycle from HR feeds, privileged-identity flag,
+periodic AccessReview events.
+
+---
+
 ## [0.5.3] — 2026-05-10
 
 ### Fixed — Identity / ActorTargetsIdentity wiring missed in 0.5.0 (worker + upsert)

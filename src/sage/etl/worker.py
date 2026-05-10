@@ -23,7 +23,12 @@ from google.cloud.spanner_v1.database import Database
 from sage.analysis.ttp_asset_matcher import build_ttp_asset_edges
 from sage.config import TLP_LEVELS
 from sage.pir.filter import PIRFilter
-from sage.spanner.upsert import update_pir_criticality, upsert_followed_by, upsert_rows
+from sage.spanner.upsert import (
+    update_pir_criticality,
+    upsert_followed_by,
+    upsert_has_access,
+    upsert_rows,
+)
 from sage.stix.mapper import (
     StixMapper,
     build_followed_by_weights,
@@ -128,6 +133,7 @@ class ETLWorker:
         ind_actor_rows: list[dict] = []
         incident_ttp_rows: list[dict] = []
         actor_targets_identity_rows: list[dict] = []
+        has_access_rows: list[dict] = []
 
         # PIR-filtered referential integrity (0.5.4): the PIR filter drops
         # actor rows whose tags don't intersect the PIR. Edges that reference
@@ -174,6 +180,13 @@ class ETLWorker:
                     dangling_dropped += 1
                     continue
                 actor_targets_identity_rows.append(row)
+            elif table == "HasAccess":
+                # SAGE 0.6.0 / Initiative A: identity → asset access edges
+                # extracted from CTI reports by TRACE 1.2.0+. Source is
+                # always "trace" here — beacon-source rows arrive via the
+                # separate cmd/load_identity_assets.py path. No PIR-actor
+                # filter applies (HasAccess identities are not actors).
+                has_access_rows.append(row)
 
         if dangling_dropped:
             logger.info(
@@ -196,6 +209,10 @@ class ETLWorker:
         stats["actor_targets_identity"] = upsert_rows(
             self._db, "ActorTargetsIdentity", actor_targets_identity_rows
         )
+        # SAGE 0.6.0: precedence-aware upsert for HasAccess (manual > beacon > trace).
+        # ETL-sourced rows are always "trace"; load_identity_assets.py supplies
+        # "beacon" rows; analyst manual edits supply "manual".
+        stats["has_access"] = upsert_has_access(self._db, has_access_rows)
 
         # --- FollowedBy(ir_feedback): derived from IncidentUsesTTP ---
         ir_fb_rows, ir_feedback_pairs = build_ir_feedback_followed_by(incident_ttp_rows)

@@ -164,6 +164,21 @@ _TABLE_COLUMNS: dict[str, list[str]] = {
         "first_observed",
         "stix_id",
     ],
+    # SAGE 0.6.0 / Initiative A — identity → asset access edge.
+    # Precedence-aware upsert is handled by ``upsert_has_access`` (below);
+    # the ordinary ``upsert_rows`` path overwrites unconditionally and
+    # should not be used directly for HasAccess rows in production code.
+    "HasAccess": [
+        "identity_stix_id",
+        "asset_id",
+        "access_level",
+        "role",
+        "granted_at",
+        "revoked_at",
+        "source",
+        "confidence",
+        "stix_modified",
+    ],
     "FollowedBy": [
         "src_ttp_stix_id",
         "dst_ttp_stix_id",
@@ -291,6 +306,71 @@ def update_pir_criticality(
 
     logger.info("updated_pir_criticality", count=total)
     return total
+
+
+def upsert_has_access(database: Database, rows: list[dict]) -> int:
+    """Precedence-aware upsert for ``HasAccess`` (Initiative A §7.4).
+
+    Rules: ``manual > beacon > trace``. An incoming row writes only when
+    its ``source`` has equal-or-higher precedence than the existing
+    ``source`` for the same ``(identity_stix_id, asset_id)`` pair.
+    Lower-precedence incoming rows are skipped with a structured-log
+    entry so analyst manual overrides survive BEACON regeneration
+    cycles.
+
+    The function is used by ``cmd/load_identity_assets.py`` (beacon
+    source) and the ETL worker (trace source). Manual rows arrive via
+    ad-hoc SQL or a future analyst CLI; this path treats them like any
+    other upsert with the correct ``source`` value.
+    """
+    if not rows:
+        return 0
+
+    precedence: dict[str, int] = {"trace": 1, "beacon": 2, "manual": 3}
+
+    # Read existing rows for the keys we are about to write so we can
+    # apply precedence at the row level. Spanner has no conditional
+    # mutation so the read-then-write race is acceptable here — the
+    # ETL is a single writer per run.
+    keys = [(r["identity_stix_id"], r["asset_id"]) for r in rows]
+    keyset = spanner.KeySet(keys=keys)
+    existing: dict[tuple[str, str], str] = {}
+    with database.snapshot() as snap:
+        result = snap.read(
+            table="HasAccess",
+            columns=["identity_stix_id", "asset_id", "source"],
+            keyset=keyset,
+        )
+        for ident_id, asset_id, src in result:
+            existing[(ident_id, asset_id)] = src
+
+    accepted: list[dict] = []
+    skipped = 0
+    for row in rows:
+        incoming_src = row.get("source", "trace")
+        incoming_rank = precedence.get(incoming_src, 0)
+        key = (row["identity_stix_id"], row["asset_id"])
+        existing_src = existing.get(key)
+        if existing_src is None:
+            accepted.append(row)
+            continue
+        existing_rank = precedence.get(existing_src, 0)
+        if incoming_rank >= existing_rank:
+            accepted.append(row)
+        else:
+            skipped += 1
+            logger.info(
+                "has_access_upsert_skipped",
+                identity_stix_id=key[0],
+                asset_id=key[1],
+                existing_source=existing_src,
+                incoming_source=incoming_src,
+            )
+
+    written = upsert_rows(database, "HasAccess", accepted)
+    if skipped:
+        logger.info("has_access_upsert_skipped_total", count=skipped)
+    return written
 
 
 def fetch_asset_rows(database: Database) -> list[dict]:

@@ -292,6 +292,26 @@ class StixMapper:
                     "stix_id": stix_id,
                 }
 
+        # SAGE 0.6.0 / Initiative A: identity → internal asset access from
+        # TRACE 1.2.0+ bundles. The target is a `x-asset-internal--<asset_id>`
+        # synthetic STIX object that TRACE's bundle assembler creates after
+        # resolving the LLM's free-form asset reference.
+        if rel_type == "x-trace-has-access" and src.startswith("identity--"):
+            if not dst.startswith("x-asset-internal--"):
+                return None
+            asset_id = dst[len("x-asset-internal--") :]
+            return "HasAccess", {
+                "identity_stix_id": src,
+                "asset_id": asset_id,
+                "access_level": obj.get("access_level"),
+                "role": obj.get("description"),  # TRACE puts free-form role in description
+                "granted_at": _to_ts(obj.get("start_time")),
+                "revoked_at": _to_ts(obj.get("stop_time")),
+                "source": "trace",
+                "confidence": confidence if confidence is not None else 30,
+                "stix_modified": _to_ts(obj.get("modified")) or _now(),
+            }
+
         return None
 
 

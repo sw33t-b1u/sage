@@ -263,6 +263,26 @@ CREATE TABLE IndicatesActor (
 -- Restricted to actor-source per STIX 2.1 §4.13 suggested subset
 -- (other sources like attack-pattern→identity are dropped at mapping
 -- time with a structured-log warning).
+-- Identity → Asset (SAGE 0.6.0 / Initiative A)
+-- Sources, in upsert precedence order:
+--   manual  > beacon > trace
+-- - beacon: BEACON's identity_assets.json via cmd/load_identity_assets.py
+-- - trace : STIX `x-trace-has-access` from TRACE 1.2.0+ bundles
+-- - manual: analyst direct upsert (highest authority)
+-- Lower-precedence writes are skipped at upsert time with a structured
+-- log entry; analyst overrides survive BEACON regeneration.
+CREATE TABLE HasAccess (
+  identity_stix_id STRING(128) NOT NULL,
+  asset_id         STRING(36)  NOT NULL,
+  access_level     STRING(32),                 -- read | write | admin | deny
+  role             STRING(256),
+  granted_at       TIMESTAMP,
+  revoked_at       TIMESTAMP,                  -- soft-delete (NULL=active)
+  source           STRING(32) NOT NULL,        -- beacon | trace | manual
+  confidence       INT64,                      -- 0-100; trace edges typically <50
+  stix_modified    TIMESTAMP NOT NULL,
+) PRIMARY KEY (identity_stix_id, asset_id);
+
 CREATE TABLE ActorTargetsIdentity (
   actor_stix_id    STRING(128) NOT NULL,
   identity_stix_id STRING(128) NOT NULL,
