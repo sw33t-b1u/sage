@@ -88,7 +88,7 @@ CREATE TABLE Incident (
 CREATE TABLE Identity (
   stix_id          STRING(128) NOT NULL,
   name             STRING(256) NOT NULL,
-  identity_class   STRING(32),                  -- individual | group | system | organization | class | unspecified
+  identity_class   STRING(32),                  -- STIX 2.1 §6.7 identity-class-ov: individual | group | system | organization | class | unknown
   sectors          ARRAY<STRING(64)>,           -- finance / healthcare / energy ...
   description      STRING(MAX),
   contact_information STRING(MAX),
