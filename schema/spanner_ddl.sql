@@ -283,6 +283,44 @@ CREATE TABLE HasAccess (
   stix_modified    TIMESTAMP NOT NULL,
 ) PRIMARY KEY (identity_stix_id, asset_id);
 
+-- User Account (SAGE 0.7.0 / Initiative B)
+-- STIX 2.1 §6.4 user-account SCO. Account-level granularity beneath
+-- Identity (people / roles / groups). Sources: BEACON (internal
+-- inventory), TRACE 1.4.0+ (observed-data SDO emission), manual.
+-- See docs/initiative_b_user_account.md.
+CREATE TABLE UserAccount (
+  stix_id            STRING(128) NOT NULL,
+  account_login      STRING(256) NOT NULL,
+  display_name       STRING(256),
+  account_type       STRING(64),                 -- STIX 2.1 §6.4 vocab
+  is_privileged      BOOL NOT NULL DEFAULT (FALSE),
+  is_service_account BOOL NOT NULL DEFAULT (FALSE),
+  identity_stix_id   STRING(128),                -- optional FK to Identity
+  source             STRING(32) NOT NULL,        -- beacon | trace | manual
+  confidence         INT64,
+  stix_modified      TIMESTAMP NOT NULL,
+) PRIMARY KEY (stix_id);
+
+-- UserAccount → Asset (SAGE 0.7.0 / Initiative B)
+-- One edge per (account, host) pair. Same login on two hosts produces
+-- two edges. Sources track which pipeline contributed the edge.
+CREATE TABLE AccountOnAsset (
+  user_account_stix_id STRING(128) NOT NULL,
+  asset_id             STRING(36)  NOT NULL,
+  first_seen           TIMESTAMP,
+  last_seen            TIMESTAMP,
+  source               STRING(32) NOT NULL,
+) PRIMARY KEY (user_account_stix_id, asset_id);
+
+-- Identity → UserAccount (SAGE 0.7.0 / Initiative B)
+-- 1:N relationship — one Identity owns multiple UserAccounts.
+-- Optional; many UserAccounts (shared / unattributed) won't have one.
+CREATE TABLE UserAccountBelongsTo (
+  identity_stix_id     STRING(128) NOT NULL,
+  user_account_stix_id STRING(128) NOT NULL,
+  source               STRING(32) NOT NULL,
+) PRIMARY KEY (identity_stix_id, user_account_stix_id);
+
 CREATE TABLE ActorTargetsIdentity (
   actor_stix_id    STRING(128) NOT NULL,
   identity_stix_id STRING(128) NOT NULL,

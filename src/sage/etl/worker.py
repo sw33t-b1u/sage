@@ -25,9 +25,12 @@ from sage.config import TLP_LEVELS
 from sage.pir.filter import PIRFilter
 from sage.spanner.upsert import (
     update_pir_criticality,
+    upsert_account_on_asset,
     upsert_followed_by,
     upsert_has_access,
     upsert_rows,
+    upsert_user_account,
+    upsert_user_account_belongs_to,
 )
 from sage.stix.mapper import (
     StixMapper,
@@ -117,6 +120,15 @@ class ETLWorker:
         identity_rows = [r for obj in by_type["identity"] if (r := self._mapper.map_identity(obj))]
         stats["identities"] = upsert_rows(self._db, "Identity", identity_rows)
 
+        # --- UserAccount (SAGE 0.7.0 / Initiative B) ---
+        # STIX 2.1 §6.4 user-account SCOs from TRACE 1.4.0+ bundles. BEACON-
+        # source rows arrive via cmd/load_user_accounts.py instead. Precedence-
+        # aware upsert is the helper, not bare upsert_rows.
+        user_account_rows = [
+            r for obj in by_type["user-account"] if (r := self._mapper.map_user_account(obj))
+        ]
+        stats["user_accounts"] = upsert_user_account(self._db, user_account_rows)
+
         # --- MalwareTool ---
         mt_rows = [
             r
@@ -147,6 +159,8 @@ class ETLWorker:
         incident_ttp_rows: list[dict] = []
         actor_targets_identity_rows: list[dict] = []
         has_access_rows: list[dict] = []
+        account_on_asset_rows: list[dict] = []
+        user_account_belongs_to_rows: list[dict] = []
 
         # PIR-filtered referential integrity (0.5.4): the PIR filter drops
         # actor rows whose tags don't intersect the PIR. Edges that reference
@@ -200,6 +214,15 @@ class ETLWorker:
                 # separate cmd/load_identity_assets.py path. No PIR-actor
                 # filter applies (HasAccess identities are not actors).
                 has_access_rows.append(row)
+            elif table == "AccountOnAsset":
+                # SAGE 0.7.0 / Initiative B: user-account → host edges from
+                # TRACE 1.4.0+ x-trace-valids-on relationships. BEACON-source
+                # rows arrive via cmd/load_user_accounts.py.
+                account_on_asset_rows.append(row)
+            elif table == "UserAccountBelongsTo":
+                # SAGE 0.7.0 / Initiative B: identity → user-account
+                # ownership from TRACE 1.4.0+ related-to relationships.
+                user_account_belongs_to_rows.append(row)
 
         if dangling_dropped:
             logger.info(
@@ -226,6 +249,13 @@ class ETLWorker:
         # ETL-sourced rows are always "trace"; load_identity_assets.py supplies
         # "beacon" rows; analyst manual edits supply "manual".
         stats["has_access"] = upsert_has_access(self._db, has_access_rows)
+
+        # SAGE 0.7.0 / Initiative B: same precedence pattern for the two
+        # new edge tables.
+        stats["account_on_asset"] = upsert_account_on_asset(self._db, account_on_asset_rows)
+        stats["user_account_belongs_to"] = upsert_user_account_belongs_to(
+            self._db, user_account_belongs_to_rows
+        )
 
         # --- FollowedBy(ir_feedback): derived from IncidentUsesTTP ---
         ir_fb_rows, ir_feedback_pairs = build_ir_feedback_followed_by(incident_ttp_rows)

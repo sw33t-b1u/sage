@@ -444,6 +444,8 @@ class TestRelationshipDispatchCompleteness:
         "IndicatesActor": "indicates_actor",
         "ActorTargetsIdentity": "actor_targets_identity",
         "HasAccess": "has_access",  # SAGE 0.6.0 / Initiative A
+        "AccountOnAsset": "account_on_asset",  # SAGE 0.7.0 / Initiative B
+        "UserAccountBelongsTo": "user_account_belongs_to",  # SAGE 0.7.0 / Initiative B
     }
 
     def test_every_mapper_table_has_a_worker_stat_key(self, worker):

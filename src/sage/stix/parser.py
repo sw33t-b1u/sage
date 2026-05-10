@@ -35,6 +35,11 @@ SUPPORTED_TYPES = frozenset(
         # object carries an ``asset_id`` property; the worker builds a
         # stix_id → asset_id map at ETL time so the mapper can resolve.
         "x-asset-internal",
+        # SAGE 0.7.0 / Initiative B: STIX 2.1 §6.4 user-account SCO and
+        # §4.10 observed-data SDO. TRACE 1.4.0+ emits these for CTI-
+        # extracted account observations.
+        "user-account",
+        "observed-data",
     }
 )
 
@@ -87,8 +92,15 @@ def _parse_object(raw: dict[str, Any]) -> dict[str, Any]:
     own the format, so bypass the stix2 round-trip and pass the raw dict
     through unchanged. The worker then reads ``asset_id`` directly to
     build the resolution map.
+
+    SAGE 0.7.0: same treatment for ``observed-data`` SDOs that wrap
+    user-account SCOs. The stix2 library validates observed-data
+    strictly (object_refs must resolve), but TRACE bundles include the
+    referenced user-account SCO inline; the worker doesn't need the
+    SDO at all (only its inner user-account ids matter), so we keep
+    the dict round-trip-free.
     """
-    if raw.get("type") == "x-asset-internal":
+    if raw.get("type") in ("x-asset-internal", "observed-data"):
         return dict(raw)
     parsed = stix2.parse(json.dumps(raw), allow_custom=True)
     # Return as a plain dict (easier to handle in Spanner upsert code)

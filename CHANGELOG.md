@@ -8,6 +8,156 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-05-10
+
+### Added — Initiative B: User-Account SCO + edges
+
+Final SAGE-side slice of the User-Account initiative (paired with
+BEACON 0.12.0 and TRACE 1.3.0). Introduces three new graph tables
+that drop one level deeper than Initiative A's Identity ↔ Asset
+edge — to per-account granularity.
+
+Backed by published frameworks (full citations in the local
+Initiative B design doc): NIST SP 800-53 IA-2 / IA-4 / AC-2,
+NIST SP 800-63B, ISO/IEC 27001:2022 A.5.16 / A.8.5, CIS Controls
+v8 #5. Empirical reinforcement: Verizon DBIR 2025 (stolen
+credentials = #1 initial-access at 22%), CrowdStrike GTR 2025
+(valid-account abuse = #1 cloud vector at 35%), Mandiant M-Trends
+2026 (privileged accounts in 60%+ of post-compromise lateral
+movement).
+
+#### `UserAccount` table
+
+```sql
+CREATE TABLE UserAccount (
+  stix_id            STRING(128) NOT NULL,
+  account_login      STRING(256) NOT NULL,
+  display_name       STRING(256),
+  account_type       STRING(64),                 -- STIX 2.1 §6.4 vocab
+  is_privileged      BOOL NOT NULL DEFAULT (FALSE),
+  is_service_account BOOL NOT NULL DEFAULT (FALSE),
+  identity_stix_id   STRING(128),                -- optional FK to Identity
+  source             STRING(32) NOT NULL,        -- beacon | trace | manual
+  confidence         INT64,
+  stix_modified      TIMESTAMP NOT NULL,
+) PRIMARY KEY (stix_id);
+```
+
+#### `AccountOnAsset` table (UserAccount → Asset)
+
+One edge per (account, host) pair. Same login on two hosts produces
+two edges. Sources track which pipeline contributed.
+
+```sql
+CREATE TABLE AccountOnAsset (
+  user_account_stix_id STRING(128) NOT NULL,
+  asset_id             STRING(36)  NOT NULL,
+  first_seen           TIMESTAMP,
+  last_seen            TIMESTAMP,
+  source               STRING(32) NOT NULL,
+) PRIMARY KEY (user_account_stix_id, asset_id);
+```
+
+#### `UserAccountBelongsTo` table (Identity → UserAccount)
+
+1:N: one Identity owns multiple accounts. Optional — many
+UserAccounts (shared, service, unattributed) have no parent.
+
+#### Precedence-aware upsert helpers
+
+`spanner/upsert.py` factors out a `_precedence_upsert` helper used
+by all four Initiative A/B tables:
+
+- `upsert_has_access` (refactored to use the helper)
+- `upsert_user_account` (PK: `stix_id`)
+- `upsert_account_on_asset` (PK: `user_account_stix_id, asset_id`)
+- `upsert_user_account_belongs_to` (PK: `identity_stix_id, user_account_stix_id`)
+
+All four follow `manual > beacon > trace` precedence so analyst
+overrides survive subsequent BEACON regeneration.
+
+#### `cmd/load_user_accounts.py` — BEACON-source ingest
+
+Reads BEACON's `user_accounts.json` and upserts UserAccount,
+AccountOnAsset (`source=beacon`), and UserAccountBelongsTo (when
+`identity_id` is set) rows. STIX ids are deterministic UUID5
+hashes:
+
+- Identity: shared namespace with `load_identity_assets.py` so the
+  same `id-finance-team` produces the same Identity STIX id across
+  both loaders.
+- UserAccount: distinct namespace.
+
+Asset id normalization: same `_normalize_asset_id` helper as
+Initiative A.
+
+#### `mapper.map_user_account` + relationship dispatch
+
+- `map_user_account` — STIX 2.1 §6.4 user-account SCO → UserAccount
+  row (source=trace, confidence=30 default). Uses `user_id` as the
+  authoritative login field per STIX spec.
+- `map_relationship` extends to:
+  - `(user-account → x-asset-internal, x-trace-valids-on)` →
+    `AccountOnAsset` row. Same x-asset-internal resolution path as
+    HasAccess.
+  - `(identity → user-account, related-to)` →
+    `UserAccountBelongsTo` row.
+
+#### `worker.process_bundle` dispatches the new tables
+
+Three new dispatch branches (UserAccount upsert via
+precedence-aware helper, plus AccountOnAsset and
+UserAccountBelongsTo through their dedicated helpers). Stats keys
+`user_accounts`, `account_on_asset`, `user_account_belongs_to`
+exposed.
+
+#### Parser
+
+`SUPPORTED_TYPES` adds `user-account` and `observed-data`. The
+`_parse_object` bypass (originally added for `x-asset-internal`)
+now also covers `observed-data` SDOs because TRACE bundles include
+the referenced user-account inline; the SDO itself contributes no
+graph data.
+
+#### Documentation
+
+- `schema/spanner_ddl.sql` — three new tables added next to the
+  Initiative A cluster.
+- `docs/data-model.{md,ja.md}` — UserAccount node + AccountOnAsset
+  + UserAccountBelongsTo edges added with citations.
+
+### Tests
+
+`test_worker.py::TestRelationshipDispatchCompleteness` invariant
+guard updated to include `AccountOnAsset` and `UserAccountBelongsTo`
+in the table → stats-key map. New mapper / load tests deferred to
+the operational verification step (similar to Initiative A's
+post-implementation validation pattern).
+
+All 187 tests pass; 0 vulnerabilities.
+
+### Migration notes
+
+- BEACON 0.12.0 is required upstream — `user_accounts.json` is the
+  authoritative input.
+- TRACE 1.3.0 ships the schema + validator. TRACE 1.4.0 (deferred)
+  will add L3-prompt-driven extraction and bundle assembler
+  emission of `x-trace-valids-on`. SAGE 0.7.0 is forward-ready:
+  trace-sourced bundles will dispatch correctly when 1.4.0 lands.
+- No existing schema is modified; the three new tables are purely
+  additive.
+
+### Future scope (Phase 2 evaluation gate)
+
+Same trigger pattern as Initiative A: ≥3 BEACON regen cycles + ≥1
+TRACE-source UserAccount emission + ≥1 manual analyst override.
+Candidate Phase 2 work: privileged-account PIR weighting, account
+lifecycle automation, account-asset cardinality alerts (CIS #5.4),
+query API endpoints (`/accounts-by-identity`,
+`/assets-by-account`, `/privileged-accounts`).
+
+---
+
 ## [0.6.2] — 2026-05-10
 
 ### Fixed — `x-trace-has-access` parser rejection (TRACE 1.2.1 paired)

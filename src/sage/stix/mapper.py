@@ -87,6 +87,31 @@ class StixMapper:
             "stix_modified": _to_ts(obj.get("modified")) or _now(),
         }
 
+    def map_user_account(self, obj: dict) -> dict | None:
+        """STIX 2.1 §6.4 user-account SCO → UserAccount row.
+
+        SAGE 0.7.0 / Initiative B. Sources beyond TRACE 1.4.0 (BEACON via
+        load_user_accounts.py, manual) bypass this method; the worker
+        only invokes it for objects emitted by TRACE bundles.
+        """
+        if obj["type"] != "user-account":
+            return None
+        login = obj.get("user_id") or obj.get("account_login") or ""
+        if not login:
+            return None
+        return {
+            "stix_id": obj["id"],
+            "account_login": login,
+            "display_name": obj.get("display_name"),
+            "account_type": obj.get("account_type"),
+            "is_privileged": bool(obj.get("is_privileged", False)),
+            "is_service_account": bool(obj.get("is_service_account", False)),
+            "identity_stix_id": None,  # set by Identity → UserAccount relationship downstream
+            "source": "trace",
+            "confidence": int(obj.get("confidence", 30)),
+            "stix_modified": _to_ts(obj.get("modified")) or _now(),
+        }
+
     def map_vulnerability(self, obj: dict) -> dict | None:
         if obj["type"] != "vulnerability":
             return None
@@ -295,6 +320,41 @@ class StixMapper:
                     "first_observed": _to_ts(obj.get("start_time")),
                     "stix_id": stix_id,
                 }
+
+        # SAGE 0.7.0 / Initiative B: user-account → asset (account valid on host).
+        # Same x-asset-internal target convention as has-access; routes to
+        # the AccountOnAsset table.
+        if rel_type == "x-trace-valids-on" and src.startswith("user-account--"):
+            if not dst.startswith("x-asset-internal--"):
+                return None
+            asset_id: str | None = None
+            if x_asset_internal_map is not None:
+                asset_id = x_asset_internal_map.get(dst)
+            if asset_id is None:
+                asset_id = dst[len("x-asset-internal--") :]
+            if not asset_id:
+                return None
+            return "AccountOnAsset", {
+                "user_account_stix_id": src,
+                "asset_id": asset_id,
+                "first_seen": _to_ts(obj.get("start_time")),
+                "last_seen": _to_ts(obj.get("stop_time")),
+                "source": "trace",
+            }
+
+        # SAGE 0.7.0 / Initiative B: identity → user-account ownership.
+        # Emitted by TRACE 1.4.0+ via STIX 2.1 §4.13 generic ``related-to``
+        # when the report describes a named role/team owning an account.
+        if (
+            rel_type == "related-to"
+            and src.startswith("identity--")
+            and dst.startswith("user-account--")
+        ):
+            return "UserAccountBelongsTo", {
+                "identity_stix_id": src,
+                "user_account_stix_id": dst,
+                "source": "trace",
+            }
 
         # SAGE 0.6.0 / Initiative A: identity → internal asset access from
         # TRACE 1.2.0+ bundles. 0.6.2 changed the resolution path: TRACE

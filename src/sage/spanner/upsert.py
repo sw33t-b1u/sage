@@ -179,6 +179,31 @@ _TABLE_COLUMNS: dict[str, list[str]] = {
         "confidence",
         "stix_modified",
     ],
+    # SAGE 0.7.0 / Initiative B — User-account SCO and its edges.
+    "UserAccount": [
+        "stix_id",
+        "account_login",
+        "display_name",
+        "account_type",
+        "is_privileged",
+        "is_service_account",
+        "identity_stix_id",
+        "source",
+        "confidence",
+        "stix_modified",
+    ],
+    "AccountOnAsset": [
+        "user_account_stix_id",
+        "asset_id",
+        "first_seen",
+        "last_seen",
+        "source",
+    ],
+    "UserAccountBelongsTo": [
+        "identity_stix_id",
+        "user_account_stix_id",
+        "source",
+    ],
     "FollowedBy": [
         "src_ttp_stix_id",
         "dst_ttp_stix_id",
@@ -371,6 +396,87 @@ def upsert_has_access(database: Database, rows: list[dict]) -> int:
     if skipped:
         logger.info("has_access_upsert_skipped_total", count=skipped)
     return written
+
+
+def _precedence_upsert(
+    database: Database,
+    table: str,
+    rows: list[dict],
+    key_columns: list[str],
+) -> int:
+    """Generic precedence-aware upsert.
+
+    Common implementation behind ``upsert_has_access`` (Initiative A) and
+    Initiative B's ``upsert_user_account`` / ``upsert_account_on_asset`` /
+    ``upsert_user_account_belongs_to``. Reads the existing ``source``
+    column for each row's PK, accepts the incoming row only when its
+    source is equal-or-higher precedence than the existing one.
+
+    ``key_columns`` lists the PK columns in the same order as the table
+    DDL.
+    """
+    if not rows:
+        return 0
+    precedence: dict[str, int] = {"trace": 1, "beacon": 2, "manual": 3}
+    keys = [tuple(r[col] for col in key_columns) for r in rows]
+    keyset = spanner.KeySet(keys=keys)
+    existing: dict[tuple, str] = {}
+    with database.snapshot() as snap:
+        result = snap.read(
+            table=table,
+            columns=[*key_columns, "source"],
+            keyset=keyset,
+        )
+        for record in result:
+            key = tuple(record[: len(key_columns)])
+            existing[key] = record[len(key_columns)]
+
+    accepted: list[dict] = []
+    skipped = 0
+    for row in rows:
+        key = tuple(row[col] for col in key_columns)
+        incoming_rank = precedence.get(row.get("source", "trace"), 0)
+        existing_src = existing.get(key)
+        if existing_src is None:
+            accepted.append(row)
+            continue
+        existing_rank = precedence.get(existing_src, 0)
+        if incoming_rank >= existing_rank:
+            accepted.append(row)
+        else:
+            skipped += 1
+            logger.info(
+                f"{table.lower()}_upsert_skipped",
+                key=key,
+                existing_source=existing_src,
+                incoming_source=row.get("source"),
+            )
+    written = upsert_rows(database, table, accepted)
+    if skipped:
+        logger.info(f"{table.lower()}_upsert_skipped_total", count=skipped)
+    return written
+
+
+def upsert_user_account(database: Database, rows: list[dict]) -> int:
+    """Precedence-aware UserAccount upsert (Initiative B §7.3)."""
+    return _precedence_upsert(database, "UserAccount", rows, ["stix_id"])
+
+
+def upsert_account_on_asset(database: Database, rows: list[dict]) -> int:
+    """Precedence-aware AccountOnAsset upsert (Initiative B §7.3)."""
+    return _precedence_upsert(
+        database, "AccountOnAsset", rows, ["user_account_stix_id", "asset_id"]
+    )
+
+
+def upsert_user_account_belongs_to(database: Database, rows: list[dict]) -> int:
+    """Precedence-aware UserAccountBelongsTo upsert (Initiative B §7.3)."""
+    return _precedence_upsert(
+        database,
+        "UserAccountBelongsTo",
+        rows,
+        ["identity_stix_id", "user_account_stix_id"],
+    )
 
 
 def fetch_asset_rows(database: Database) -> list[dict]:

@@ -20,6 +20,7 @@ Cross-domain join: `Targets` edge links ThreatActor → Asset.
 | `Vulnerability` | CVEs with CVSS score, EPSS score, and affected platforms |
 | `MalwareTool` | Malware families and attacker tools |
 | `Identity` | Targeted persons / groups / systems / organizations (STIX 2.1 §4.4 SDO). Emitted by TRACE 1.0.0+ and addressed by `ActorTargetsIdentity`. SAGE-internal soft-delete column `deleted_at` is independent of STIX `revoked` — it captures HR-side departures the upstream STIX object cannot represent. |
+| `UserAccount` | Individual login accounts (STIX 2.1 §6.4 SCO) — `alice@corp`, `svc-jenkins`, domain SIDs. Initiative B (SAGE 0.7.0). Optional `identity_stix_id` FK to Identity (1:N). Drops one level deeper than Initiative A's role-based access for credential-theft impact tracing. |
 | `Asset` | Internal assets (server, endpoint, SaaS, storage, network device) with PIR-adjusted criticality. Network segment info (name, CIDR, zone) stored as properties. |
 | `SecurityControl` | Defensive controls: EDR, WAF, SIEM, firewall, IAM |
 | `Observable` | IoCs — IPs, domains, hashes, emails, URLs with TLP and confidence |
@@ -40,6 +41,8 @@ Cross-domain join: `Targets` edge links ThreatActor → Asset.
 | `TargetsAsset` | TTP → Asset | TTP technique-id matches asset tags (e.g. `T1078` → assets tagged `identity`); fills in exposure when no CVE link exists. Implemented by `src/sage/analysis/ttp_asset_matcher.py`. |
 | `ActorTargetsIdentity` | ThreatActor → Identity | Sourced from STIX `targets` relationships emitted by TRACE 1.0.0+ (restricted to `threat-actor` / `intrusion-set` source per STIX 2.1 §4.13 suggested subset) |
 | `HasAccess` | Identity → Asset | Identity-asset access edge (Initiative A). Sources: `beacon` (from BEACON `identity_assets.json`), `trace` (from TRACE 1.2.0+ `x-trace-has-access` relationships), `manual` (analyst direct upsert). Precedence at upsert: `manual > beacon > trace`. Backed by NIST SP 800-53 AC-2/3, NIST SP 800-207, ISO/IEC 27001 A.5.16/18. |
+| `AccountOnAsset` | UserAccount → Asset | Account validity on host (Initiative B / SAGE 0.7.0). One edge per (account, host); same login on two hosts produces two edges. Sources: `beacon` / `trace` / `manual` with the same precedence as HasAccess. Backed by NIST SP 800-53 IA-2/IA-4 / AC-2, CIS Controls v8 #5. |
+| `UserAccountBelongsTo` | Identity → UserAccount | Account ownership (Initiative B). 1:N: one Identity owns multiple accounts. Optional — many UserAccounts (shared / unattributed) won't have a parent Identity. |
 | `HasVulnerability` | Asset → Vulnerability | Asset has an unpatched CVE |
 | `ConnectedTo` | Asset ↔ Asset | Network reachability between assets |
 | `ProtectedBy` | Asset → SecurityControl | Asset is covered by a control |
