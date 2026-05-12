@@ -20,6 +20,7 @@ SUPPORTED_TYPES = frozenset(
     {
         "threat-actor",
         "intrusion-set",
+        "campaign",  # SAGE 0.8.0 / Initiative C: attribution source SDO
         "attack-pattern",
         "vulnerability",
         "malware",
@@ -40,6 +41,11 @@ SUPPORTED_TYPES = frozenset(
         # extracted account observations.
         "user-account",
         "observed-data",
+        # SAGE 0.8.0 / Initiative C: TRACE 1.5.0 synthesizes one
+        # ``x-identity-internal`` object per resolved BEACON identity and
+        # references it from ``impersonates`` / ``attributed-to`` relationships.
+        # Same passthrough treatment as ``x-asset-internal``.
+        "x-identity-internal",
     }
 )
 
@@ -100,7 +106,7 @@ def _parse_object(raw: dict[str, Any]) -> dict[str, Any]:
     SDO at all (only its inner user-account ids matter), so we keep
     the dict round-trip-free.
     """
-    if raw.get("type") in ("x-asset-internal", "observed-data"):
+    if raw.get("type") in ("x-asset-internal", "x-identity-internal", "observed-data", "campaign"):
         return dict(raw)
     parsed = stix2.parse(json.dumps(raw), allow_custom=True)
     # Return as a plain dict (easier to handle in Spanner upsert code)

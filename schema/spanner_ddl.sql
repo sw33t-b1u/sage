@@ -330,6 +330,63 @@ CREATE TABLE ActorTargetsIdentity (
   stix_id          STRING(128),
 ) PRIMARY KEY (actor_stix_id, identity_stix_id);
 
+-- SAGE 0.8.0 / Initiative C Phase 1 — Attribution & Impersonation edges
+--
+-- Three polymorphic edge tables. `source_type` / `target_type` discriminator
+-- columns accommodate Phase 2 source expansion (§3.1.1 pending combinations)
+-- without schema migration.
+-- SOURCE KEY REFERENCES clause is omitted for the polymorphic source side
+-- (same pattern as Targets / IndicatesTTP). ETL enforces referential integrity.
+
+-- (1) Campaign / IntrusionSet → ThreatActor / IntrusionSet attribution chain.
+-- Phase 1 emit-ready source_type values: campaign | intrusion-set
+-- Phase 1 emit-ready target_type values: threat-actor | intrusion-set
+CREATE TABLE AttributedToActor (
+  source_stix_id        STRING(128) NOT NULL,
+  target_actor_stix_id  STRING(128) NOT NULL,
+  source_type           STRING(32)  NOT NULL,
+  target_type           STRING(32)  NOT NULL,
+  confidence            INT64,
+  description           STRING(MAX),
+  first_observed        TIMESTAMP,
+  stix_id               STRING(128),
+  source                STRING(32)  NOT NULL DEFAULT ('trace'),
+) PRIMARY KEY (source_stix_id, target_actor_stix_id);
+
+-- (2) ThreatActor → Identity real-world provenance.
+-- Phase 1 emit-ready source_type: threat-actor only.
+-- source_type retained for Phase 2 intrusion-set source activation.
+CREATE TABLE AttributedToIdentity (
+  source_stix_id     STRING(128) NOT NULL,
+  identity_stix_id   STRING(128) NOT NULL,
+  source_type        STRING(32)  NOT NULL,
+  confidence         INT64,
+  description        STRING(MAX),
+  first_observed     TIMESTAMP,
+  stix_id            STRING(128),
+  source             STRING(32)  NOT NULL DEFAULT ('trace'),
+) PRIMARY KEY (source_stix_id, identity_stix_id);
+
+-- (3) ThreatActor → Identity deception relationship.
+-- Phase 1 emit-ready source_type: threat-actor only.
+-- source_type retained for Phase 2 intrusion-set source activation.
+-- effective_priority = LEAST(100, confidence × role_boost_multiplier).
+-- role_boost_multiplier = 1.5 when target Identity's roles[] intersects
+-- HIGH_VALUE_IMPERSONATION_ROLES (src/sage/spanner/constants.py).
+-- Computed by upsert helper at write time (NOT a generated column —
+-- Spanner generated columns cannot reference other tables or subqueries).
+CREATE TABLE ImpersonatesIdentity (
+  source_stix_id     STRING(128) NOT NULL,
+  identity_stix_id   STRING(128) NOT NULL,
+  source_type        STRING(32)  NOT NULL,
+  confidence         INT64,
+  description        STRING(MAX),
+  first_observed     TIMESTAMP,
+  stix_id            STRING(128),
+  effective_priority INT64,
+  source             STRING(32)  NOT NULL DEFAULT ('trace'),
+) PRIMARY KEY (source_stix_id, identity_stix_id);
+
 -- -----------------------------------------------------------------------------
 -- PIR (Priority Intelligence Requirement) — first-class graph node + edges
 -- -----------------------------------------------------------------------------
@@ -423,5 +480,11 @@ CREATE TABLE PirWeightsAsset (
 --     IndicatesActor SOURCE KEY (observable_stix_id) REFERENCES Observable (stix_id)
 --                    DESTINATION KEY (actor_stix_id)  REFERENCES ThreatActor (stix_id) LABEL INDICATES_ACTOR PROPERTIES ALL COLUMNS,
 --     ActorTargetsIdentity SOURCE KEY (actor_stix_id) REFERENCES ThreatActor (stix_id)
---                    DESTINATION KEY (identity_stix_id) REFERENCES Identity (stix_id)  LABEL ACTOR_TARGETS_IDENTITY PROPERTIES ALL COLUMNS
+--                    DESTINATION KEY (identity_stix_id) REFERENCES Identity (stix_id)  LABEL ACTOR_TARGETS_IDENTITY PROPERTIES ALL COLUMNS,
+--     AttributedToActor  SOURCE KEY (source_stix_id)
+--                    DESTINATION KEY (target_actor_stix_id) REFERENCES ThreatActor (stix_id) LABEL ATTRIBUTED_TO PROPERTIES ALL COLUMNS,
+--     AttributedToIdentity SOURCE KEY (source_stix_id)
+--                    DESTINATION KEY (identity_stix_id) REFERENCES Identity (stix_id)  LABEL ATTRIBUTED_TO PROPERTIES ALL COLUMNS,
+--     ImpersonatesIdentity SOURCE KEY (source_stix_id)
+--                    DESTINATION KEY (identity_stix_id) REFERENCES Identity (stix_id)  LABEL IMPERSONATES PROPERTIES ALL COLUMNS
 --   );

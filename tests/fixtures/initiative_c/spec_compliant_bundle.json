@@ -1,0 +1,138 @@
+{
+  "type": "bundle",
+  "id": "bundle--00000000-0000-4000-8000-000000000200",
+  "objects": [
+    {
+      "type": "extension-definition",
+      "id": "extension-definition--c1e4d6a7-2f3b-4e8c-9a5f-1b8d7e6c4a3f",
+      "spec_version": "2.1",
+      "created": "2026-05-12T00:00:00.000Z",
+      "modified": "2026-05-12T00:00:00.000Z",
+      "name": "TRACE bundle metadata extension",
+      "description": "TRACE-emitted top-level bundle properties (x_trace_*) and new-SDO type declarations for x-asset-internal (Initiative A) and x-identity-internal (Initiative C). Consumers without the extension can ignore these fields safely.",
+      "schema": "https://github.com/sw33t-b1u/sage/blob/main/TRACE/docs/data-model.md#trace-bundle-metadata-extension",
+      "version": "1.1",
+      "extension_types": ["toplevel-property-extension", "new-sdo"],
+      "extension_properties": [
+        "x_trace_source_url",
+        "x_trace_collected_at",
+        "x_trace_matched_pir_ids",
+        "x_trace_relevance_score",
+        "x_trace_relevance_rationale"
+      ]
+    },
+    {
+      "type": "campaign",
+      "id": "campaign--00000000-0000-4000-8000-000000000201",
+      "spec_version": "2.1",
+      "created": "2026-05-12T00:00:00.000Z",
+      "modified": "2026-05-12T00:00:00.000Z",
+      "name": "SolarWinds Compromise Operation",
+      "description": "Named adversarial operation targeting IT management software supply chain, attributed to SVR-affiliated actors."
+    },
+    {
+      "type": "intrusion-set",
+      "id": "intrusion-set--00000000-0000-4000-8000-000000000202",
+      "spec_version": "2.1",
+      "created": "2026-05-12T00:00:00.000Z",
+      "modified": "2026-05-12T00:00:00.000Z",
+      "name": "APT29",
+      "aliases": ["Cozy Bear", "Midnight Blizzard"]
+    },
+    {
+      "type": "threat-actor",
+      "id": "threat-actor--00000000-0000-4000-8000-000000000203",
+      "spec_version": "2.1",
+      "created": "2026-05-12T00:00:00.000Z",
+      "modified": "2026-05-12T00:00:00.000Z",
+      "name": "UNC2452",
+      "description": "Tracked cluster linked to SolarWinds supply-chain intrusion."
+    },
+    {
+      "type": "identity",
+      "id": "identity--00000000-0000-4000-8000-000000000204",
+      "spec_version": "2.1",
+      "created": "2026-05-12T00:00:00.000Z",
+      "modified": "2026-05-12T00:00:00.000Z",
+      "name": "Russian Foreign Intelligence Service",
+      "identity_class": "organization",
+      "sectors": ["government"]
+    },
+    {
+      "type": "x-identity-internal",
+      "id": "x-identity-internal--c5baa910-57ec-5034-88f1-3ff01febe495",
+      "spec_version": "2.1",
+      "created": "2026-05-12T00:00:00.000Z",
+      "modified": "2026-05-12T00:00:00.000Z",
+      "identity_id": "id-supplier-dhl",
+      "name": "DHL",
+      "x_trace_resolution_tier": 1,
+      "x_trace_resolution_confidence": 80,
+      "extensions": {
+        "extension-definition--c1e4d6a7-2f3b-4e8c-9a5f-1b8d7e6c4a3f": {
+          "extension_type": "new-sdo"
+        }
+      }
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--00000000-0000-4000-8000-000000000211",
+      "spec_version": "2.1",
+      "created": "2026-05-12T00:00:00.000Z",
+      "modified": "2026-05-12T00:00:00.000Z",
+      "relationship_type": "attributed-to",
+      "source_ref": "campaign--00000000-0000-4000-8000-000000000201",
+      "target_ref": "threat-actor--00000000-0000-4000-8000-000000000203",
+      "confidence": 70,
+      "description": "Vendor CTI report attributes the campaign to UNC2452 with moderate confidence."
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--00000000-0000-4000-8000-000000000212",
+      "spec_version": "2.1",
+      "created": "2026-05-12T00:00:00.000Z",
+      "modified": "2026-05-12T00:00:00.000Z",
+      "relationship_type": "attributed-to",
+      "source_ref": "campaign--00000000-0000-4000-8000-000000000201",
+      "target_ref": "intrusion-set--00000000-0000-4000-8000-000000000202",
+      "confidence": 85,
+      "description": "High-confidence attribution of the SolarWinds operation to the APT29 intrusion set."
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--00000000-0000-4000-8000-000000000213",
+      "spec_version": "2.1",
+      "created": "2026-05-12T00:00:00.000Z",
+      "modified": "2026-05-12T00:00:00.000Z",
+      "relationship_type": "attributed-to",
+      "source_ref": "intrusion-set--00000000-0000-4000-8000-000000000202",
+      "target_ref": "threat-actor--00000000-0000-4000-8000-000000000203",
+      "confidence": 50,
+      "description": "UNC2452 assessed as a component of the APT29 intrusion set with roughly even confidence."
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--00000000-0000-4000-8000-000000000214",
+      "spec_version": "2.1",
+      "created": "2026-05-12T00:00:00.000Z",
+      "modified": "2026-05-12T00:00:00.000Z",
+      "relationship_type": "attributed-to",
+      "source_ref": "threat-actor--00000000-0000-4000-8000-000000000203",
+      "target_ref": "identity--00000000-0000-4000-8000-000000000204",
+      "confidence": 15,
+      "description": "Tentative link between UNC2452 and SVR — highly unlikely absent additional corroboration."
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--00000000-0000-4000-8000-000000000215",
+      "spec_version": "2.1",
+      "created": "2026-05-12T00:00:00.000Z",
+      "modified": "2026-05-12T00:00:00.000Z",
+      "relationship_type": "impersonates",
+      "source_ref": "threat-actor--00000000-0000-4000-8000-000000000203",
+      "target_ref": "x-identity-internal--c5baa910-57ec-5034-88f1-3ff01febe495",
+      "confidence": 30,
+      "description": "Actor observed spoofing DHL parcel-tracking notifications in phishing lures (low confidence — single source)."
+    }
+  ]
+}

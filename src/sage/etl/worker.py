@@ -26,8 +26,11 @@ from sage.pir.filter import PIRFilter
 from sage.spanner.upsert import (
     update_pir_criticality,
     upsert_account_on_asset,
+    upsert_attributed_to_actor,
+    upsert_attributed_to_identity,
     upsert_followed_by,
     upsert_has_access,
+    upsert_impersonates_identity,
     upsert_rows,
     upsert_user_account,
     upsert_user_account_belongs_to,
@@ -149,6 +152,16 @@ class ETLWorker:
         incident_rows = [r for obj in by_type["incident"] if (r := self._mapper.map_incident(obj))]
         stats["incidents"] = upsert_rows(self._db, "Incident", incident_rows)
 
+        # SAGE 0.8.0 / Initiative C: build stix_id → roles map from in-bundle
+        # identity objects. Passed to map_relationship so the impersonates
+        # mapper can compute effective_priority at write time. x-identity-internal
+        # targets (cross-bundle BEACON references) are not in this map; their
+        # effective_priority is recomputed via recompute_effective_priority_for_identity
+        # when the Identity row is loaded from BEACON.
+        identity_roles_map: dict[str, list[str]] = {
+            r["stix_id"]: r.get("roles") or [] for r in identity_rows
+        }
+
         # --- Relationships ---
         uses_rows: list[dict] = []
         malware_uses_ttp_rows: list[dict] = []
@@ -161,6 +174,9 @@ class ETLWorker:
         has_access_rows: list[dict] = []
         account_on_asset_rows: list[dict] = []
         user_account_belongs_to_rows: list[dict] = []
+        attributed_to_actor_rows: list[dict] = []
+        attributed_to_identity_rows: list[dict] = []
+        impersonates_identity_rows: list[dict] = []
 
         # PIR-filtered referential integrity (0.5.4): the PIR filter drops
         # actor rows whose tags don't intersect the PIR. Edges that reference
@@ -173,7 +189,11 @@ class ETLWorker:
         dangling_dropped = 0
 
         for obj in by_type["relationship"]:
-            result = self._mapper.map_relationship(obj, x_asset_internal_map=x_asset_internal_map)
+            result = self._mapper.map_relationship(
+                obj,
+                x_asset_internal_map=x_asset_internal_map,
+                identity_roles_map=identity_roles_map,
+            )
             if not result:
                 continue
             table, row = result
@@ -223,6 +243,12 @@ class ETLWorker:
                 # SAGE 0.7.0 / Initiative B: identity → user-account
                 # ownership from TRACE 1.4.0+ related-to relationships.
                 user_account_belongs_to_rows.append(row)
+            elif table == "AttributedToActor":
+                attributed_to_actor_rows.append(row)
+            elif table == "AttributedToIdentity":
+                attributed_to_identity_rows.append(row)
+            elif table == "ImpersonatesIdentity":
+                impersonates_identity_rows.append(row)
 
         if dangling_dropped:
             logger.info(
@@ -255,6 +281,19 @@ class ETLWorker:
         stats["account_on_asset"] = upsert_account_on_asset(self._db, account_on_asset_rows)
         stats["user_account_belongs_to"] = upsert_user_account_belongs_to(
             self._db, user_account_belongs_to_rows
+        )
+
+        # SAGE 0.8.0 / Initiative C Phase 1: attribution & impersonation edges.
+        # Entities (campaign / intrusion-set / threat-actor / identity) are
+        # already upserted above; edges come after to avoid dangling references.
+        stats["attributed_to_actor"] = upsert_attributed_to_actor(
+            self._db, attributed_to_actor_rows
+        )
+        stats["attributed_to_identity"] = upsert_attributed_to_identity(
+            self._db, attributed_to_identity_rows
+        )
+        stats["impersonates_identity"] = upsert_impersonates_identity(
+            self._db, impersonates_identity_rows
         )
 
         # --- FollowedBy(ir_feedback): derived from IncidentUsesTTP ---

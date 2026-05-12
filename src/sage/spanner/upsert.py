@@ -12,6 +12,8 @@ import google.cloud.spanner as spanner
 import structlog
 from google.cloud.spanner_v1.database import Database
 
+from sage.spanner.constants import effective_priority as _effective_priority
+
 logger = structlog.get_logger(__name__)
 
 # Column definitions per table (order must match the Spanner DDL)
@@ -235,6 +237,41 @@ _TABLE_COLUMNS: dict[str, list[str]] = {
         "asset_id",
         "matched_tag",
         "criticality_multiplier",
+    ],
+    # SAGE 0.8.0 / Initiative C Phase 1 — Attribution & Impersonation edges.
+    # source column enables precedence-aware upsert (manual > beacon > trace)
+    # consistent with HasAccess, UserAccount, AccountOnAsset.
+    "AttributedToActor": [
+        "source_stix_id",
+        "target_actor_stix_id",
+        "source_type",
+        "target_type",
+        "confidence",
+        "description",
+        "first_observed",
+        "stix_id",
+        "source",
+    ],
+    "AttributedToIdentity": [
+        "source_stix_id",
+        "identity_stix_id",
+        "source_type",
+        "confidence",
+        "description",
+        "first_observed",
+        "stix_id",
+        "source",
+    ],
+    "ImpersonatesIdentity": [
+        "source_stix_id",
+        "identity_stix_id",
+        "source_type",
+        "confidence",
+        "description",
+        "first_observed",
+        "stix_id",
+        "effective_priority",
+        "source",
     ],
 }
 
@@ -477,6 +514,78 @@ def upsert_user_account_belongs_to(database: Database, rows: list[dict]) -> int:
         rows,
         ["identity_stix_id", "user_account_stix_id"],
     )
+
+
+def upsert_attributed_to_actor(database: Database, rows: list[dict]) -> int:
+    """Precedence-aware upsert for AttributedToActor (Initiative C §6.4)."""
+    return _precedence_upsert(
+        database, "AttributedToActor", rows, ["source_stix_id", "target_actor_stix_id"]
+    )
+
+
+def upsert_attributed_to_identity(database: Database, rows: list[dict]) -> int:
+    """Precedence-aware upsert for AttributedToIdentity (Initiative C §6.4)."""
+    return _precedence_upsert(
+        database, "AttributedToIdentity", rows, ["source_stix_id", "identity_stix_id"]
+    )
+
+
+def upsert_impersonates_identity(database: Database, rows: list[dict]) -> int:
+    """Precedence-aware upsert for ImpersonatesIdentity (Initiative C §6.4).
+
+    effective_priority is already embedded in each row by the mapper; this
+    function delegates to the generic precedence upsert without recomputing.
+    Use recompute_effective_priority_for_identity when an Identity's roles change.
+    """
+    return _precedence_upsert(
+        database, "ImpersonatesIdentity", rows, ["source_stix_id", "identity_stix_id"]
+    )
+
+
+def recompute_effective_priority_for_identity(
+    database: Database, identity_stix_id: str, identity_roles: list[str]
+) -> int:
+    """Recompute effective_priority for all ImpersonatesIdentity rows that target this identity.
+
+    Called from the Identity upsert path whenever a row's roles array changes.
+    Walks ImpersonatesIdentity WHERE identity_stix_id = ? and rewrites
+    effective_priority using the current roles. Returns the number of rows updated.
+    """
+    # Fetch all impersonates rows for this identity
+    existing_rows: list[dict] = []
+    with database.snapshot() as snap:
+        result = snap.execute_sql(
+            "SELECT source_stix_id, confidence FROM ImpersonatesIdentity"
+            " WHERE identity_stix_id = @id",
+            params={"id": identity_stix_id},
+            param_types={"id": spanner.param_types.STRING},
+        )
+        for src_id, conf in result:
+            existing_rows.append({"source_stix_id": src_id, "confidence": conf})
+
+    if not existing_rows:
+        return 0
+
+    columns = ["source_stix_id", "identity_stix_id", "effective_priority"]
+    values = [
+        [
+            row["source_stix_id"],
+            identity_stix_id,
+            _effective_priority(row["confidence"], identity_roles),
+        ]
+        for row in existing_rows
+    ]
+
+    with database.batch() as b:
+        b.update(table="ImpersonatesIdentity", columns=columns, values=values)
+
+    count = len(existing_rows)
+    logger.info(
+        "effective_priority_recomputed",
+        identity_stix_id=identity_stix_id,
+        affected_row_count=count,
+    )
+    return count
 
 
 def fetch_asset_rows(database: Database) -> list[dict]:

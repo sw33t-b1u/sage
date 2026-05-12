@@ -65,3 +65,33 @@ CREATE TABLE HasAccess (
         assert len(statements) == 1
         assert "stix_modified" in statements[0]
         assert "PRIMARY KEY" in statements[0]
+
+
+class TestInitiativeCDDL:
+    """DDL round-trip tests for SAGE 0.8.0 / Initiative C Phase 1 tables."""
+
+    _DDL_PATH = Path(__file__).parent.parent / "schema" / "spanner_ddl.sql"
+
+    def _load_full_ddl(self) -> str:
+        return self._DDL_PATH.read_text()
+
+    def test_three_new_tables_present_in_ddl(self):
+        statements = split_ddl_statements(self._load_full_ddl())
+        table_names = {
+            s.split("(")[0].strip().split()[-1]
+            for s in statements
+            if s.strip().upper().startswith("CREATE TABLE")
+        }
+        assert "AttributedToActor" in table_names
+        assert "AttributedToIdentity" in table_names
+        assert "ImpersonatesIdentity" in table_names
+
+    def test_effective_priority_plain_column_not_generated(self):
+        # Spanner generated columns cannot reference other tables (HLD §6.6).
+        # Verify effective_priority has no STORED AS / AS () clause.
+        ddl = self._load_full_ddl()
+        statements = split_ddl_statements(ddl)
+        imp_stmt = next(s for s in statements if "CREATE TABLE ImpersonatesIdentity" in s)
+        assert "effective_priority" in imp_stmt
+        assert "STORED" not in imp_stmt.upper()
+        assert " AS (" not in imp_stmt

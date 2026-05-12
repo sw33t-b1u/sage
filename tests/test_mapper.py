@@ -611,3 +611,187 @@ class TestMapTargetsRelationship:
         # the mapper today (no Asset/Vulnerability targets edge for actor
         # sources). Returns None — verifies we did not over-broaden.
         assert mapper.map_relationship(obj) is None
+
+
+# ---------------------------------------------------------------------------
+# Initiative C Phase 1 — attributed-to / impersonates (SAGE 0.8.0)
+# ---------------------------------------------------------------------------
+
+
+def _ts_c() -> str:
+    return "2026-05-12T00:00:00.000Z"
+
+
+class TestMapAttributedToActor:
+    """Mapper routes §3.4 emit-ready attributed-to combinations to AttributedToActor.
+
+    UUIDs use only valid hex chars (0-9, a-f). The mapper only reads dict fields;
+    stix2 UUID validation does not apply here (parser tests cover that).
+    """
+
+    def test_campaign_to_threat_actor(self):
+        mapper = StixMapper()
+        obj = {
+            "type": "relationship",
+            "id": "relationship--aa000001-0000-4000-8000-000000000001",
+            "spec_version": "2.1",
+            "relationship_type": "attributed-to",
+            "source_ref": "campaign--ca000001-0000-4000-8000-000000000001",
+            "target_ref": "threat-actor--aa000001-0000-4000-8000-000000000011",
+            "confidence": 70,
+        }
+        result = mapper.map_relationship(obj)
+        assert result is not None
+        table, row = result
+        assert table == "AttributedToActor"
+        assert row["source_stix_id"] == "campaign--ca000001-0000-4000-8000-000000000001"
+        assert row["target_actor_stix_id"] == "threat-actor--aa000001-0000-4000-8000-000000000011"
+        assert row["source_type"] == "campaign"
+        assert row["target_type"] == "threat-actor"
+        assert row["confidence"] == 70
+        assert row["source"] == "trace"
+
+    def test_intrusion_set_to_threat_actor(self):
+        mapper = StixMapper()
+        obj = {
+            "type": "relationship",
+            "id": "relationship--aa000002-0000-4000-8000-000000000002",
+            "spec_version": "2.1",
+            "relationship_type": "attributed-to",
+            "source_ref": "intrusion-set--15000001-0000-4000-8000-000000000001",
+            "target_ref": "threat-actor--aa000001-0000-4000-8000-000000000011",
+            "confidence": 85,
+        }
+        result = mapper.map_relationship(obj)
+        assert result is not None
+        table, row = result
+        assert table == "AttributedToActor"
+        assert row["source_type"] == "intrusion-set"
+        assert row["target_type"] == "threat-actor"
+
+    def test_campaign_to_intrusion_set(self):
+        mapper = StixMapper()
+        obj = {
+            "type": "relationship",
+            "id": "relationship--aa000003-0000-4000-8000-000000000003",
+            "spec_version": "2.1",
+            "relationship_type": "attributed-to",
+            "source_ref": "campaign--ca000001-0000-4000-8000-000000000001",
+            "target_ref": "intrusion-set--15000001-0000-4000-8000-000000000001",
+        }
+        result = mapper.map_relationship(obj)
+        assert result is not None
+        table, row = result
+        assert table == "AttributedToActor"
+        assert row["target_type"] == "intrusion-set"
+
+    def test_threat_actor_to_identity_routes_to_attributed_to_identity(self):
+        mapper = StixMapper()
+        obj = {
+            "type": "relationship",
+            "id": "relationship--aa000004-0000-4000-8000-000000000004",
+            "spec_version": "2.1",
+            "relationship_type": "attributed-to",
+            "source_ref": "threat-actor--aa000001-0000-4000-8000-000000000011",
+            "target_ref": "identity--1d000001-0000-4000-8000-000000000001",
+            "confidence": 50,
+        }
+        result = mapper.map_relationship(obj)
+        assert result is not None
+        table, row = result
+        assert table == "AttributedToIdentity"
+        assert row["source_stix_id"] == "threat-actor--aa000001-0000-4000-8000-000000000011"
+        assert row["identity_stix_id"] == "identity--1d000001-0000-4000-8000-000000000001"
+        assert row["source_type"] == "threat-actor"
+        assert row["source"] == "trace"
+
+    def test_incident_source_dropped_with_log(self, capsys):
+        # structlog outputs JSON to stdout; caplog only captures stdlib logging.
+        mapper = StixMapper()
+        obj = {
+            "type": "relationship",
+            "id": "relationship--dd000001-0000-4000-8000-000000000001",
+            "spec_version": "2.1",
+            "relationship_type": "attributed-to",
+            "source_ref": "incident--1c000001-0000-4000-8000-000000000001",
+            "target_ref": "threat-actor--aa000001-0000-4000-8000-000000000011",
+        }
+        result = mapper.map_relationship(obj)
+        assert result is None
+        captured = capsys.readouterr()
+        assert "relationship_type_mismatch_dropped" in captured.out
+
+    def test_threat_actor_to_intrusion_set_dropped_with_log(self, capsys):
+        mapper = StixMapper()
+        obj = {
+            "type": "relationship",
+            "id": "relationship--dd000002-0000-4000-8000-000000000002",
+            "spec_version": "2.1",
+            "relationship_type": "attributed-to",
+            "source_ref": "threat-actor--aa000001-0000-4000-8000-000000000011",
+            "target_ref": "intrusion-set--15000001-0000-4000-8000-000000000001",
+        }
+        result = mapper.map_relationship(obj)
+        assert result is None
+        captured = capsys.readouterr()
+        assert "relationship_type_mismatch_dropped" in captured.out
+
+
+class TestMapImpersonatesIdentity:
+    """Mapper routes impersonates SROs to ImpersonatesIdentity with effective_priority."""
+
+    def test_threat_actor_impersonates_identity_non_privileged(self):
+        mapper = StixMapper()
+        obj = {
+            "type": "relationship",
+            "id": "relationship--ee000001-0000-4000-8000-000000000001",
+            "spec_version": "2.1",
+            "relationship_type": "impersonates",
+            "source_ref": "threat-actor--aa000001-0000-4000-8000-000000000011",
+            "target_ref": "identity--1d000001-0000-4000-8000-000000000001",
+            "confidence": 70,
+        }
+        # Identity has no high-value roles → multiplier 1.0 → effective_priority = 70
+        identity_roles_map = {"identity--1d000001-0000-4000-8000-000000000001": ["employee"]}
+        result = mapper.map_relationship(obj, identity_roles_map=identity_roles_map)
+        assert result is not None
+        table, row = result
+        assert table == "ImpersonatesIdentity"
+        assert row["effective_priority"] == 70
+        assert row["source_type"] == "threat-actor"
+        assert row["source"] == "trace"
+
+    def test_threat_actor_impersonates_executive_identity_boosted(self):
+        mapper = StixMapper()
+        obj = {
+            "type": "relationship",
+            "id": "relationship--ee000002-0000-4000-8000-000000000002",
+            "spec_version": "2.1",
+            "relationship_type": "impersonates",
+            "source_ref": "threat-actor--aa000001-0000-4000-8000-000000000011",
+            "target_ref": "identity--1d000002-0000-4000-8000-000000000002",
+            "confidence": 70,
+        }
+        # executive role → multiplier 1.5 → effective_priority = min(100, 70*1.5) = 100
+        identity_roles_map = {
+            "identity--1d000002-0000-4000-8000-000000000002": ["cfo", "executive"]
+        }
+        result = mapper.map_relationship(obj, identity_roles_map=identity_roles_map)
+        assert result is not None
+        _table, row = result
+        assert row["effective_priority"] == 100
+
+    def test_intrusion_set_impersonates_identity_dropped_with_log(self, capsys):
+        mapper = StixMapper()
+        obj = {
+            "type": "relationship",
+            "id": "relationship--ff000001-0000-4000-8000-000000000001",
+            "spec_version": "2.1",
+            "relationship_type": "impersonates",
+            "source_ref": "intrusion-set--15000001-0000-4000-8000-000000000001",
+            "target_ref": "identity--1d000001-0000-4000-8000-000000000001",
+        }
+        result = mapper.map_relationship(obj)
+        assert result is None
+        captured = capsys.readouterr()
+        assert "relationship_type_mismatch_dropped" in captured.out

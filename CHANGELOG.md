@@ -8,6 +8,68 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-05-XX
+
+### Added — Initiative C Phase 1: Attribution & Impersonation Edges
+
+Paired release with TRACE 1.5.0. Materializes two STIX 2.1 §7.2 first-class
+relationships (`attributed-to` / `impersonates`) in the Spanner Graph.
+Introduces SAGE's first polymorphic edge table pattern with `source_type`
+discriminator columns to accommodate Phase 2 expansion without schema migration.
+
+See `/Users/test/Projects/claude_pj/docs/initiative_c_attributed_impersonates.md`
+for full design rationale, STIX spec verification, and Phase 2 deferred scope.
+
+#### New Spanner edge tables
+
+**`AttributedToActor`** — campaign / intrusion-set → threat-actor / intrusion-set attribution
+chain. Phase 1 emit-ready source types: `campaign | intrusion-set`. Target types:
+`threat-actor | intrusion-set`. Precedence-aware upsert (`manual > beacon > trace`).
+
+**`AttributedToIdentity`** — threat-actor → identity real-world provenance
+("APT29 attributed to SVR-style identity"). Phase 1 source: threat-actor only.
+`source_type` column retained for Phase 2 intrusion-set source activation.
+Precedence-aware upsert (`manual > beacon > trace`).
+
+**`ImpersonatesIdentity`** — threat-actor → identity deception relationship
+("FIN7 impersonates DHL"). Phase 1 source: threat-actor only.
+`effective_priority` column (ETL-computed, NOT a Spanner generated column —
+Cloud Spanner generated columns cannot reference other tables or contain
+subqueries; see HLD §6.6). Formula: `LEAST(100, confidence × role_boost)` where
+`role_boost = 1.5` when the target Identity's `roles[]` intersects
+`HIGH_VALUE_IMPERSONATION_ROLES` (15 entries; see
+`src/sage/spanner/constants.py`). Precedence-aware upsert.
+
+#### New source file: `src/sage/spanner/constants.py`
+
+`HIGH_VALUE_IMPERSONATION_ROLES` (15-entry frozenset, pinned 2026-05-11):
+`cfo / ceo / cto / coo / executive / it-admin / domain-admin / security-officer /
+board / dpo / privacy-officer / auditor / legal-counsel / treasurer / procurement`.
+`effective_priority()` and `roles_boost_multiplier()` helper functions.
+`recompute_effective_priority_for_identity()` upsert helper for Identity
+`roles` change cascade.
+
+#### Out-of-spec combinations are drop-and-log (§3.1.1 pending list)
+
+`incident → attributed-to → *`, `threat-actor → attributed-to → intrusion-set`,
+`intrusion-set → attributed-to → identity`, `intrusion-set → impersonates → *`
+are filtered at SAGE parser + mapper time with a `relationship_type_mismatch_dropped`
+structured-log warning. Bundle processing continues uninterrupted.
+
+#### parser / mapper / worker changes
+
+- `campaign` and `x-identity-internal` added to `SUPPORTED_TYPES`
+- `StixMapper.map_relationship` routes `attributed-to` / `impersonates` SROs
+  to the three new tables; `identity_roles_map` parameter enables effective_priority
+  computation at write time from in-bundle Identity objects
+- ETL worker builds `identity_roles_map` from Identity rows before relationship
+  processing; appends three new upsert calls after existing edge upserts
+
+#### Tests
+
+26 new test cases across `test_init_schema.py`, `test_parser.py`,
+`test_mapper.py`, `test_upsert_initiative_c.py` (new), `test_worker.py`.
+
 ## [0.7.0] — 2026-05-10
 
 ### Added — Initiative B: User-Account SCO + edges

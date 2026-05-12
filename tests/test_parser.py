@@ -108,3 +108,143 @@ class TestXAssetInternalPassthrough:
         assert "relationship" in types
         rel = next(o for o in objects if o["type"] == "relationship")
         assert rel["target_ref"] == "x-asset-internal--f6761eb5-ab89-5503-9f5f-ccfc7bf3ed22"
+
+
+class TestInitiativeCRelationships:
+    """Parser support for attributed-to / impersonates SROs (SAGE 0.8.0).
+
+    UUIDs use only valid hex chars (0-9, a-f). Non-hex chars like 't', 'i',
+    's' are rejected by the stix2 validator's UUID regex.
+    """
+
+    def _ts(self) -> str:
+        return "2026-05-12T00:00:00.000Z"
+
+    def _base_bundle(self, objects: list) -> dict:
+        return {
+            "type": "bundle",
+            "id": "bundle--c0000000-0000-4000-8000-000000000099",
+            "objects": objects,
+        }
+
+    def test_attributed_to_relationship_passes_through(self):
+        bundle = self._base_bundle(
+            [
+                {
+                    "type": "relationship",
+                    "id": "relationship--ee000001-0000-4000-8000-000000000001",
+                    "spec_version": "2.1",
+                    "created": self._ts(),
+                    "modified": self._ts(),
+                    "relationship_type": "attributed-to",
+                    "source_ref": "campaign--ca000001-0000-4000-8000-000000000001",
+                    "target_ref": "threat-actor--aa000001-0000-4000-8000-000000000001",
+                    "confidence": 70,
+                }
+            ]
+        )
+        objects = parse_bundle(bundle)
+        assert len(objects) == 1
+        rel = objects[0]
+        assert rel["type"] == "relationship"
+        assert rel["relationship_type"] == "attributed-to"
+        assert rel["confidence"] == 70
+
+    def test_impersonates_relationship_passes_through(self):
+        bundle = self._base_bundle(
+            [
+                {
+                    "type": "relationship",
+                    "id": "relationship--ee000002-0000-4000-8000-000000000002",
+                    "spec_version": "2.1",
+                    "created": self._ts(),
+                    "modified": self._ts(),
+                    "relationship_type": "impersonates",
+                    "source_ref": "threat-actor--aa000002-0000-4000-8000-000000000002",
+                    "target_ref": "identity--1d000001-0000-4000-8000-000000000001",
+                    "confidence": 85,
+                }
+            ]
+        )
+        objects = parse_bundle(bundle)
+        assert len(objects) == 1
+        assert objects[0]["relationship_type"] == "impersonates"
+
+    def test_x_identity_internal_passthrough(self):
+        bundle = self._base_bundle(
+            [
+                {
+                    "type": "x-identity-internal",
+                    "id": "x-identity-internal--cc000001-0000-4000-8000-000000000001",
+                    "spec_version": "2.1",
+                    "created": self._ts(),
+                    "modified": self._ts(),
+                    "identity_id": "id-supplier-dhl",
+                    "name": "DHL",
+                    "x_trace_resolution_tier": 1,
+                    "x_trace_resolution_confidence": 80,
+                }
+            ]
+        )
+        objects = parse_bundle(bundle)
+        assert len(objects) == 1
+        obj = objects[0]
+        assert obj["type"] == "x-identity-internal"
+        assert obj["identity_id"] == "id-supplier-dhl"
+        assert obj["name"] == "DHL"
+
+    def test_campaign_object_passes_through(self):
+        bundle = self._base_bundle(
+            [
+                {
+                    "type": "campaign",
+                    "id": "campaign--ca000001-0000-4000-8000-000000000001",
+                    "spec_version": "2.1",
+                    "created": self._ts(),
+                    "modified": self._ts(),
+                    "name": "Operation Aurora",
+                }
+            ]
+        )
+        objects = parse_bundle(bundle)
+        assert len(objects) == 1
+        assert objects[0]["type"] == "campaign"
+        assert objects[0]["name"] == "Operation Aurora"
+
+    def test_bundle_with_attribution_chain_parses_all_objects(self):
+        bundle = self._base_bundle(
+            [
+                {
+                    "type": "campaign",
+                    "id": "campaign--ca000001-0000-4000-8000-000000000001",
+                    "spec_version": "2.1",
+                    "created": self._ts(),
+                    "modified": self._ts(),
+                    "name": "SolarWinds Compromise",
+                },
+                {
+                    "type": "threat-actor",
+                    "id": "threat-actor--aa000001-0000-4000-8000-000000000001",
+                    "spec_version": "2.1",
+                    "created": self._ts(),
+                    "modified": self._ts(),
+                    "name": "APT29",
+                },
+                {
+                    "type": "relationship",
+                    "id": "relationship--ee000001-0000-4000-8000-000000000001",
+                    "spec_version": "2.1",
+                    "created": self._ts(),
+                    "modified": self._ts(),
+                    "relationship_type": "attributed-to",
+                    "source_ref": "campaign--ca000001-0000-4000-8000-000000000001",
+                    "target_ref": "threat-actor--aa000001-0000-4000-8000-000000000001",
+                    "confidence": 85,
+                },
+            ]
+        )
+        objects = parse_bundle(bundle)
+        types = {o["type"] for o in objects}
+        assert "campaign" in types
+        assert "threat-actor" in types
+        assert "relationship" in types

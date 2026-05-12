@@ -13,6 +13,9 @@ from typing import Any
 
 import structlog
 
+from sage.spanner.constants import effective_priority as _effective_priority
+from sage.spanner.constants import roles_boost_multiplier as _roles_boost_multiplier
+
 logger = structlog.get_logger(__name__)
 
 # CVE identifier format per CVE Numbering Authority rules. The Spanner
@@ -242,6 +245,7 @@ class StixMapper:
         self,
         obj: dict,
         x_asset_internal_map: dict[str, str] | None = None,
+        identity_roles_map: dict[str, list[str]] | None = None,
     ) -> tuple[str, dict] | None:
         """Map a STIX relationship to (table_name, row dict). Returns None if not applicable."""
         if obj["type"] != "relationship":
@@ -390,6 +394,128 @@ class StixMapper:
                 "stix_modified": _to_ts(obj.get("modified")) or _now(),
             }
 
+        # SAGE 0.8.0 / Initiative C Phase 1: attributed-to and impersonates SROs.
+        # Spec-valid (source_type, target_type) combinations per §3.4 are routed
+        # to AttributedToActor / AttributedToIdentity / ImpersonatesIdentity.
+        # Out-of-spec combinations (§3.1.1 pending list) emit a structured-log
+        # warning and return None — bundle processing continues uninterrupted.
+        if rel_type == "attributed-to":
+            return self._map_attributed_to(obj, src, dst, stix_id, confidence)
+
+        if rel_type == "impersonates":
+            return self._map_impersonates(obj, src, dst, stix_id, confidence, identity_roles_map)
+
+        return None
+
+    def _map_attributed_to(
+        self,
+        obj: dict,
+        src: str,
+        dst: str,
+        stix_id: str,
+        confidence: int | None,
+    ) -> tuple[str, dict] | None:
+        """Route attributed-to SRO to the correct Spanner edge table."""
+        src_type = src.split("--")[0] if "--" in src else ""
+        dst_type = dst.split("--")[0] if "--" in dst else ""
+
+        # Emit-ready: campaign → threat-actor | intrusion-set
+        if src_type == "campaign" and dst_type in ("threat-actor", "intrusion-set"):
+            return "AttributedToActor", {
+                "source_stix_id": src,
+                "target_actor_stix_id": dst,
+                "source_type": "campaign",
+                "target_type": dst_type,
+                "confidence": confidence,
+                "description": obj.get("description"),
+                "first_observed": _to_ts(obj.get("start_time")),
+                "stix_id": stix_id,
+                "source": "trace",
+            }
+
+        # Emit-ready: intrusion-set → threat-actor
+        if src_type == "intrusion-set" and dst_type == "threat-actor":
+            return "AttributedToActor", {
+                "source_stix_id": src,
+                "target_actor_stix_id": dst,
+                "source_type": "intrusion-set",
+                "target_type": "threat-actor",
+                "confidence": confidence,
+                "description": obj.get("description"),
+                "first_observed": _to_ts(obj.get("start_time")),
+                "stix_id": stix_id,
+                "source": "trace",
+            }
+
+        # Emit-ready: threat-actor → identity (or x-identity-internal)
+        if src_type == "threat-actor" and dst_type in ("identity", "x-identity-internal"):
+            return "AttributedToIdentity", {
+                "source_stix_id": src,
+                "identity_stix_id": dst,
+                "source_type": "threat-actor",
+                "confidence": confidence,
+                "description": obj.get("description"),
+                "first_observed": _to_ts(obj.get("start_time")),
+                "stix_id": stix_id,
+                "source": "trace",
+            }
+
+        # All other combinations are §3.1.1 pending-drop rows.
+        logger.warning(
+            "relationship_type_mismatch_dropped",
+            source_type=src_type,
+            relationship_type="attributed-to",
+            target_type=dst_type,
+        )
+        return None
+
+    def _map_impersonates(
+        self,
+        obj: dict,
+        src: str,
+        dst: str,
+        stix_id: str,
+        confidence: int | None,
+        identity_roles_map: dict[str, list[str]] | None,
+    ) -> tuple[str, dict] | None:
+        """Route impersonates SRO to ImpersonatesIdentity."""
+        src_type = src.split("--")[0] if "--" in src else ""
+        dst_type = dst.split("--")[0] if "--" in dst else ""
+
+        # Emit-ready: threat-actor → identity (or x-identity-internal)
+        if src_type == "threat-actor" and dst_type in ("identity", "x-identity-internal"):
+            target_roles: list[str] = []
+            if identity_roles_map is not None:
+                target_roles = identity_roles_map.get(dst, [])
+            eff_pri = _effective_priority(confidence, target_roles)
+            actual_multiplier = _roles_boost_multiplier(target_roles)
+            logger.info(
+                "effective_priority_computed",
+                source_stix_id=src,
+                identity_stix_id=dst,
+                base_confidence=confidence,
+                multiplier=actual_multiplier,
+                effective_priority=eff_pri,
+            )
+            return "ImpersonatesIdentity", {
+                "source_stix_id": src,
+                "identity_stix_id": dst,
+                "source_type": "threat-actor",
+                "confidence": confidence,
+                "description": obj.get("description"),
+                "first_observed": _to_ts(obj.get("start_time")),
+                "stix_id": stix_id,
+                "effective_priority": eff_pri,
+                "source": "trace",
+            }
+
+        # All other combinations are §3.1.1 pending-drop rows.
+        logger.warning(
+            "relationship_type_mismatch_dropped",
+            source_type=src_type,
+            relationship_type="impersonates",
+            target_type=dst_type,
+        )
         return None
 
 

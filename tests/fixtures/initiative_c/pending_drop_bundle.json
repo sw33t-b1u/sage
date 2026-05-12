@@ -1,0 +1,128 @@
+{
+  "type": "bundle",
+  "id": "bundle--00000000-0000-4000-8000-000000000300",
+  "objects": [
+    {
+      "type": "incident",
+      "id": "incident--00000000-0000-4000-8000-000000000301",
+      "spec_version": "2.1",
+      "created": "2026-05-12T00:00:00.000Z",
+      "modified": "2026-05-12T00:00:00.000Z",
+      "name": "SolarWinds Incident",
+      "description": "LLM mistakenly emitted incident SDO for a named adversarial operation. Spec-correct form is campaign (STIX 2.1 §4.6 Incident is a stub SDO with no defined common relationships)."
+    },
+    {
+      "type": "threat-actor",
+      "id": "threat-actor--00000000-0000-4000-8000-000000000302",
+      "spec_version": "2.1",
+      "created": "2026-05-12T00:00:00.000Z",
+      "modified": "2026-05-12T00:00:00.000Z",
+      "name": "APT29"
+    },
+    {
+      "type": "intrusion-set",
+      "id": "intrusion-set--00000000-0000-4000-8000-000000000303",
+      "spec_version": "2.1",
+      "created": "2026-05-12T00:00:00.000Z",
+      "modified": "2026-05-12T00:00:00.000Z",
+      "name": "Cozy Bear"
+    },
+    {
+      "type": "identity",
+      "id": "identity--00000000-0000-4000-8000-000000000304",
+      "spec_version": "2.1",
+      "created": "2026-05-12T00:00:00.000Z",
+      "modified": "2026-05-12T00:00:00.000Z",
+      "name": "Russian Intelligence",
+      "identity_class": "organization"
+    },
+    {
+      "type": "x-identity-internal",
+      "id": "x-identity-internal--c24b7dee-9b8a-56e3-8357-bf752264f3fe",
+      "spec_version": "2.1",
+      "created": "2026-05-12T00:00:00.000Z",
+      "modified": "2026-05-12T00:00:00.000Z",
+      "identity_id": "id-unknown-corp",
+      "name": "UnknownCorp",
+      "x_trace_resolution_tier": 4,
+      "x_trace_resolution_confidence": 0,
+      "extensions": {
+        "extension-definition--c1e4d6a7-2f3b-4e8c-9a5f-1b8d7e6c4a3f": {
+          "extension_type": "new-sdo"
+        }
+      }
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--00000000-0000-4000-8000-000000000311",
+      "spec_version": "2.1",
+      "created": "2026-05-12T00:00:00.000Z",
+      "modified": "2026-05-12T00:00:00.000Z",
+      "relationship_type": "attributed-to",
+      "source_ref": "incident--00000000-0000-4000-8000-000000000301",
+      "target_ref": "threat-actor--00000000-0000-4000-8000-000000000302",
+      "confidence": 70,
+      "description": "DROP: incident source not in STIX 2.1 RELATIONSHIPS dict (§3.1.1)."
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--00000000-0000-4000-8000-000000000312",
+      "spec_version": "2.1",
+      "created": "2026-05-12T00:00:00.000Z",
+      "modified": "2026-05-12T00:00:00.000Z",
+      "relationship_type": "attributed-to",
+      "source_ref": "incident--00000000-0000-4000-8000-000000000301",
+      "target_ref": "intrusion-set--00000000-0000-4000-8000-000000000303",
+      "confidence": 50,
+      "description": "DROP: incident source not in STIX 2.1 RELATIONSHIPS dict (§3.1.1)."
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--00000000-0000-4000-8000-000000000313",
+      "spec_version": "2.1",
+      "created": "2026-05-12T00:00:00.000Z",
+      "modified": "2026-05-12T00:00:00.000Z",
+      "relationship_type": "attributed-to",
+      "source_ref": "threat-actor--00000000-0000-4000-8000-000000000302",
+      "target_ref": "intrusion-set--00000000-0000-4000-8000-000000000303",
+      "confidence": 85,
+      "description": "DROP: threat-actor.attributed-to allows identity target only, not intrusion-set (§3.1.1)."
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--00000000-0000-4000-8000-000000000314",
+      "spec_version": "2.1",
+      "created": "2026-05-12T00:00:00.000Z",
+      "modified": "2026-05-12T00:00:00.000Z",
+      "relationship_type": "attributed-to",
+      "source_ref": "intrusion-set--00000000-0000-4000-8000-000000000303",
+      "target_ref": "identity--00000000-0000-4000-8000-000000000304",
+      "confidence": 30,
+      "description": "DROP: intrusion-set.attributed-to allows threat-actor target only, not identity (§3.1.1)."
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--00000000-0000-4000-8000-000000000315",
+      "spec_version": "2.1",
+      "created": "2026-05-12T00:00:00.000Z",
+      "modified": "2026-05-12T00:00:00.000Z",
+      "relationship_type": "impersonates",
+      "source_ref": "intrusion-set--00000000-0000-4000-8000-000000000303",
+      "target_ref": "identity--00000000-0000-4000-8000-000000000304",
+      "confidence": 15,
+      "description": "DROP: impersonates allows threat-actor source only, not intrusion-set (§3.1.1)."
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--00000000-0000-4000-8000-000000000316",
+      "spec_version": "2.1",
+      "created": "2026-05-12T00:00:00.000Z",
+      "modified": "2026-05-12T00:00:00.000Z",
+      "relationship_type": "impersonates",
+      "source_ref": "threat-actor--00000000-0000-4000-8000-000000000302",
+      "target_ref": "x-identity-internal--c24b7dee-9b8a-56e3-8357-bf752264f3fe",
+      "confidence": 70,
+      "description": "DROP (IDENTITY_REF_RESOLUTION): identity_id 'id-unknown-corp' not present in identity_assets.json — tier-4 resolver miss."
+    }
+  ]
+}

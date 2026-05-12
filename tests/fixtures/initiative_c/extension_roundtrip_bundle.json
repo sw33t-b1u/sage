@@ -1,0 +1,103 @@
+{
+  "type": "bundle",
+  "id": "bundle--00000000-0000-4000-8000-000000000400",
+  "extensions": {
+    "extension-definition--c1e4d6a7-2f3b-4e8c-9a5f-1b8d7e6c4a3f": {
+      "extension_type": "toplevel-property-extension"
+    }
+  },
+  "x_trace_source_url": "https://example.com/cti-report",
+  "x_trace_collected_at": "2026-05-12T00:00:00.000Z",
+  "objects": [
+    {
+      "type": "extension-definition",
+      "id": "extension-definition--c1e4d6a7-2f3b-4e8c-9a5f-1b8d7e6c4a3f",
+      "spec_version": "2.1",
+      "created": "2026-05-12T00:00:00.000Z",
+      "modified": "2026-05-12T00:00:00.000Z",
+      "name": "TRACE bundle metadata extension",
+      "description": "TRACE-emitted top-level bundle properties (x_trace_*) and new-SDO type declarations. x-asset-internal: synthesized STIX object referencing a SAGE asset_id, emitted when the identity-resolver maps an LLM asset hint to a known asset (Initiative A). x-identity-internal: synthesized STIX object referencing a BEACON identity_id, emitted when the impersonation-resolver maps an LLM identity hint to a known identity (Initiative C). Both carry this extensions map entry per STIX 2.1 §7.3.",
+      "schema": "https://github.com/sw33t-b1u/sage/blob/main/TRACE/docs/data-model.md#trace-bundle-metadata-extension",
+      "version": "1.1",
+      "extension_types": ["toplevel-property-extension", "new-sdo"],
+      "extension_properties": [
+        "x_trace_source_url",
+        "x_trace_collected_at",
+        "x_trace_matched_pir_ids",
+        "x_trace_relevance_score",
+        "x_trace_relevance_rationale"
+      ]
+    },
+    {
+      "type": "identity",
+      "id": "identity--00000000-0000-4000-8000-000000000401",
+      "spec_version": "2.1",
+      "created": "2026-05-12T00:00:00.000Z",
+      "modified": "2026-05-12T00:00:00.000Z",
+      "name": "Acme Corp",
+      "identity_class": "organization",
+      "sectors": ["technology"]
+    },
+    {
+      "type": "threat-actor",
+      "id": "threat-actor--00000000-0000-4000-8000-000000000402",
+      "spec_version": "2.1",
+      "created": "2026-05-12T00:00:00.000Z",
+      "modified": "2026-05-12T00:00:00.000Z",
+      "name": "FIN7"
+    },
+    {
+      "type": "x-asset-internal",
+      "id": "x-asset-internal--f994f072-4b5c-59f0-990c-6e4642bbaee6",
+      "spec_version": "2.1",
+      "created": "2026-05-12T00:00:00.000Z",
+      "modified": "2026-05-12T00:00:00.000Z",
+      "asset_id": "asset-infra-01",
+      "extensions": {
+        "extension-definition--c1e4d6a7-2f3b-4e8c-9a5f-1b8d7e6c4a3f": {
+          "extension_type": "new-sdo"
+        }
+      }
+    },
+    {
+      "type": "x-identity-internal",
+      "id": "x-identity-internal--c5baa910-57ec-5034-88f1-3ff01febe495",
+      "spec_version": "2.1",
+      "created": "2026-05-12T00:00:00.000Z",
+      "modified": "2026-05-12T00:00:00.000Z",
+      "identity_id": "id-supplier-dhl",
+      "name": "DHL",
+      "x_trace_resolution_tier": 1,
+      "x_trace_resolution_confidence": 80,
+      "extensions": {
+        "extension-definition--c1e4d6a7-2f3b-4e8c-9a5f-1b8d7e6c4a3f": {
+          "extension_type": "new-sdo"
+        }
+      }
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--00000000-0000-4000-8000-000000000411",
+      "spec_version": "2.1",
+      "created": "2026-05-12T00:00:00.000Z",
+      "modified": "2026-05-12T00:00:00.000Z",
+      "relationship_type": "x-trace-has-access",
+      "source_ref": "identity--00000000-0000-4000-8000-000000000401",
+      "target_ref": "x-asset-internal--f994f072-4b5c-59f0-990c-6e4642bbaee6",
+      "confidence": 80,
+      "description": "Acme Corp identity has access to the internal infrastructure asset (Initiative A has-access path, v1.1 extension roundtrip)."
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--00000000-0000-4000-8000-000000000412",
+      "spec_version": "2.1",
+      "created": "2026-05-12T00:00:00.000Z",
+      "modified": "2026-05-12T00:00:00.000Z",
+      "relationship_type": "impersonates",
+      "source_ref": "threat-actor--00000000-0000-4000-8000-000000000402",
+      "target_ref": "x-identity-internal--c5baa910-57ec-5034-88f1-3ff01febe495",
+      "confidence": 85,
+      "description": "FIN7-affiliated actor spoofed DHL parcel-tracking notifications in phishing campaigns (2025-Q3)."
+    }
+  ]
+}

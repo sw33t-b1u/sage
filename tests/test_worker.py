@@ -459,3 +459,257 @@ class TestRelationshipDispatchCompleteness:
                 f"'{table}' — likely a dispatch branch was added to "
                 f"mapper.py without updating worker.py."
             )
+
+
+# ---------------------------------------------------------------------------
+# Initiative C Phase 1 — attributed-to / impersonates dispatch (SAGE 0.8.0)
+# ---------------------------------------------------------------------------
+
+
+def _ts_c() -> str:
+    return "2026-05-12T00:00:00.000Z"
+
+
+def _make_worker_no_snapshot():
+    """Return (worker, recorded) with snapshot.read returning [] (no existing rows)."""
+    from unittest.mock import MagicMock
+
+    recorded: list[tuple] = []
+
+    def _record(table=None, columns=None, values=None, **_kw):
+        recorded.append((table, list(columns), list(values)))
+
+    batch = MagicMock()
+    batch.insert_or_update.side_effect = _record
+    batch_ctx = MagicMock()
+    batch_ctx.__enter__.return_value = batch
+    batch_ctx.__exit__.return_value = None
+
+    snap = MagicMock()
+    snap.read.return_value = []
+    snap_ctx = MagicMock()
+    snap_ctx.__enter__.return_value = snap
+    snap_ctx.__exit__.return_value = None
+
+    db = MagicMock()
+    db.batch.return_value = batch_ctx
+    db.snapshot.return_value = snap_ctx
+
+    pf = PIRFilter([_PIR_FINANCIAL_CRIME])
+    w = ETLWorker(db, pf)
+    return w, recorded
+
+
+class TestInitiativeCDispatch:
+    """Worker correctly dispatches attributed-to / impersonates relationships.
+
+    UUIDs use only valid hex chars (0-9, a-f).
+    structlog outputs JSON to stdout; capsys is used instead of caplog.
+    """
+
+    def test_campaign_attributed_to_threat_actor_writes_attributed_to_actor(self):
+        w, recorded = _make_worker_no_snapshot()
+        objects = [
+            {
+                "type": "threat-actor",
+                "id": "threat-actor--aa111111-0000-4000-8000-000000000001",
+                "spec_version": "2.1",
+                "created": _ts_c(),
+                "modified": _ts_c(),
+                "name": "APT-Test",
+                "labels": ["financial-crime"],
+            },
+            {
+                "type": "campaign",
+                "id": "campaign--ca111111-0000-4000-8000-000000000001",
+                "spec_version": "2.1",
+                "created": _ts_c(),
+                "modified": _ts_c(),
+                "name": "Operation Test",
+            },
+            {
+                "type": "relationship",
+                "id": "relationship--ee111111-0000-4000-8000-000000000001",
+                "spec_version": "2.1",
+                "created": _ts_c(),
+                "modified": _ts_c(),
+                "relationship_type": "attributed-to",
+                "source_ref": "campaign--ca111111-0000-4000-8000-000000000001",
+                "target_ref": "threat-actor--aa111111-0000-4000-8000-000000000001",
+                "confidence": 70,
+            },
+        ]
+        stats = w.process_bundle(objects)
+        assert stats.get("attributed_to_actor", 0) == 1
+        assert stats.get("attributed_to_identity", 0) == 0
+        assert stats.get("impersonates_identity", 0) == 0
+
+    def test_out_of_spec_relationship_dropped_no_abort(self, capsys):
+        # structlog outputs JSON to stdout; caplog only captures stdlib logging.
+        w, recorded = _make_worker_no_snapshot()
+        objects = [
+            {
+                "type": "relationship",
+                "id": "relationship--ee222222-0000-4000-8000-000000000002",
+                "spec_version": "2.1",
+                "created": _ts_c(),
+                "modified": _ts_c(),
+                "relationship_type": "attributed-to",
+                # incident source is §3.1.1 pending-drop
+                "source_ref": "incident--1c222222-0000-4000-8000-000000000002",
+                "target_ref": "threat-actor--aa222222-0000-4000-8000-000000000002",
+            },
+        ]
+        stats = w.process_bundle(objects)
+        # Bundle processing must not abort; counts are 0 (not an exception)
+        assert stats.get("attributed_to_actor", 0) == 0
+        captured = capsys.readouterr()
+        assert "relationship_type_mismatch_dropped" in captured.out
+
+    def test_impersonates_effective_priority_executive_vs_non_privileged(self):
+        """Executive-role identity gets 1.5x boost; plain employee does not."""
+        w, recorded = _make_worker_no_snapshot()
+        objects = [
+            {
+                "type": "threat-actor",
+                "id": "threat-actor--aa333333-0000-4000-8000-000000000003",
+                "spec_version": "2.1",
+                "created": _ts_c(),
+                "modified": _ts_c(),
+                "name": "FIN7-Test",
+                "labels": ["financial-crime"],
+            },
+            {
+                "type": "identity",
+                "id": "identity--ec000111-0000-4000-8000-000000000001",
+                "spec_version": "2.1",
+                "created": _ts_c(),
+                "modified": _ts_c(),
+                "name": "CFO Alice",
+                "identity_class": "individual",
+                "roles": ["cfo"],
+            },
+            {
+                "type": "identity",
+                "id": "identity--e0000222-0000-4000-8000-000000000002",
+                "spec_version": "2.1",
+                "created": _ts_c(),
+                "modified": _ts_c(),
+                "name": "Bob Employee",
+                "identity_class": "individual",
+                "roles": ["employee"],
+            },
+            {
+                "type": "relationship",
+                "id": "relationship--ee333111-0000-4000-8000-000000000001",
+                "spec_version": "2.1",
+                "created": _ts_c(),
+                "modified": _ts_c(),
+                "relationship_type": "impersonates",
+                "source_ref": "threat-actor--aa333333-0000-4000-8000-000000000003",
+                "target_ref": "identity--ec000111-0000-4000-8000-000000000001",
+                "confidence": 70,
+            },
+            {
+                "type": "relationship",
+                "id": "relationship--ee333222-0000-4000-8000-000000000002",
+                "spec_version": "2.1",
+                "created": _ts_c(),
+                "modified": _ts_c(),
+                "relationship_type": "impersonates",
+                "source_ref": "threat-actor--aa333333-0000-4000-8000-000000000003",
+                "target_ref": "identity--e0000222-0000-4000-8000-000000000002",
+                "confidence": 70,
+            },
+        ]
+        w.process_bundle(objects)
+        # All ImpersonatesIdentity rows may be batched into one mutation.
+        # Flatten all rows across all batches.
+        imp_mutations = [
+            (cols, vals) for tbl, cols, vals in recorded if tbl == "ImpersonatesIdentity"
+        ]
+        all_imp_rows = [row_vals for _cols, vals in imp_mutations for row_vals in vals]
+        count = len(all_imp_rows)
+        assert count == 2, f"Expected 2 ImpersonatesIdentity rows, got {count}"
+
+        col_order = imp_mutations[0][0]
+        id_idx = col_order.index("identity_stix_id")
+        ep_idx = col_order.index("effective_priority")
+        priority_by_identity = {row_vals[id_idx]: row_vals[ep_idx] for row_vals in all_imp_rows}
+
+        # CFO: min(100, int(70 * 1.5)) = 100
+        assert priority_by_identity["identity--ec000111-0000-4000-8000-000000000001"] == 100
+        # Employee: min(100, int(70 * 1.0)) = 70
+        assert priority_by_identity["identity--e0000222-0000-4000-8000-000000000002"] == 70
+
+    def test_cross_source_precedence_manual_wins(self):
+        """Manual-source existing row blocks trace-source incoming row."""
+        from unittest.mock import MagicMock
+
+        recorded: list[tuple] = []
+
+        def _record(table=None, columns=None, values=None, **_kw):
+            recorded.append((table, list(columns), list(values)))
+
+        batch = MagicMock()
+        batch.insert_or_update.side_effect = _record
+        batch_ctx = MagicMock()
+        batch_ctx.__enter__.return_value = batch
+        batch_ctx.__exit__.return_value = None
+
+        # Snapshot returns an existing "manual" row for this PK
+        snap = MagicMock()
+        snap.read.return_value = [
+            (
+                "threat-actor--aa444444-0000-4000-8000-000000000004",
+                "identity--1d444444-0000-4000-8000-000000000004",
+                "manual",
+            )
+        ]
+        snap_ctx = MagicMock()
+        snap_ctx.__enter__.return_value = snap
+        snap_ctx.__exit__.return_value = None
+
+        db = MagicMock()
+        db.batch.return_value = batch_ctx
+        db.snapshot.return_value = snap_ctx
+
+        pf = PIRFilter([_PIR_FINANCIAL_CRIME])
+        w = ETLWorker(db, pf)
+
+        objects = [
+            {
+                "type": "threat-actor",
+                "id": "threat-actor--aa444444-0000-4000-8000-000000000004",
+                "spec_version": "2.1",
+                "created": _ts_c(),
+                "modified": _ts_c(),
+                "name": "APT-Manual",
+                "labels": ["financial-crime"],
+            },
+            {
+                "type": "identity",
+                "id": "identity--1d444444-0000-4000-8000-000000000004",
+                "spec_version": "2.1",
+                "created": _ts_c(),
+                "modified": _ts_c(),
+                "name": "DHL",
+                "identity_class": "organization",
+            },
+            {
+                "type": "relationship",
+                "id": "relationship--ee444444-0000-4000-8000-000000000004",
+                "spec_version": "2.1",
+                "created": _ts_c(),
+                "modified": _ts_c(),
+                "relationship_type": "impersonates",
+                "source_ref": "threat-actor--aa444444-0000-4000-8000-000000000004",
+                "target_ref": "identity--1d444444-0000-4000-8000-000000000004",
+                "confidence": 85,
+            },
+        ]
+        stats = w.process_bundle(objects)
+        # trace cannot overwrite manual → 0 ImpersonatesIdentity writes
+        assert stats.get("impersonates_identity", 0) == 0
+        imp_writes = [tbl for tbl, _cols, _vals in recorded if tbl == "ImpersonatesIdentity"]
+        assert imp_writes == []
