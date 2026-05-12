@@ -70,6 +70,12 @@ structured-log warning. Bundle processing continues uninterrupted.
 26 new test cases across `test_init_schema.py`, `test_parser.py`,
 `test_mapper.py`, `test_upsert_initiative_c.py` (new), `test_worker.py`.
 
+### Security
+
+- `urllib3` bumped 2.6.3 → 2.7.0 to clear `CVE-2026-44431` and
+  `CVE-2026-44432`. Transitive via `pycti` → `botocore`; no SAGE source
+  code change required. `pip-audit` clean post-bump (Rule 21).
+
 ## [0.7.0] — 2026-05-10
 
 ### Added — Initiative B: User-Account SCO + edges
