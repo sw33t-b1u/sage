@@ -116,10 +116,7 @@ class ETLWorker:
         ]
         stats["vulnerabilities"] = upsert_rows(self._db, "Vulnerability", vuln_rows)
 
-        # --- Identity (SAGE 0.5.3 wiring; SDO added in 0.5.0) ---
-        # 0.5.0 added the schema, mapper, and parser support for STIX 2.1 §4.4
-        # identity SDOs but the worker dispatch was missed. CISA AA22-108a E2E
-        # surfaced the gap: 22 identities silently dropped. (Filed in TODO #67.)
+        # --- Identity ---
         identity_rows = [r for obj in by_type["identity"] if (r := self._mapper.map_identity(obj))]
         stats["identities"] = upsert_rows(self._db, "Identity", identity_rows)
 
