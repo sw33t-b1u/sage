@@ -51,6 +51,10 @@ Cross-domain join: `Targets` edge links ThreatActor → Asset.
 | `PirPrioritizesActor` | PIR → ThreatActor | TAP — actor matches a PIR's `threat_actor_tags` (carries `overlap_ratio`) |
 | `PirPrioritizesTTP` | PIR → TTP | PTTP — derived transitively via `Uses` from prioritized actors |
 | `PirWeightsAsset` | PIR → Asset | Asset matches a PIR's `asset_weight_rules` (carries `matched_tag` + max `criticality_multiplier`) |
+| `AttributedToActor` | Campaign / IntrusionSet → ThreatActor / IntrusionSet | STIX 2.1 §7.2 `attributed-to` SRO (Initiative C Phase 1 / SAGE 0.8.0). Polymorphic edge table with `source_type` + `target_type` discriminators. Phase 1 emit-ready combos: `campaign → {threat-actor, intrusion-set}`, `intrusion-set → threat-actor`. Precedence-aware upsert (`manual > beacon > trace`). |
+| `AttributedToIdentity` | ThreatActor → Identity | STIX 2.1 §7.2 `attributed-to` SRO for real-world actor provenance (Initiative C Phase 1 / SAGE 0.8.0). Phase 1 source: `threat-actor` only; `source_type` retained for Phase 2 `intrusion-set` activation. Precedence-aware upsert. |
+| `ImpersonatesIdentity` | ThreatActor → Identity | STIX 2.1 §7.2 `impersonates` SRO (Initiative C Phase 1 / SAGE 0.8.0). Carries ETL-computed `effective_priority INT64` per HLD §6.6. Phase 2 (SAGE 0.9.0) refactored `effective_priority` to **flag-first / role-fallback**: when target Identity's `is_high_value_impersonation_target=TRUE` (BEACON 0.13.0+) → multiplier 1.5 unconditionally, otherwise `HIGH_VALUE_IMPERSONATION_ROLES` 15-entry frozenset intersection on `roles[]`. Precedence-aware upsert. |
+| `PirPrioritizesImpersonationTarget` | PIR → Identity | Cascade derived from `ImpersonatesIdentity ⨝ Identity.is_high_value_impersonation_target=TRUE ⨝ PIR.threat_actor_tags ∩ ThreatActor.tags ≠ ∅` (Initiative C Phase 2 / SAGE 0.9.0). `effective_priority` denormalized from the source `ImpersonatesIdentity` row. Surfaces impersonation-aware PIR prioritization to analysts. |
 
 PIR cascade edges are built at ETL time from the loaded PIR JSON together
 with the actor / asset / `Uses` rows. They materialize the
