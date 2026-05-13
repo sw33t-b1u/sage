@@ -85,6 +85,19 @@ CREATE TABLE Incident (
 -- `deleted_at` is a SAGE-internal soft-delete marker (NULL = active).
 -- Distinct from STIX `revoked` because identities can leave an org
 -- (HR action) without the STIX object being revoked at upstream.
+--
+-- Phase 2 columns (SAGE 0.9.0 / Initiative C):
+--   `is_high_value_impersonation_target`: set by BEACON 0.13.0+ when the
+--   identity is a recognizable brand, executive role, or critical supplier.
+--   When true, effective_priority in ImpersonatesIdentity receives a 1.5×
+--   multiplier unconditionally (flag-first path). When false, the legacy
+--   HIGH_VALUE_IMPERSONATION_ROLES 15-entry frozenset in
+--   src/sage/spanner/constants.py serves as backward-compat fallback for
+--   BEACON 0.12.x identity_assets without the flag.
+--   `impersonation_risk_factors`: free-form tags from BEACON (e.g.
+--   ['executive', 'public-facing-brand', 'trusted-supplier']). NULL means
+--   BEACON 0.12.x legacy identity; [] means BEACON 0.13.0+ with no
+--   applicable risk factors.
 CREATE TABLE Identity (
   stix_id          STRING(128) NOT NULL,
   name             STRING(256) NOT NULL,
@@ -95,6 +108,8 @@ CREATE TABLE Identity (
   roles            ARRAY<STRING(64)>,
   deleted_at       TIMESTAMP,                   -- soft-delete (NULL = active)
   stix_modified    TIMESTAMP NOT NULL,
+  is_high_value_impersonation_target BOOL NOT NULL DEFAULT (FALSE),  -- Phase 2 / Initiative C: BEACON flag (see comment above)
+  impersonation_risk_factors ARRAY<STRING(64)>,                      -- Phase 2 / Initiative C: risk factor tags from BEACON 0.13.0+
 ) PRIMARY KEY (stix_id);
 
 -- -----------------------------------------------------------------------------
@@ -429,6 +444,20 @@ CREATE TABLE PirWeightsAsset (
   matched_tag            STRING(128),
   criticality_multiplier FLOAT64,
 ) PRIMARY KEY (pir_id, asset_id);
+
+-- PIR → Identity (via ImpersonatesIdentity) — SAGE 0.9.0 / Initiative C Phase 2.
+-- Derived at ETL time: ImpersonatesIdentity ⨝ Identity.is_high_value_impersonation_target=TRUE
+-- ⨝ PIR.threat_actor_tags (where the impersonating actor's tags intersect the PIR's
+-- threat_actor_tags set). Re-derived whenever an Identity's flag changes via the
+-- recompute_effective_priority_for_identity cascade. effective_priority is denormalized
+-- from the source ImpersonatesIdentity row.
+CREATE TABLE PirPrioritizesImpersonationTarget (
+  pir_id             STRING(64)  NOT NULL,
+  identity_stix_id   STRING(128) NOT NULL,
+  source_stix_id     STRING(128) NOT NULL,    -- the threat-actor doing the impersonation
+  effective_priority INT64       NOT NULL,    -- denormalized from ImpersonatesIdentity
+  derived_at         TIMESTAMP   NOT NULL OPTIONS (allow_commit_timestamp=true),
+) PRIMARY KEY (pir_id, identity_stix_id, source_stix_id);
 
 -- =============================================================================
 -- PROPERTY GRAPH (optional — requires Enterprise edition)

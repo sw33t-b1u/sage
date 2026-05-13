@@ -8,16 +8,93 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Tests
+## [0.9.0] — 2026-05-13
 
-- `tests/fixtures/initiative_c/spec_compliant_bundle.json`: added an
-  executive-role `identity` SDO (`roles=["cfo"]`) and a second
-  `impersonates` relationship (`confidence=60`) targeting it. Closes the
-  Phase 1 post-impl gap where the §6.6 `effective_priority` multiplier=1.5
-  path was unit-covered but not exercised end-to-end via the synthetic
-  bundle (HLD §8.5 required "executive-role vs non-privileged identities"
-  coverage). No source-code or wire-format change. Fixture remains
-  byte-identical to the TRACE-side canonical copy.
+### Added — Initiative C Phase 2: Flag-First effective_priority + PirPrioritizesImpersonationTarget
+
+Paired release with BEACON 0.13.0 and TRACE 1.6.0. Advances the
+`effective_priority` formula from role-tag intersection–only (Phase 1) to a
+**flag-first / role-fallback** design. Introduces the
+`PirPrioritizesImpersonationTarget` cascade edge for impersonation-aware
+PIR prioritization.
+
+#### effective_priority formula migration (`src/sage/spanner/constants.py`)
+
+`effective_priority(confidence, target_roles, is_high_value_impersonation_target=False)`:
+
+- **flag=True** → multiplier = 1.5 unconditionally (BEACON 0.13.0+ explicit designation)
+- **flag=False** → existing `HIGH_VALUE_IMPERSONATION_ROLES` 15-entry frozenset
+  intersection (BEACON 0.12.x backward-compat fallback; frozenset **retained**)
+
+Backward compat: old 2-argument callers receive `flag=False` by default — no
+change in behavior for pre-Phase-2 data.
+
+#### Identity schema extension (`schema/spanner_ddl.sql`)
+
+Two columns appended to the `Identity` table:
+
+```sql
+ALTER TABLE Identity ADD COLUMN
+  is_high_value_impersonation_target BOOL NOT NULL DEFAULT (FALSE);
+ALTER TABLE Identity ADD COLUMN
+  impersonation_risk_factors ARRAY<STRING(64)>;
+```
+
+`is_high_value_impersonation_target` defaults to FALSE, maintaining full
+backward compatibility with BEACON 0.12.x `identity_assets.json` artifacts.
+`impersonation_risk_factors` is nullable (NULL = BEACON 0.12.x legacy identity).
+
+Migration SQL for production Spanner (run once per environment):
+```sql
+ALTER TABLE Identity ADD COLUMN
+  is_high_value_impersonation_target BOOL NOT NULL DEFAULT (FALSE);
+ALTER TABLE Identity ADD COLUMN
+  impersonation_risk_factors ARRAY<STRING(64)>;
+```
+
+#### New cascade edge table: `PirPrioritizesImpersonationTarget`
+
+```sql
+CREATE TABLE PirPrioritizesImpersonationTarget (
+  pir_id             STRING(64)  NOT NULL,
+  identity_stix_id   STRING(128) NOT NULL,
+  source_stix_id     STRING(128) NOT NULL,
+  effective_priority INT64       NOT NULL,
+  derived_at         TIMESTAMP   NOT NULL OPTIONS (allow_commit_timestamp=true),
+) PRIMARY KEY (pir_id, identity_stix_id, source_stix_id);
+```
+
+ETL derivation: `ImpersonatesIdentity ⨝ Identity.is_high_value_impersonation_target=TRUE`
+`⨝ PIR.threat_actor_tags` (actor tags ∩ PIR tags ≠ ∅). `effective_priority`
+denormalized from the source `ImpersonatesIdentity` row.
+
+#### Cascade changes
+
+- **ETL worker** (`src/sage/etl/worker.py`): builds `identity_flag_map` from
+  in-bundle identity rows; passes it to `map_relationship`; derives
+  `PirPrioritizesImpersonationTarget` rows after `ImpersonatesIdentity` upsert.
+- **`recompute_effective_priority_for_identity`** (`src/sage/spanner/upsert.py`):
+  extended with `is_high_value_impersonation_target: bool = False`; existing
+  call sites unchanged.
+- **`load_identity_assets.py`**: parses new BEACON fields (default False/[]);
+  calls recompute cascade and `derive_pir_prioritizes_impersonation_target_for_identity`
+  after each Identity upsert.
+
+#### Tests
+
+17 new test cases (total 230, was 213):
+
+- `TestEffectivePriorityRecompute`: 4 new flag-combination cases
+  (flag-only, flag+role no double-boost, role-fallback, no-mult)
+- `TestEffectivePriorityUnit`: 7 unit tests for the extended `effective_priority`
+  function (including backward-compat and cap-at-100)
+- `TestPirPrioritizesImpersonationTarget`: 6 tests covering row creation,
+  flag=False no-op, tag-intersection miss, dedup idempotence, multi-PIR fan-out,
+  and commit-timestamp sentinel
+
+`tests/fixtures/initiative_c/spec_compliant_bundle.json`: `is_high_value_impersonation_target: true`
+and `impersonation_risk_factors` added to the CFO identity (`identity--…000205`).
+Existing roundtrip passes unchanged.
 
 ## [0.8.0] — 2026-05-12
 

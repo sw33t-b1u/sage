@@ -183,6 +183,11 @@ class StixMapper:
         Added in SAGE 0.5.0 alongside TRACE 1.0.0's identity extraction.
         ``deleted_at`` defaults to NULL — SAGE-internal soft-delete is
         managed by HR-side workflows, not by the upstream STIX object.
+
+        Phase 2 (SAGE 0.9.0): reads ``is_high_value_impersonation_target``
+        and ``impersonation_risk_factors`` from the STIX object (custom
+        properties set by BEACON 0.13.0+). Default False / [] for STIX
+        objects that pre-date or lack BEACON's enrichment.
         """
         if obj["type"] != "identity":
             return None
@@ -196,6 +201,10 @@ class StixMapper:
             "roles": list(obj.get("roles", [])),
             "deleted_at": None,
             "stix_modified": _to_ts(obj.get("modified")) or _now(),
+            "is_high_value_impersonation_target": bool(
+                obj.get("is_high_value_impersonation_target", False)
+            ),
+            "impersonation_risk_factors": list(obj.get("impersonation_risk_factors") or []),
         }
 
     def map_incident(self, obj: dict) -> dict | None:
@@ -246,6 +255,7 @@ class StixMapper:
         obj: dict,
         x_asset_internal_map: dict[str, str] | None = None,
         identity_roles_map: dict[str, list[str]] | None = None,
+        identity_flag_map: dict[str, bool] | None = None,
     ) -> tuple[str, dict] | None:
         """Map a STIX relationship to (table_name, row dict). Returns None if not applicable."""
         if obj["type"] != "relationship":
@@ -403,7 +413,9 @@ class StixMapper:
             return self._map_attributed_to(obj, src, dst, stix_id, confidence)
 
         if rel_type == "impersonates":
-            return self._map_impersonates(obj, src, dst, stix_id, confidence, identity_roles_map)
+            return self._map_impersonates(
+                obj, src, dst, stix_id, confidence, identity_roles_map, identity_flag_map
+            )
 
         return None
 
@@ -477,8 +489,16 @@ class StixMapper:
         stix_id: str,
         confidence: int | None,
         identity_roles_map: dict[str, list[str]] | None,
+        identity_flag_map: dict[str, bool] | None = None,
     ) -> tuple[str, dict] | None:
-        """Route impersonates SRO to ImpersonatesIdentity."""
+        """Route impersonates SRO to ImpersonatesIdentity.
+
+        Phase 2: reads is_high_value_impersonation_target from identity_flag_map
+        (built from in-bundle identity rows) and passes it to effective_priority.
+        x-identity-internal targets are not in the flag map; their flag is applied
+        later by recompute_effective_priority_for_identity when the Identity row
+        is loaded from BEACON via load_identity_assets.py.
+        """
         src_type = src.split("--")[0] if "--" in src else ""
         dst_type = dst.split("--")[0] if "--" in dst else ""
 
@@ -487,14 +507,18 @@ class StixMapper:
             target_roles: list[str] = []
             if identity_roles_map is not None:
                 target_roles = identity_roles_map.get(dst, [])
-            eff_pri = _effective_priority(confidence, target_roles)
-            actual_multiplier = _roles_boost_multiplier(target_roles)
+            is_high_value = False
+            if identity_flag_map is not None:
+                is_high_value = identity_flag_map.get(dst, False)
+            eff_pri = _effective_priority(confidence, target_roles, is_high_value)
+            actual_multiplier = _roles_boost_multiplier(target_roles) if not is_high_value else 1.5
             logger.info(
                 "effective_priority_computed",
                 source_stix_id=src,
                 identity_stix_id=dst,
                 base_confidence=confidence,
                 multiplier=actual_multiplier,
+                is_high_value_impersonation_target=is_high_value,
                 effective_priority=eff_pri,
             )
             return "ImpersonatesIdentity", {

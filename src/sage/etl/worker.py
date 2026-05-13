@@ -31,6 +31,7 @@ from sage.spanner.upsert import (
     upsert_followed_by,
     upsert_has_access,
     upsert_impersonates_identity,
+    upsert_pir_prioritizes_impersonation_target,
     upsert_rows,
     upsert_user_account,
     upsert_user_account_belongs_to,
@@ -158,6 +159,11 @@ class ETLWorker:
         identity_roles_map: dict[str, list[str]] = {
             r["stix_id"]: r.get("roles") or [] for r in identity_rows
         }
+        # SAGE 0.9.0 / Initiative C Phase 2: flag map for effective_priority flag-first path.
+        identity_flag_map: dict[str, bool] = {
+            r["stix_id"]: bool(r.get("is_high_value_impersonation_target", False))
+            for r in identity_rows
+        }
 
         # --- Relationships ---
         uses_rows: list[dict] = []
@@ -190,6 +196,7 @@ class ETLWorker:
                 obj,
                 x_asset_internal_map=x_asset_internal_map,
                 identity_roles_map=identity_roles_map,
+                identity_flag_map=identity_flag_map,
             )
             if not result:
                 continue
@@ -293,6 +300,23 @@ class ETLWorker:
             self._db, impersonates_identity_rows
         )
 
+        # SAGE 0.9.0 / Initiative C Phase 2: derive PirPrioritizesImpersonationTarget
+        # rows from the in-bundle data (ImpersonatesIdentity × flagged Identity ×
+        # PIR.threat_actor_tags intersection). Only in-bundle identities can be
+        # checked here; x-identity-internal targets are handled by the recompute
+        # cascade in load_identity_assets.py when the Identity row is loaded.
+        actor_tags_map = {r["stix_id"]: r.get("tags") or [] for r in actor_rows}
+        pir_nodes = self._pir.build_pir_nodes()
+        ppt_rows = _derive_pir_prioritizes_impersonation_target(
+            impersonates_identity_rows,
+            identity_flag_map,
+            actor_tags_map,
+            pir_nodes,
+        )
+        stats["pir_prioritizes_impersonation_target"] = upsert_pir_prioritizes_impersonation_target(
+            self._db, ppt_rows
+        )
+
         # --- FollowedBy(ir_feedback): derived from IncidentUsesTTP ---
         ir_fb_rows, ir_feedback_pairs = build_ir_feedback_followed_by(incident_ttp_rows)
         stats["followed_by_ir"] = upsert_followed_by(self._db, ir_fb_rows)
@@ -352,6 +376,41 @@ class ETLWorker:
 
     def _passes_tlp(self, tlp: str) -> bool:
         return TLP_LEVELS.get(tlp, 0) <= self._tlp_max
+
+
+def _derive_pir_prioritizes_impersonation_target(
+    impersonates_rows: list[dict],
+    identity_flag_map: dict[str, bool],
+    actor_tags_map: dict[str, list[str]],
+    pir_rows: list[dict],
+) -> list[dict]:
+    """Derive PirPrioritizesImpersonationTarget rows from in-bundle data.
+
+    Joins:
+      ImpersonatesIdentity × Identity.is_high_value_impersonation_target=True
+      × PIR.threat_actor_tags (actor tags ∩ pir tags ≠ ∅)
+    """
+    result = []
+    for row in impersonates_rows:
+        identity_id = row["identity_stix_id"]
+        if not identity_flag_map.get(identity_id, False):
+            continue
+        actor_id = row["source_stix_id"]
+        actor_tags = set(actor_tags_map.get(actor_id, []))
+        if not actor_tags:
+            continue
+        for pir in pir_rows:
+            pir_tags = set(pir.get("threat_actor_tags") or [])
+            if actor_tags & pir_tags:
+                result.append(
+                    {
+                        "pir_id": pir["pir_id"],
+                        "identity_stix_id": identity_id,
+                        "source_stix_id": actor_id,
+                        "effective_priority": row["effective_priority"],
+                    }
+                )
+    return result
 
 
 def _build_ttp_vuln_data(

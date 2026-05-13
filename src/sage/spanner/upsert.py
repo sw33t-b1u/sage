@@ -85,6 +85,8 @@ _TABLE_COLUMNS: dict[str, list[str]] = {
     # worker dispatch (filed in 0.5.3) and this column registration. Order
     # must match `schema/spanner_ddl.sql` exactly — Spanner mutations are
     # positional.
+    # SAGE 0.9.0 / Initiative C Phase 2: two new columns appended at the end
+    # (Spanner ALTER TABLE ADD COLUMN appends; positional order preserved).
     "Identity": [
         "stix_id",
         "name",
@@ -95,6 +97,8 @@ _TABLE_COLUMNS: dict[str, list[str]] = {
         "roles",
         "deleted_at",
         "stix_modified",
+        "is_high_value_impersonation_target",
+        "impersonation_risk_factors",
     ],
     "Asset": [
         "id",
@@ -238,6 +242,15 @@ _TABLE_COLUMNS: dict[str, list[str]] = {
         "matched_tag",
         "criticality_multiplier",
     ],
+    # SAGE 0.9.0 / Initiative C Phase 2 — PIR → impersonation-target cascade.
+    # derived_at uses ALLOW_COMMIT_TIMESTAMP (see upsert_pir_prioritizes_impersonation_target).
+    "PirPrioritizesImpersonationTarget": [
+        "pir_id",
+        "identity_stix_id",
+        "source_stix_id",
+        "effective_priority",
+        "derived_at",
+    ],
     # SAGE 0.8.0 / Initiative C Phase 1 — Attribution & Impersonation edges.
     # source column enables precedence-aware upsert (manual > beacon > trace)
     # consistent with HasAccess, UserAccount, AccountOnAsset.
@@ -279,6 +292,7 @@ _TABLE_COLUMNS: dict[str, list[str]] = {
 # not provide an explicit value (matches ALLOW_COMMIT_TIMESTAMP in the DDL).
 _COMMIT_TIMESTAMP_COLUMNS: dict[str, set[str]] = {
     "PIR": {"last_updated"},
+    "PirPrioritizesImpersonationTarget": {"derived_at"},
 }
 
 # Batch size (Spanner mutation limit is 20,000 mutations/transaction)
@@ -543,13 +557,20 @@ def upsert_impersonates_identity(database: Database, rows: list[dict]) -> int:
 
 
 def recompute_effective_priority_for_identity(
-    database: Database, identity_stix_id: str, identity_roles: list[str]
+    database: Database,
+    identity_stix_id: str,
+    identity_roles: list[str],
+    is_high_value_impersonation_target: bool = False,
 ) -> int:
     """Recompute effective_priority for all ImpersonatesIdentity rows that target this identity.
 
-    Called from the Identity upsert path whenever a row's roles array changes.
+    Phase 2 extension: `is_high_value_impersonation_target` flag takes precedence
+    over role-tag intersection when computing the multiplier. Default False preserves
+    backward compat with existing call sites (BEACON 0.12.x / Phase 1 cascade).
+
+    Called from the Identity upsert path whenever a row's roles or flag changes.
     Walks ImpersonatesIdentity WHERE identity_stix_id = ? and rewrites
-    effective_priority using the current roles. Returns the number of rows updated.
+    effective_priority. Returns the number of rows updated.
     """
     # Fetch all impersonates rows for this identity
     existing_rows: list[dict] = []
@@ -571,7 +592,11 @@ def recompute_effective_priority_for_identity(
         [
             row["source_stix_id"],
             identity_stix_id,
-            _effective_priority(row["confidence"], identity_roles),
+            _effective_priority(
+                row["confidence"],
+                identity_roles,
+                is_high_value_impersonation_target,
+            ),
         ]
         for row in existing_rows
     ]
@@ -584,8 +609,124 @@ def recompute_effective_priority_for_identity(
         "effective_priority_recomputed",
         identity_stix_id=identity_stix_id,
         affected_row_count=count,
+        is_high_value_impersonation_target=is_high_value_impersonation_target,
     )
     return count
+
+
+def upsert_pir_prioritizes_impersonation_target(
+    database: Database,
+    rows: list[dict],
+) -> int:
+    """Upsert PirPrioritizesImpersonationTarget rows (Initiative C Phase 2).
+
+    Uses commit_timestamp for derived_at. Called from the ETL worker after
+    ImpersonatesIdentity upsert and from the recompute cascade in
+    load_identity_assets.py when an Identity flag changes.
+    """
+    if not rows:
+        return 0
+
+    columns = _TABLE_COLUMNS["PirPrioritizesImpersonationTarget"]
+    total = 0
+
+    for batch in _chunk(rows, _BATCH_SIZE):
+        values = []
+        for r in batch:
+            row_vals = _row_to_values(r, columns)
+            # Replace derived_at with commit timestamp
+            derived_at_idx = columns.index("derived_at")
+            row_vals[derived_at_idx] = spanner.COMMIT_TIMESTAMP
+            values.append(row_vals)
+        with database.batch() as b:
+            b.insert_or_update(
+                table="PirPrioritizesImpersonationTarget",
+                columns=columns,
+                values=values,
+            )
+        total += len(batch)
+
+    logger.info("upserted_pir_prioritizes_impersonation_target", count=total)
+    return total
+
+
+def derive_pir_prioritizes_impersonation_target_for_identity(
+    database: Database,
+    identity_stix_id: str,
+) -> int:
+    """Derive (or re-derive) PirPrioritizesImpersonationTarget rows for one identity.
+
+    Called from the recompute cascade (load_identity_assets.py) when an Identity
+    row's `is_high_value_impersonation_target` flag becomes True. Queries:
+      1. ImpersonatesIdentity for all actors that impersonate this identity.
+      2. ThreatActor.tags for each such actor.
+      3. All PIR rows with their threat_actor_tags.
+    Then derives and upserts the intersection rows.
+
+    Returns the number of rows written (0 when there are no ImpersonatesIdentity
+    rows for the identity or no PIR tag intersection).
+    """
+    # Step 1: read ImpersonatesIdentity rows for this identity
+    imp_rows: list[dict] = []
+    with database.snapshot() as snap:
+        result = snap.execute_sql(
+            "SELECT source_stix_id, effective_priority FROM ImpersonatesIdentity"
+            " WHERE identity_stix_id = @id",
+            params={"id": identity_stix_id},
+            param_types={"id": spanner.param_types.STRING},
+        )
+        for src_id, eff_pri in result:
+            imp_rows.append({"source_stix_id": src_id, "effective_priority": eff_pri})
+
+    if not imp_rows:
+        return 0
+
+    # Step 2: read ThreatActor.tags for each actor
+    actor_ids = [r["source_stix_id"] for r in imp_rows]
+    actor_tags_map: dict[str, list[str]] = {}
+    with database.snapshot() as snap:
+        result = snap.read(
+            table="ThreatActor",
+            columns=["stix_id", "tags"],
+            keyset=spanner.KeySet(keys=[[aid] for aid in actor_ids]),
+        )
+        for stix_id, tags in result:
+            actor_tags_map[stix_id] = list(tags or [])
+
+    # Step 3: read PIR rows
+    pir_rows: list[dict] = []
+    with database.snapshot() as snap:
+        result = snap.read(
+            table="PIR",
+            columns=["pir_id", "threat_actor_tags"],
+            keyset=spanner.KeySet(all_=True),
+        )
+        for pir_id, threat_actor_tags in result:
+            pir_rows.append({"pir_id": pir_id, "threat_actor_tags": list(threat_actor_tags or [])})
+
+    if not pir_rows:
+        return 0
+
+    # Derive intersection rows
+    ppt_rows: list[dict] = []
+    for imp in imp_rows:
+        actor_id = imp["source_stix_id"]
+        actor_tags = set(actor_tags_map.get(actor_id, []))
+        if not actor_tags:
+            continue
+        for pir in pir_rows:
+            pir_tags = set(pir["threat_actor_tags"])
+            if actor_tags & pir_tags:
+                ppt_rows.append(
+                    {
+                        "pir_id": pir["pir_id"],
+                        "identity_stix_id": identity_stix_id,
+                        "source_stix_id": actor_id,
+                        "effective_priority": imp["effective_priority"],
+                    }
+                )
+
+    return upsert_pir_prioritizes_impersonation_target(database, ppt_rows)
 
 
 def fetch_asset_rows(database: Database) -> list[dict]:

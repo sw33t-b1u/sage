@@ -67,7 +67,9 @@
       "name": "Sample Victim CFO",
       "identity_class": "individual",
       "roles": ["cfo"],
-      "description": "Executive-role identity used to exercise the §6.6 HIGH_VALUE_IMPERSONATION_ROLES multiplier (1.5) path end-to-end."
+      "is_high_value_impersonation_target": true,
+      "impersonation_risk_factors": ["executive", "public-facing-brand"],
+      "description": "Executive-role identity. Phase 1: HIGH_VALUE_IMPERSONATION_ROLES role-tag fallback. Phase 2: is_high_value_impersonation_target flag-first path (1.5× unconditionally)."
     },
     {
       "type": "x-identity-internal",

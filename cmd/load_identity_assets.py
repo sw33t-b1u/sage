@@ -34,7 +34,12 @@ from google.cloud import spanner
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from sage.config import Config
-from sage.spanner.upsert import upsert_has_access, upsert_rows
+from sage.spanner.upsert import (
+    derive_pir_prioritizes_impersonation_target_for_identity,
+    recompute_effective_priority_for_identity,
+    upsert_has_access,
+    upsert_rows,
+)
 
 structlog.configure(
     processors=[
@@ -103,6 +108,9 @@ def load_identity_assets(database: spanner.Database, data: dict) -> dict[str, in
             continue
         stix_id = _identity_stix_id(beacon_id)
         id_map[beacon_id] = stix_id
+        # Phase 2 (SAGE 0.9.0): is_high_value_impersonation_target and
+        # impersonation_risk_factors are BEACON 0.13.0+ fields. Default
+        # False / [] for BEACON 0.12.x identity_assets without these fields.
         identity_rows.append(
             {
                 "stix_id": stix_id,
@@ -114,9 +122,33 @@ def load_identity_assets(database: spanner.Database, data: dict) -> dict[str, in
                 "roles": list(ident.get("roles") or []),
                 "deleted_at": None,
                 "stix_modified": now,
+                "is_high_value_impersonation_target": bool(
+                    ident.get("is_high_value_impersonation_target", False)
+                ),
+                "impersonation_risk_factors": list(ident.get("impersonation_risk_factors") or []),
             }
         )
     stats["identities"] = upsert_rows(database, "Identity", identity_rows)
+
+    # --- Recompute cascade (Phase 2): effective_priority + PirPrioritizesImpersonationTarget ---
+    # Called for every loaded identity so that ImpersonatesIdentity rows targeting
+    # these identities reflect the current flag. Idempotent: no-op when no
+    # ImpersonatesIdentity rows reference the identity.
+    recomputed = 0
+    ppt_derived = 0
+    for row in identity_rows:
+        stix_id = row["stix_id"]
+        is_high_value = row["is_high_value_impersonation_target"]
+        roles = row["roles"]
+        recomputed += recompute_effective_priority_for_identity(
+            database, stix_id, roles, is_high_value
+        )
+        if is_high_value:
+            ppt_derived += derive_pir_prioritizes_impersonation_target_for_identity(
+                database, stix_id
+            )
+    stats["impersonates_recomputed"] = recomputed
+    stats["pir_prioritizes_impersonation_target_derived"] = ppt_derived
 
     # --- HasAccess rows ---
     has_access_rows = []
