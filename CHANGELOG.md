@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Tests
+
+- `tests/fixtures/initiative_c/spec_compliant_bundle.json`: added an
+  executive-role `identity` SDO (`roles=["cfo"]`) and a second
+  `impersonates` relationship (`confidence=60`) targeting it. Closes the
+  Phase 1 post-impl gap where the §6.6 `effective_priority` multiplier=1.5
+  path was unit-covered but not exercised end-to-end via the synthetic
+  bundle (HLD §8.5 required "executive-role vs non-privileged identities"
+  coverage). No source-code or wire-format change. Fixture remains
+  byte-identical to the TRACE-side canonical copy.
+
 ## [0.8.0] — 2026-05-12
 
 ### Added — Initiative C Phase 1: Attribution & Impersonation Edges
