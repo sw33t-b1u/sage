@@ -30,10 +30,13 @@ real-time SIEM detection, endpoint protection, vulnerability scanning automation
 [TRACE: validated STIX]────┤      (PIR-driven L2 gate +
 [Analyst Input API]─manual─┘       semantic + stix2-validator)
 
-[BEACON: assets.json / pir_output.json]
-       │ (TRACE: validate_assets / validate_pir で検証通過後)
+[BEACON: assets.json / pir_output.json /
+         identity_assets.json / user_accounts.json]
+       │ (TRACE: validate_assets / validate_pir /
+       │  validate_identity_assets / validate_user_accounts で検証通過後)
        ▼
-[SAGE: load_assets / PIR ingest]
+[SAGE: load_assets / load_identity_assets / load_user_accounts /
+       PIR ingest]
 
         │
         ▼

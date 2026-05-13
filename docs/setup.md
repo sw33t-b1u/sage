@@ -110,13 +110,61 @@ cp tests/fixtures/sample_assets.json input/assets.json
 > gate for `assets.json`, `pir_output.json`, and STIX bundles):
 >
 > ```sh
-> cd ../TRACE && uv run python cmd/validate_assets.py --input ../SAGE/input/assets.json
+> cd ../TRACE && uv run python cmd/validate_assets.py --assets ../SAGE/input/assets.json
 > ```
 
 ```sh
 uv run python cmd/load_assets.py            # reads input/assets.json by default
 uv run python cmd/load_assets.py --file path/to/assets.json   # custom path
 ```
+
+---
+
+## Step 5.1 — Load identity assets (Initiative A / Initiative C Phase 2)
+
+BEACON also emits `identity_assets.json` (people / roles / groups granted
+access on internal assets). Place it under `input/` and validate via TRACE
+before loading — TRACE 1.6.0+ cross-checks each `has_access[].asset_id`
+against `assets.json` and validates the Initiative C Phase 2 flag
+`is_high_value_impersonation_target` plus `impersonation_risk_factors`:
+
+```sh
+cp /path/to/identity_assets.json input/identity_assets.json
+
+cd ../TRACE && uv run python cmd/validate_identity_assets.py \
+  --identity-assets ../SAGE/input/identity_assets.json \
+  --assets          ../SAGE/input/assets.json
+
+cd ../SAGE && uv run python cmd/load_identity_assets.py \
+  --file input/identity_assets.json
+```
+
+SAGE upserts `Identity` rows, `HasAccess` edges, and — when the flag is
+set — derives the `PirPrioritizesImpersonationTarget` cascade edge so
+`effective_priority` on `ImpersonatesIdentity` switches to multiplier=1.5.
+
+---
+
+## Step 5.2 — Load user accounts (Initiative B)
+
+BEACON `user_accounts.json` carries account-level granularity (individual
+login identifiers like `alice@corp`, `svc-jenkins`) below the identity
+layer. Validate via TRACE and load:
+
+```sh
+cp /path/to/user_accounts.json input/user_accounts.json
+
+cd ../TRACE && uv run python cmd/validate_user_accounts.py \
+  --user-accounts ../SAGE/input/user_accounts.json \
+  --assets        ../SAGE/input/assets.json
+
+cd ../SAGE && uv run python cmd/load_user_accounts.py \
+  --file input/user_accounts.json
+```
+
+`UserAccount` rows link to `Identity` via optional `identity_id` and to
+host `Asset` rows via `AccountOnAsset` edges (composite key
+`(user_account_id, asset_id)`).
 
 ---
 

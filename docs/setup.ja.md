@@ -112,13 +112,62 @@ cp tests/fixtures/sample_assets.json input/assets.json
 > に集約されている:
 >
 > ```sh
-> cd ../TRACE && uv run python cmd/validate_assets.py --input ../SAGE/input/assets.json
+> cd ../TRACE && uv run python cmd/validate_assets.py --assets ../SAGE/input/assets.json
 > ```
 
 ```sh
 uv run python cmd/load_assets.py                              # デフォルト: input/assets.json
 uv run python cmd/load_assets.py --file path/to/assets.json  # カスタムパス
 ```
+
+---
+
+## Step 5.1 — identity assets のロード (Initiative A / Initiative C Phase 2)
+
+BEACON は `identity_assets.json` (内部資産へのアクセス権を持つ
+person / role / group) も emit する。`input/` に配置し、TRACE で検証
+してからロード — TRACE 1.6.0+ は各 `has_access[].asset_id` を `assets.json`
+とクロス参照し、Initiative C Phase 2 のフラグ
+`is_high_value_impersonation_target` + `impersonation_risk_factors`
+も検証する:
+
+```sh
+cp /path/to/identity_assets.json input/identity_assets.json
+
+cd ../TRACE && uv run python cmd/validate_identity_assets.py \
+  --identity-assets ../SAGE/input/identity_assets.json \
+  --assets          ../SAGE/input/assets.json
+
+cd ../SAGE && uv run python cmd/load_identity_assets.py \
+  --file input/identity_assets.json
+```
+
+SAGE は `Identity` 行 + `HasAccess` エッジを upsert し、フラグが立っている
+場合は `PirPrioritizesImpersonationTarget` カスケードエッジを導出して
+`ImpersonatesIdentity` の `effective_priority` を multiplier=1.5 に切替える。
+
+---
+
+## Step 5.2 — user accounts のロード (Initiative B)
+
+BEACON `user_accounts.json` は identity 層より細かい account レベルの
+粒度 (個別ログイン識別子、例: `alice@corp`, `svc-jenkins`) を持つ。
+TRACE で検証してロード:
+
+```sh
+cp /path/to/user_accounts.json input/user_accounts.json
+
+cd ../TRACE && uv run python cmd/validate_user_accounts.py \
+  --user-accounts ../SAGE/input/user_accounts.json \
+  --assets        ../SAGE/input/assets.json
+
+cd ../SAGE && uv run python cmd/load_user_accounts.py \
+  --file input/user_accounts.json
+```
+
+`UserAccount` 行は任意 FK `identity_id` で `Identity` にリンクし、
+`AccountOnAsset` エッジ (複合キー `(user_account_id, asset_id)`) で
+ホスト `Asset` 行に紐付く。
 
 ---
 

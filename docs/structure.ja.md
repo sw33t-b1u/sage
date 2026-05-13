@@ -35,6 +35,8 @@ SAGE/
 │   ├── init_schema.py          # Spanner Graph DDL の初期化
 │   ├── run_etl.py              # ETL パイプラインの実行
 │   ├── load_assets.py          # 内部資産データを Spanner にロード
+│   ├── load_identity_assets.py # BEACON identity_assets.json をロード (Initiative A / Initiative C Phase 2)
+│   ├── load_user_accounts.py   # BEACON user_accounts.json をロード (Initiative B)
 │   ├── report_choke_points.py  # チョークポイントレポートの出力/エクスポート/投稿
 │   ├── query_attack_paths.py   # 攻撃経路または脅威アクター TTP のクエリ
 │   ├── visualize_graph.py      # インタラクティブな攻撃グラフ HTML を生成
