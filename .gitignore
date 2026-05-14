@@ -58,6 +58,10 @@ input/
 output/
 config/pir.json
 
+# pyvis vendor JS (auto-written next to the HTML output by pyvis;
+# committed accidentally at repo init)
+lib/
+
 # Ruff cache
 .ruff_cache/
 
