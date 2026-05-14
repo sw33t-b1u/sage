@@ -35,6 +35,8 @@ uv run python cmd/setup_emulator.py
 make init-schema
 
 # 3. 脅威インテリジェンスを投入（Attack Flow）
+# 注意: 外部バンドルや手動作成バンドルは PIR フィルタがアクターを保持できるよう事前にエンリッチが必要:
+#   cd ../TRACE && uv run python cmd/enrich_bundle.py --input <bundle.json> --output enriched.json && cd ../SAGE
 uv run python cmd/run_etl.py --manual-bundle tests/fixtures/sample_bundle_mirrorface.json
 uv run python cmd/run_etl.py --manual-bundle tests/fixtures/sample_bundle_inc.json
 
