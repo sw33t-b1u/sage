@@ -53,6 +53,7 @@ SAGE/
 │   └── test_*.py               # pytest test files
 │
 ├── docs/                       # English documentation (authoritative)
+│   ├── high-level-design.md    # Authoritative system design (local-only; gitignored)
 │   ├── setup.md                # GCP resource creation, deployment, scheduler setup
 │   ├── analyst-guide.md        # Day-to-day usage guide for CTI analysts
 │   ├── data-model.md           # Node/edge definitions, PIR formula, FollowedBy weights
@@ -65,7 +66,6 @@ SAGE/
 │   ├── pre-commit              # Runs make vet lint before every commit
 │   └── pre-push                # Runs make check before every push
 │
-├── high-level-design.md        # Authoritative system design document
 ├── CHANGELOG.md                # Version history
 ├── Dockerfile                  # Container image for Cloud Run deployment
 ├── Makefile                    # Quality gate targets (check, vet, lint, test, audit, setup)
@@ -80,4 +80,4 @@ SAGE/
 - **`cmd/`** contains thin CLI scripts that parse arguments, load configuration, and delegate to `src/sage/` modules. No business logic lives here.
 - **`schema/`** is the single source of truth for the Spanner Graph DDL.
 - **`docs/`** holds user-facing documentation. English files use the base name (e.g. `setup.md`); Japanese translations are siblings with the `.ja.md` suffix (e.g. `setup.ja.md`).
-- **`high-level-design.md`** must be updated before any architectural change is implemented (Rule 27).
+- **`docs/high-level-design.md`** must be updated before any architectural change is implemented (Rule 27). The file is gitignored per maintainer policy.

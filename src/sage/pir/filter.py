@@ -23,7 +23,7 @@ RELEVANCE_THRESHOLD = 0.1
 class PIRFilter:
     """Filter and weight objects according to a PIR JSON definition.
 
-    PIR JSON schema (see high-level-design.md):
+    PIR JSON schema (see docs/high-level-design.md):
     {
       "pir_id": "PIR-2025-001",
       "organizational_scope": "Financial Crime Intelligence Team (department)",

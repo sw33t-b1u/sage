@@ -55,6 +55,7 @@ SAGE/
 │   └── test_*.py               # pytest テストファイル
 │
 ├── docs/                       # 英語ドキュメント（正本）
+│   ├── high-level-design.md    # システム設計ドキュメント（正本; local-only / gitignored）
 │   ├── setup.md                # GCP リソース作成・デプロイ・スケジューラ設定
 │   ├── analyst-guide.md        # CTI アナリスト向け日常利用ガイド
 │   ├── data-model.md           # ノード/エッジ定義・PIR 計算式・FollowedBy 重み
@@ -67,7 +68,6 @@ SAGE/
 │   ├── pre-commit              # コミット前に make vet lint を実行
 │   └── pre-push                # プッシュ前に make check を実行
 │
-├── high-level-design.md        # システム設計ドキュメント（正本）
 ├── CHANGELOG.md                # バージョン履歴
 ├── Dockerfile                  # Cloud Run デプロイ用コンテナイメージ
 ├── Makefile                    # 品質ゲートターゲット（check, vet, lint, test, audit, setup）
@@ -82,4 +82,4 @@ SAGE/
 - **`cmd/`** には引数解析と `src/sage/` モジュールへの委譲のみを行う薄い CLI スクリプトを置きます。ビジネスロジックはここに書きません。
 - **`schema/`** は Spanner Graph DDL の唯一の情報源です。
 - **`docs/`** は利用者向けドキュメントを保持します。英語版はベース名（例 `setup.md`）、日本語翻訳は `.ja.md` サフィックス（例 `setup.ja.md`）で同じディレクトリに並べて維持します。
-- **`high-level-design.md`** はアーキテクチャ変更を実装する前に更新しなければなりません（Rule 27）。
+- **`docs/high-level-design.md`** はアーキテクチャ変更を実装する前に更新しなければなりません（Rule 27）。本ファイルは maintainer 方針で gitignored です。
