@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed — RULES.md compliance pass
+
+- `high-level-design.md` moved from the project root into `docs/` per
+  Rule 27. The file remains gitignored per maintainer policy; the
+  `.gitignore` entry is updated to the new path. `docs/structure.md`
+  and `docs/structure.ja.md` updated to reflect the new location, and
+  the in-code reference in `src/sage/pir/filter.py` is repointed.
+- `.env.example` cleaned up: dropped the unused `REGION` placeholder
+  (no code path reads it), documented `PORT` (Cloud Run /
+  `cmd/analysis_api.py`) and `SPANNER_EMULATOR_HOST`
+  (`cmd/setup_emulator.py`) so the template matches every env var the
+  code actually reads (Rule 24).
+
 ## [0.9.0] — 2026-05-13
 
 ### Added — Initiative C Phase 2: Flag-First effective_priority + PirPrioritizesImpersonationTarget
