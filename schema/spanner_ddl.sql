@@ -429,7 +429,20 @@ CREATE TABLE PirPrioritizesActor (
   pir_id        STRING(64) NOT NULL,
   actor_stix_id STRING(128) NOT NULL,
   overlap_ratio FLOAT64,                -- |PIR.tags ∩ actor.tags| / |PIR.tags|
+  likelihood    FLOAT64,                -- BEACON 0.15.0 actor_triage raw [0,1]; NULL for legacy rows
+  rationale_json STRING(MAX),           -- JSON: {text, intent_factors, capability_factors, opportunity_factors}
 ) PRIMARY KEY (pir_id, actor_stix_id);
+
+-- Analyst annotation edge (SAGE 0.10.0 — write path is operator out-of-band;
+-- SAGE ETL provides read-side only at this phase).
+CREATE TABLE AnnotatesActor (
+  annotator_id    STRING(128) NOT NULL,
+  actor_stix_id   STRING(128) NOT NULL,
+  annotation_type STRING(64),
+  payload_json    STRING(MAX),
+  created_at      TIMESTAMP NOT NULL,
+  evidence_url    STRING(512),
+) PRIMARY KEY (annotator_id, actor_stix_id, created_at);
 
 -- PIR → TTP (PTTP: Priority TTPs; derived transitively via Uses from prioritized actors)
 CREATE TABLE PirPrioritizesTTP (

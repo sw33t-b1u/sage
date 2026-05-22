@@ -6,6 +6,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.10.0] — 2026-05-22
+
+### Added — Actor triage integration (BEACON 0.15.0 / TRACE 1.8.0 paired release)
+
+Implements plan §7 Phase 6. BEACON 0.15.0 now emits `prioritized_actors[]` in
+`pir_output.json`; SAGE 0.10.0 ingests and persists the scored actor list.
+
+- **`PirPrioritizesActor` schema extension** (migration
+  `src/sage/spanner/migrations/20260522_120000_actor_rationale.sql`):
+  - `likelihood FLOAT64` — raw [0,1] actor triage score; NULL for legacy rows.
+  - `rationale_json STRING(MAX)` — JSON-serialized full Rationale
+    (`text`, `intent_factors`, `capability_factors`, `opportunity_factors`).
+- **`AnnotatesActor` edge table** — new table for analyst annotations
+  (operator write path; SAGE ETL provides read-side only in 0.10.0).
+  Primary key: `(annotator_id, actor_stix_id, created_at)`.
+- **`src/sage/pir/ingest.py`** — `ingest_prioritized_actors()` function:
+  reads `prioritized_actors[]` from a BEACON PIR, builds `PirPrioritizesActor`
+  rows with `likelihood` (raw float, no rescale) and `rationale_json`.
+  Graceful fallback: missing sub-factors default to 0.0, missing rationale
+  fields default to empty string/dict.
+- **`src/sage/etl/worker.py`** — wired `ingest_prioritized_actors` into
+  `process_bundle`; results reported as `stats["pir_actor_triage"]`.
+- **`src/sage/spanner/upsert.py`** — `PirPrioritizesActor` column list updated;
+  `AnnotatesActor` registered in `_TABLE_COLUMNS` for future write path.
+
+### Changed
+
+- `_TABLE_COLUMNS["PirPrioritizesActor"]` extended with `likelihood` and
+  `rationale_json`. Legacy upserts that omit these keys write NULL (columns
+  are NULLABLE; backward compat preserved).
+
 ## [Unreleased]
 
 ### Changed — RULES.md compliance pass

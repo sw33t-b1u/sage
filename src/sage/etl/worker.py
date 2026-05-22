@@ -23,6 +23,7 @@ from google.cloud.spanner_v1.database import Database
 from sage.analysis.ttp_asset_matcher import build_ttp_asset_edges
 from sage.config import TLP_LEVELS
 from sage.pir.filter import PIRFilter
+from sage.pir.ingest import ingest_prioritized_actors
 from sage.spanner.upsert import (
     update_pir_criticality,
     upsert_account_on_asset,
@@ -353,6 +354,13 @@ class ETLWorker:
         stats["pir_prioritizes_ttp"] = upsert_rows(
             self._db, "PirPrioritizesTTP", self._pir.build_pir_ttp_edges(uses_rows, pir_actor_edges)
         )
+        # --- Actor triage ingest (BEACON 0.15.0 prioritized_actors[]) ---
+        actor_triage_rows = 0
+        for pir in self._pir._pirs:
+            actors = pir.get("prioritized_actors") or []
+            if actors:
+                actor_triage_rows += ingest_prioritized_actors(self._db, pir["pir_id"], actors)
+        stats["pir_actor_triage"] = actor_triage_rows
         if asset_rows:
             stats["pir_weights_asset"] = upsert_rows(
                 self._db, "PirWeightsAsset", self._pir.build_pir_asset_edges(asset_rows)

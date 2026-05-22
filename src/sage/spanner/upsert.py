@@ -234,7 +234,24 @@ _TABLE_COLUMNS: dict[str, list[str]] = {
         "valid_until",
         "last_updated",
     ],
-    "PirPrioritizesActor": ["pir_id", "actor_stix_id", "overlap_ratio"],
+    # SAGE 0.10.0 adds likelihood + rationale_json (BEACON 0.15.0 actor_triage).
+    # Legacy upserts that omit these keys write NULL (columns are NULLABLE).
+    "PirPrioritizesActor": [
+        "pir_id",
+        "actor_stix_id",
+        "overlap_ratio",
+        "likelihood",
+        "rationale_json",
+    ],
+    # SAGE 0.10.0 — AnnotatesActor edge table (operator write path; read-side only in ETL).
+    "AnnotatesActor": [
+        "annotator_id",
+        "actor_stix_id",
+        "annotation_type",
+        "payload_json",
+        "created_at",
+        "evidence_url",
+    ],
     "PirPrioritizesTTP": ["pir_id", "ttp_stix_id"],
     "PirWeightsAsset": [
         "pir_id",
