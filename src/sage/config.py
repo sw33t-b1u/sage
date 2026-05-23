@@ -79,7 +79,15 @@ class Config:
             opencti_token=os.environ["OPENCTI_TOKEN"],
             pir_file_path=os.environ.get("PIR_FILE_PATH", "/config/pir.json"),
             tlp_max_level=os.environ.get("TLP_MAX_LEVEL", "amber"),
-            activity_window_days=int(os.environ.get("ACTIVITY_WINDOW_DAYS", "90")),
+            # SAGE-specific override takes precedence; falls back to the
+            # cross-project ACTIVITY_WINDOW_DAYS (set by operator for the
+            # whole BEACON/TRACE/SAGE pipeline); final default 90.
+            activity_window_days=int(
+                os.environ.get(
+                    "SAGE_ACTIVITY_WINDOW_DAYS",
+                    os.environ.get("ACTIVITY_WINDOW_DAYS", "90"),
+                )
+            ),
             slack_webhook_url=os.environ.get("SLACK_WEBHOOK_URL", ""),
             ghe_token=os.environ.get("GHE_TOKEN", ""),
             ghe_repo=os.environ.get("GHE_REPO", ""),

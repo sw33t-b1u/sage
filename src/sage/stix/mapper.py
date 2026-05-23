@@ -553,6 +553,8 @@ def build_followed_by_weights(
     ttp_phases: dict[str, str],
     ttp_vuln_data: dict[str, dict] | None = None,
     ir_feedback_pairs: set[tuple[str, str]] | None = None,
+    *,
+    activity_window_days: int = 90,
 ) -> list[dict]:
     """Derive FollowedBy(threat_intel) edges from Uses edges and calculate weights.
 
@@ -565,6 +567,13 @@ def build_followed_by_weights(
                        Built from Exploits edges. When omitted, exploit_ease = 1.0 for all TTPs.
         ir_feedback_pairs: Set of (src, dst) pairs from build_ir_feedback_followed_by().
                            Matching transitions receive ir_multiplier = 1.5. Default: 1.0 for all.
+        activity_window_days: Lookback in days for the per-TTP
+                       activity_score component. Default 90 matches
+                       pre-Initiative-F behaviour; the ETLWorker passes
+                       ``Config.activity_window_days`` here so operators
+                       can move the window via SAGE_ACTIVITY_WINDOW_DAYS
+                       / ACTIVITY_WINDOW_DAYS env vars without touching
+                       code.
 
     Returns:
         List of dicts ready for upsert into the FollowedBy table (source="threat_intel")
@@ -595,9 +604,10 @@ def build_followed_by_weights(
 
     total_actors = max(len(actor_ttps), 1)
 
-    # activity_score: per-TTP observation rate in the last 90 days
-    # (last_observed = None is treated as neutral 0.5)
-    cutoff_dt = _now() - timedelta(days=90)
+    # activity_score: per-TTP observation rate within the activity
+    # window (default 90 days; overridable via config). last_observed
+    # = None is treated as neutral 0.5.
+    cutoff_dt = _now() - timedelta(days=activity_window_days)
 
     ttp_activity: dict[str, float] = {}
     for ttp_id in {t for actor_id, ttps in actor_ttps.items() for t in ttps}:

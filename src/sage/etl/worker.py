@@ -54,10 +54,12 @@ class ETLWorker:
         database: Database,
         pir_filter: PIRFilter,
         tlp_max_level: str = "amber",
+        activity_window_days: int = 90,
     ) -> None:
         self._db = database
         self._pir = pir_filter
         self._tlp_max = TLP_LEVELS.get(tlp_max_level, 2)
+        self._activity_window_days = activity_window_days
         self._mapper = StixMapper()
 
     def process_bundle(
@@ -376,6 +378,7 @@ class ETLWorker:
             ttp_phase_map,
             ttp_vuln_data=ttp_vuln_data,
             ir_feedback_pairs=ir_feedback_pairs,
+            activity_window_days=self._activity_window_days,
         )
         stats["followed_by"] = upsert_followed_by(self._db, fb_rows)
 

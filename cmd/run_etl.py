@@ -62,7 +62,12 @@ def main() -> None:
         config.spanner_instance_id,
         config.spanner_database_id,
     )
-    worker = ETLWorker(database, pir_filter, config.tlp_max_level)
+    worker = ETLWorker(
+        database,
+        pir_filter,
+        config.tlp_max_level,
+        activity_window_days=config.activity_window_days,
+    )
 
     if args.manual_bundle:
         logger.info("mode", type="manual", path=str(args.manual_bundle))

@@ -25,6 +25,7 @@ def client():
     mock_config.caldera_url = ""
     mock_config.caldera_api_key = ""
     mock_config.api_auth_token = ""  # Auth disabled — existing tests run without tokens
+    mock_config.activity_window_days = 90  # Default window for since/until resolution
 
     # lifespan 内の Config.from_env() と Spanner 接続をモックして env var 依存を排除
     with (
@@ -46,6 +47,7 @@ def authed_client():
     mock_config.caldera_url = ""
     mock_config.caldera_api_key = ""
     mock_config.api_auth_token = "test-secret-token"
+    mock_config.activity_window_days = 90
 
     with (
         patch("sage.api.app.Config.from_env", return_value=mock_config),
@@ -119,6 +121,47 @@ class TestActorTtps:
     def test_missing_actor_id(self, client):
         c, _ = client
         resp = c.get("/actor-ttps")
+        assert resp.status_code == 422
+
+    def test_since_until_parsed_and_forwarded(self, client):
+        from datetime import date as _date
+
+        c, _ = client
+        with patch("sage.api.app.find_actor_ttps", return_value=[]) as mock_q:
+            resp = c.get(
+                "/actor-ttps",
+                params={
+                    "actor_id": "intrusion-set--apt99",
+                    "since": "2025-11-01",
+                    "until": "2026-05-01",
+                },
+            )
+        assert resp.status_code == 200
+        _, kwargs = mock_q.call_args
+        assert kwargs["since"] == _date(2025, 11, 1)
+        assert kwargs["until"] == _date(2026, 5, 1)
+
+    def test_absent_params_default_to_config_window(self, client):
+        from datetime import date as _date
+
+        c, _ = client
+        c.app.state.config.activity_window_days = 180
+        with patch("sage.api.app.find_actor_ttps", return_value=[]) as mock_q:
+            resp = c.get("/actor-ttps", params={"actor_id": "intrusion-set--apt99"})
+        assert resp.status_code == 200
+        _, kwargs = mock_q.call_args
+        # Default until = today (UTC); since = today - 180 days. Verify
+        # the gap rather than absolute dates so the test stays stable.
+        assert isinstance(kwargs["since"], _date)
+        assert isinstance(kwargs["until"], _date)
+        assert (kwargs["until"] - kwargs["since"]).days == 180
+
+    def test_invalid_date_string_rejected(self, client):
+        c, _ = client
+        resp = c.get(
+            "/actor-ttps",
+            params={"actor_id": "intrusion-set--apt99", "since": "not-a-date"},
+        )
         assert resp.status_code == 422
 
 

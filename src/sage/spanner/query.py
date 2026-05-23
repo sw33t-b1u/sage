@@ -7,12 +7,30 @@ work on Spanner Standard edition and the local emulator.
 
 from __future__ import annotations
 
+from datetime import date, datetime, time, timedelta
 from typing import Any
 
 import structlog
 from google.cloud.spanner_v1.database import Database
 
 logger = structlog.get_logger(__name__)
+
+
+def _to_window_bounds(
+    since: date | None, until: date | None
+) -> tuple[datetime | None, datetime | None]:
+    """Convert ``date`` window bounds to ``datetime`` for Spanner TIMESTAMP binds.
+
+    ``since`` snaps to 00:00:00 (inclusive lower bound). ``until`` snaps
+    to 00:00:00 on the day AFTER (exclusive upper bound) so the SQL
+    ``last_observed < @until`` semantics treat ``since == until`` as a
+    full calendar day match instead of a zero-width range. ``None``
+    propagates through so callers can omit the filter entirely when
+    both bounds are absent.
+    """
+    since_dt = datetime.combine(since, time.min) if since is not None else None
+    until_dt = datetime.combine(until, time.min) + timedelta(days=1) if until is not None else None
+    return since_dt, until_dt
 
 
 def find_attack_paths(
@@ -78,10 +96,18 @@ def find_attack_paths(
 def find_actor_ttps(
     database: Database,
     actor_stix_id: str,
+    *,
+    since: date | None = None,
+    until: date | None = None,
 ) -> list[dict[str, Any]]:
     """Return the TTP attack flow for the specified actor, ordered by FollowedBy weight.
 
     Joins Uses → TTP (src) → FollowedBy → TTP (dst) for the given actor.
+
+    When ``since`` / ``until`` are supplied, the Uses edges are restricted
+    to those with ``last_observed`` in ``[since, until]`` (inclusive of
+    full calendar days). When both are ``None`` no temporal filter is
+    applied and behaviour matches the pre-Initiative-F semantics.
 
     Returns:
         [
@@ -96,7 +122,20 @@ def find_actor_ttps(
           ...
         ]
     """
-    sql = """
+    since_dt, until_dt = _to_window_bounds(since, until)
+    window_clause = ""
+    params: dict[str, Any] = {"actor_id": actor_stix_id}
+    param_types: dict[str, Any] = {"actor_id": _str_type()}
+    if since_dt is not None:
+        window_clause += " AND u.last_observed >= @since"
+        params["since"] = since_dt
+        param_types["since"] = _timestamp_type()
+    if until_dt is not None:
+        window_clause += " AND u.last_observed < @until"
+        params["until"] = until_dt
+        param_types["until"] = _timestamp_type()
+
+    sql = f"""
     SELECT
       src.stix_id  AS src_ttp_stix_id,
       src.name     AS src_ttp_name,
@@ -108,11 +147,9 @@ def find_actor_ttps(
     JOIN TTP src        ON src.stix_id = u.ttp_stix_id
     JOIN FollowedBy fb  ON fb.src_ttp_stix_id = src.stix_id
     JOIN TTP dst        ON dst.stix_id = fb.dst_ttp_stix_id
-    WHERE u.actor_stix_id = @actor_id
+    WHERE u.actor_stix_id = @actor_id{window_clause}
     ORDER BY fb.weight DESC
     """
-    params = {"actor_id": actor_stix_id}
-    param_types = {"actor_id": _str_type()}
 
     rows = []
     with database.snapshot() as snap:
@@ -129,7 +166,13 @@ def find_actor_ttps(
                 }
             )
 
-    logger.info("find_actor_ttps", actor_stix_id=actor_stix_id, count=len(rows))
+    logger.info(
+        "find_actor_ttps",
+        actor_stix_id=actor_stix_id,
+        count=len(rows),
+        since=since.isoformat() if since else None,
+        until=until.isoformat() if until else None,
+    )
     return rows
 
 
@@ -190,11 +233,22 @@ def find_choke_points(
 
 def find_asset_exposure(
     database: Database,
+    *,
+    since: date | None = None,
+    until: date | None = None,
 ) -> list[dict[str, Any]]:
     """Return internet-exposed assets with their reachable TTP counts.
 
-    Uses SQL to aggregate exposed_to_internet=TRUE assets alongside the number
-    of distinct actors and TTPs reachable via Targets edges.
+    Aggregates ``exposed_to_internet=TRUE`` assets along the
+    ``Asset ← Targets ← ThreatActor → Uses → TTP`` join, counting
+    distinct targeting actors and distinct reachable TTPs.
+
+    When ``since`` / ``until`` are supplied, Uses edges are restricted to
+    those with ``last_observed`` in ``[since, until]`` per
+    Initiative F §2.6. The plan's "∪ Incident.occurred_at" combined view
+    is consumed by Phase 8's ``/threat-summary`` endpoint; this query
+    keeps the Uses-only counts so the response shape stays
+    backward-compatible.
 
     Returns:
         [
@@ -208,7 +262,20 @@ def find_asset_exposure(
           ...
         ]
     """
-    sql = """
+    since_dt, until_dt = _to_window_bounds(since, until)
+    window_clause = ""
+    params: dict[str, Any] = {}
+    param_types: dict[str, Any] = {}
+    if since_dt is not None:
+        window_clause += " AND u.last_observed >= @since"
+        params["since"] = since_dt
+        param_types["since"] = _timestamp_type()
+    if until_dt is not None:
+        window_clause += " AND u.last_observed < @until"
+        params["until"] = until_dt
+        param_types["until"] = _timestamp_type()
+
+    sql = f"""
     SELECT
       a.id                            AS asset_id,
       a.name                          AS asset_name,
@@ -218,14 +285,17 @@ def find_asset_exposure(
     FROM Asset a
     JOIN Targets t ON t.asset_id = a.id
     JOIN Uses u    ON u.actor_stix_id = t.actor_stix_id
-    WHERE a.exposed_to_internet = TRUE
+    WHERE a.exposed_to_internet = TRUE{window_clause}
     GROUP BY a.id, a.name, a.pir_adjusted_criticality
     ORDER BY pir_adjusted_criticality DESC
     """
 
     rows = []
     with database.snapshot() as snap:
-        result = snap.execute_sql(sql)
+        if params:
+            result = snap.execute_sql(sql, params=params, param_types=param_types)
+        else:
+            result = snap.execute_sql(sql)
         for row in result:
             rows.append(
                 {
@@ -237,7 +307,12 @@ def find_asset_exposure(
                 }
             )
 
-    logger.info("find_asset_exposure", count=len(rows))
+    logger.info(
+        "find_asset_exposure",
+        count=len(rows),
+        since=since.isoformat() if since else None,
+        until=until.isoformat() if until else None,
+    )
     return rows
 
 
@@ -401,3 +476,9 @@ def _int64_type() -> Any:
     from google.cloud.spanner_v1 import param_types
 
     return param_types.INT64
+
+
+def _timestamp_type() -> Any:
+    from google.cloud.spanner_v1 import param_types
+
+    return param_types.TIMESTAMP

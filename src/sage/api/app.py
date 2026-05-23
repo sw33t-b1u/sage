@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import secrets
 from contextlib import asynccontextmanager
+from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 import structlog
@@ -101,23 +102,69 @@ def get_choke_points(
         raise HTTPException(status_code=500, detail="Internal server error") from exc
 
 
+def _resolve_window(config: Config, since: date | None, until: date | None) -> tuple[date, date]:
+    """Fill in absent since/until bounds from config.
+
+    Default ``until`` is today (UTC); default ``since`` is
+    ``until - activity_window_days`` so the response always carries a
+    bounded window. When the client passes only one bound, the other is
+    derived consistently from it.
+    """
+    if until is None:
+        until = datetime.now(tz=UTC).date()
+    if since is None:
+        since = until - timedelta(days=config.activity_window_days)
+    return since, until
+
+
 @app.get("/actor-ttps", dependencies=[Depends(_verify_auth)])
 def get_actor_ttps(
     actor_id: str = Query(..., description="ThreatActor STIX ID"),
+    since: date | None = Query(
+        None,
+        description=(
+            "Inclusive lower bound (YYYY-MM-DD) on Uses.last_observed. "
+            "Defaults to until - SAGE_ACTIVITY_WINDOW_DAYS."
+        ),
+    ),
+    until: date | None = Query(
+        None,
+        description=(
+            "Inclusive upper bound (YYYY-MM-DD) on Uses.last_observed. Defaults to today (UTC)."
+        ),
+    ),
 ) -> list[dict[str, Any]]:
     """Return the TTP attack flow for the specified actor, ordered by FollowedBy weight."""
+    config: Config = app.state.config
+    since_d, until_d = _resolve_window(config, since, until)
     try:
-        return find_actor_ttps(app.state.database, actor_id)
+        return find_actor_ttps(app.state.database, actor_id, since=since_d, until=until_d)
     except Exception as exc:
         logger.error("api_error", endpoint="actor-ttps", error=str(exc))
         raise HTTPException(status_code=500, detail="Internal server error") from exc
 
 
 @app.get("/asset-exposure", dependencies=[Depends(_verify_auth)])
-def get_asset_exposure() -> list[dict[str, Any]]:
+def get_asset_exposure(
+    since: date | None = Query(
+        None,
+        description=(
+            "Inclusive lower bound (YYYY-MM-DD) on Uses.last_observed. "
+            "Defaults to until - SAGE_ACTIVITY_WINDOW_DAYS."
+        ),
+    ),
+    until: date | None = Query(
+        None,
+        description=(
+            "Inclusive upper bound (YYYY-MM-DD) on Uses.last_observed. Defaults to today (UTC)."
+        ),
+    ),
+) -> list[dict[str, Any]]:
     """Return externally-exposed assets and their reachable TTP counts."""
+    config: Config = app.state.config
+    since_d, until_d = _resolve_window(config, since, until)
     try:
-        return find_asset_exposure(app.state.database)
+        return find_asset_exposure(app.state.database, since=since_d, until=until_d)
     except Exception as exc:
         logger.error("api_error", endpoint="asset-exposure", error=str(exc))
         raise HTTPException(status_code=500, detail="Internal server error") from exc
