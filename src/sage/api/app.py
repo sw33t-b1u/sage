@@ -23,6 +23,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from google.cloud import spanner
 
 from sage.analysis.similarity import find_similar_incidents
+from sage.api.annotation import router as annotation_router
 from sage.caldera.client import sync_actor_ttps
 from sage.config import Config
 from sage.spanner.query import (
@@ -185,3 +186,14 @@ def post_caldera_adversary(
     except Exception as exc:
         logger.error("api_error", endpoint="caldera/adversary", error=str(exc))
         raise HTTPException(status_code=500, detail="Internal server error") from exc
+
+
+# ---------------------------------------------------------------------------
+# Annotation router (POST /api/annotate)
+# ---------------------------------------------------------------------------
+
+app.include_router(
+    annotation_router,
+    prefix="/api",
+    dependencies=[Depends(_verify_auth)],
+)
