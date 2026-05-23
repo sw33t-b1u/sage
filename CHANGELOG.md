@@ -6,6 +6,60 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.12.0] — 2026-05-24
+
+Initiative F (Temporal Window + Collection Plan + Summary API + RSS)
+release — paired with BEACON 0.17.0 + TRACE 1.10.0.
+
+### Added
+
+- **`activity_window_days` config field** (Phase 7, `3a05d6b`,
+  default 90): env hierarchy `SAGE_ACTIVITY_WINDOW_DAYS` →
+  `ACTIVITY_WINDOW_DAYS` (BEACON-wide setting) → 90. Threaded into
+  `Config.from_env`, `spanner/query.py`, `etl/worker.py`, and
+  `cmd/run_etl.py`.
+- **`?since` and `?until` query params on existing endpoints**
+  (Phase 7, `3a05d6b`): `/actor-ttps` and `/asset-exposure` now
+  accept time-range filtering via `?since=YYYY-MM-DD&until=YYYY-MM-DD`.
+  Time anchors: `/actor-ttps` filters `Uses.last_observed`;
+  `/asset-exposure` filters `Uses.last_observed`. Combined
+  `Uses.last_observed ∪ Incident.occurred_at` view available via the
+  new `/threat-summary` endpoint (Phase 8) which natively stitches
+  both. Absent params → resolved via `_resolve_window`
+  (until=today UTC, since=until − activity_window_days).
+- **`/threat-summary?asset=X&since=...&until=...&limit=N` endpoint**
+  (Phase 8, `6bc9b78`): single response stitching per asset:
+  `prioritized_actors` (PirPrioritizesActor for PIRs valid in
+  window via `PIR.valid_from ≤ since AND PIR.valid_until ≥ until`),
+  `attack_paths`, `choke_points`, in-range `vulnerabilities`
+  (`Vulnerability.published_date` in [since, until]), in-range
+  `incidents` (`Incident.occurred_at` in [since, until] — **NOT**
+  `resolved_at` per Q2=NO). `rationale_json` inline-expanded from
+  Initiative D's persisted score breakdown. **Top-N default = 5
+  per section** (aligned with BEACON Initiative E top-5
+  prioritized_actors view); `?limit=N` 1-100 override (422 outside
+  range). **Verbose-only response** (no compact mode in F).
+  **Pagination = limit-only** (no offset/cursor in F). Auth: reuses
+  existing `_verify_auth` Bearer.
+- **`api/models.py`** (Phase 8, `6bc9b78`): `ThreatSummaryResponse`
+  Pydantic model. `IncidentEntry` deliberately excludes
+  `resolved_at` field — consumers cannot consult it (architectural
+  enforcement of occurred_at-only anchor).
+- **ETL FollowedBy weight recalculation reads `activity_window_days`
+  from config** (Phase 7, `3a05d6b`): literal 90-day window removed
+  from `etl/worker.py` and `stix/mapper.py`; operators can now
+  modify the window through env without code changes.
+
+### Changed
+
+- **`/asset-exposure` time-anchor remains `Uses.last_observed`-only**
+  (Phase 7 deviation): plan §2.6 noted a combined
+  `Uses.last_observed ∪ Incident.occurred_at` view; in practice this
+  naturally fits `/threat-summary` which stitches incident data
+  explicitly. `/asset-exposure` response shape preserved for
+  existing consumers; combined view available via
+  `/threat-summary`.
+
 ## [0.11.0] — 2026-05-23
 
 Initiative E (Actor Triage Phase 2) release — paired with BEACON 0.16.0 + TRACE 1.9.0.
