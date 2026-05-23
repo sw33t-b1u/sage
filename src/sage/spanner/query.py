@@ -462,6 +462,221 @@ def load_pir_edges(database: Database) -> dict[str, list[dict[str, Any]]]:
 
 
 # ---------------------------------------------------------------------------
+# Threat summary (Initiative F Phase 8 — GET /threat-summary)
+# ---------------------------------------------------------------------------
+
+
+def find_prioritized_actors_for_asset(
+    database: Database,
+    asset_id: str,
+    *,
+    since: date,
+    until: date,
+    limit: int,
+) -> list[dict[str, Any]]:
+    """Return prioritized actors targeting ``asset_id`` from PIRs valid in window.
+
+    Joins ``Targets`` (actor → asset) × ``PirPrioritizesActor`` (PIR ↔
+    actor) × ``PIR`` (validity window). The PIR validity intersection
+    follows plan §2.6: a PIR is counted when its
+    ``[valid_from, valid_until]`` interval covers the requested
+    ``[since, until]`` window — i.e. the PIR was authoritative for the
+    entire request range. ``rationale_json`` is returned as the raw
+    JSON string from Initiative D's persisted score breakdown; the
+    response builder inline-expands it to a dict before serialisation.
+    """
+    sql = """
+    SELECT DISTINCT
+      ta.stix_id          AS actor_stix_id,
+      ta.name             AS actor_name,
+      ppa.pir_id          AS pir_id,
+      ppa.overlap_ratio   AS overlap_ratio,
+      ppa.likelihood      AS likelihood,
+      ppa.rationale_json  AS rationale_json
+    FROM Targets t
+    JOIN ThreatActor ta        ON ta.stix_id = t.actor_stix_id
+    JOIN PirPrioritizesActor ppa ON ppa.actor_stix_id = ta.stix_id
+    JOIN PIR p                 ON p.pir_id = ppa.pir_id
+    WHERE t.asset_id  = @asset_id
+      AND p.valid_from  <= @since
+      AND p.valid_until >= @until
+    ORDER BY ppa.likelihood DESC NULLS LAST, ppa.overlap_ratio DESC NULLS LAST
+    LIMIT @limit
+    """
+    params = {
+        "asset_id": asset_id,
+        "since": since,
+        "until": until,
+        "limit": limit,
+    }
+    param_types = {
+        "asset_id": _str_type(),
+        "since": _date_type(),
+        "until": _date_type(),
+        "limit": _int64_type(),
+    }
+
+    rows: list[dict[str, Any]] = []
+    with database.snapshot() as snap:
+        for row in snap.execute_sql(sql, params=params, param_types=param_types):
+            rows.append(
+                {
+                    "actor_stix_id": row[0],
+                    "actor_name": row[1],
+                    "pir_id": row[2],
+                    "overlap_ratio": row[3],
+                    "likelihood": row[4],
+                    "rationale_json": row[5],
+                }
+            )
+    logger.info(
+        "find_prioritized_actors_for_asset",
+        asset_id=asset_id,
+        count=len(rows),
+        since=since.isoformat(),
+        until=until.isoformat(),
+    )
+    return rows
+
+
+def find_vulnerabilities_for_asset(
+    database: Database,
+    asset_id: str,
+    *,
+    since: date,
+    until: date,
+    limit: int,
+) -> list[dict[str, Any]]:
+    """Return vulnerabilities attached to ``asset_id`` with publication date in window.
+
+    Joins ``HasVulnerability`` × ``Vulnerability`` and filters
+    ``Vulnerability.published_date`` to ``[since, until]`` per plan §2.6
+    (vulns block anchored on publication date).
+    """
+    since_dt, until_dt = _to_window_bounds(since, until)
+    sql = """
+    SELECT
+      v.stix_id           AS vuln_stix_id,
+      v.cve_id            AS cve_id,
+      v.description       AS description,
+      v.cvss_score        AS cvss_score,
+      v.epss_score        AS epss_score,
+      v.published_date    AS published_date
+    FROM HasVulnerability hv
+    JOIN Vulnerability v ON v.stix_id = hv.vuln_stix_id
+    WHERE hv.asset_id = @asset_id
+      AND v.published_date >= @since
+      AND v.published_date <  @until
+    ORDER BY v.cvss_score DESC NULLS LAST, v.published_date DESC
+    LIMIT @limit
+    """
+    params = {
+        "asset_id": asset_id,
+        "since": since_dt,
+        "until": until_dt,
+        "limit": limit,
+    }
+    param_types = {
+        "asset_id": _str_type(),
+        "since": _timestamp_type(),
+        "until": _timestamp_type(),
+        "limit": _int64_type(),
+    }
+
+    rows: list[dict[str, Any]] = []
+    with database.snapshot() as snap:
+        for row in snap.execute_sql(sql, params=params, param_types=param_types):
+            rows.append(
+                {
+                    "vuln_stix_id": row[0],
+                    "cve_id": row[1],
+                    "description": row[2],
+                    "cvss_score": row[3],
+                    "epss_score": row[4],
+                    "published_date": row[5],
+                }
+            )
+    logger.info(
+        "find_vulnerabilities_for_asset",
+        asset_id=asset_id,
+        count=len(rows),
+        since=since.isoformat(),
+        until=until.isoformat(),
+    )
+    return rows
+
+
+def find_incidents_for_asset(
+    database: Database,
+    asset_id: str,
+    *,
+    since: date,
+    until: date,
+    limit: int,
+) -> list[dict[str, Any]]:
+    """Return incidents whose TTPs target ``asset_id`` with occurred_at in window.
+
+    Per plan §2.6 + §10 Q2: the time anchor is
+    ``Incident.occurred_at`` **only**. ``resolved_at`` is NOT consulted,
+    so an incident that started before the window but was resolved
+    inside it is correctly excluded (occurred_at is the attack-time
+    anchor; resolved_at is the IR-closure time).
+
+    Path: ``Incident → IncidentUsesTTP → TTP → TargetsAsset → Asset``.
+    """
+    since_dt, until_dt = _to_window_bounds(since, until)
+    sql = """
+    SELECT DISTINCT
+      i.stix_id      AS incident_stix_id,
+      i.name         AS incident_name,
+      i.occurred_at  AS occurred_at,
+      i.severity     AS severity,
+      i.source       AS source
+    FROM Incident i
+    JOIN IncidentUsesTTP iut ON iut.incident_stix_id = i.stix_id
+    JOIN TargetsAsset ta     ON ta.ttp_stix_id = iut.ttp_stix_id
+    WHERE ta.asset_id = @asset_id
+      AND i.occurred_at >= @since
+      AND i.occurred_at <  @until
+    ORDER BY i.occurred_at DESC
+    LIMIT @limit
+    """
+    params = {
+        "asset_id": asset_id,
+        "since": since_dt,
+        "until": until_dt,
+        "limit": limit,
+    }
+    param_types = {
+        "asset_id": _str_type(),
+        "since": _timestamp_type(),
+        "until": _timestamp_type(),
+        "limit": _int64_type(),
+    }
+
+    rows: list[dict[str, Any]] = []
+    with database.snapshot() as snap:
+        for row in snap.execute_sql(sql, params=params, param_types=param_types):
+            rows.append(
+                {
+                    "incident_stix_id": row[0],
+                    "incident_name": row[1],
+                    "occurred_at": row[2],
+                    "severity": row[3],
+                    "source": row[4],
+                }
+            )
+    logger.info(
+        "find_incidents_for_asset",
+        asset_id=asset_id,
+        count=len(rows),
+        since=since.isoformat(),
+        until=until.isoformat(),
+    )
+    return rows
+
+
+# ---------------------------------------------------------------------------
 # Type helpers (Spanner param_types)
 # ---------------------------------------------------------------------------
 
@@ -482,3 +697,9 @@ def _timestamp_type() -> Any:
     from google.cloud.spanner_v1 import param_types
 
     return param_types.TIMESTAMP
+
+
+def _date_type() -> Any:
+    from google.cloud.spanner_v1 import param_types
+
+    return param_types.DATE

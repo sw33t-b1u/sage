@@ -25,6 +25,8 @@ from google.cloud import spanner
 
 from sage.analysis.similarity import find_similar_incidents
 from sage.api.annotation import router as annotation_router
+from sage.api.models import ThreatSummaryResponse
+from sage.api.threat_summary import build_threat_summary
 from sage.caldera.client import sync_actor_ttps
 from sage.config import Config
 from sage.spanner.query import (
@@ -141,6 +143,67 @@ def get_actor_ttps(
         return find_actor_ttps(app.state.database, actor_id, since=since_d, until=until_d)
     except Exception as exc:
         logger.error("api_error", endpoint="actor-ttps", error=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error") from exc
+
+
+@app.get(
+    "/threat-summary",
+    dependencies=[Depends(_verify_auth)],
+    response_model=ThreatSummaryResponse,
+)
+def get_threat_summary(
+    asset: str = Query(..., description="Asset ID to summarise"),
+    since: date | None = Query(
+        None,
+        description=(
+            "Inclusive lower bound (YYYY-MM-DD) on the per-section time anchor. "
+            "Defaults to until - SAGE_ACTIVITY_WINDOW_DAYS."
+        ),
+    ),
+    until: date | None = Query(
+        None,
+        description=(
+            "Exclusive upper bound (YYYY-MM-DD) on the per-section time anchor. "
+            "Defaults to today (UTC)."
+        ),
+    ),
+    limit: int = Query(
+        5,
+        ge=1,
+        le=100,
+        description=(
+            "Per-section row cap. Default 5 mirrors BEACON's Initiative E top-5 "
+            "prioritized_actors view; range 1-100, pagination beyond limit is "
+            "intentionally deferred (Initiative F)."
+        ),
+    ),
+) -> ThreatSummaryResponse:
+    """Return a five-section per-asset threat summary.
+
+    Sections:
+      * ``prioritized_actors`` — from PIRs valid in window, restricted
+        to actors that ``Targets`` the asset; ``rationale_json`` is
+        inline-expanded.
+      * ``attack_paths`` — TTP attack flow toward the asset.
+      * ``choke_points`` — graph-wide ranking (helps the analyst place
+        the asset against the broader topology).
+      * ``vulnerabilities`` — CVEs with ``published_date`` in window.
+      * ``incidents`` — Incidents with ``occurred_at`` in window (the
+        ``resolved_at`` column is intentionally not consulted —
+        plan §10 Q2).
+    """
+    config: Config = app.state.config
+    since_d, until_d = _resolve_window(config, since, until)
+    try:
+        return build_threat_summary(
+            app.state.database,
+            asset_id=asset,
+            since=since_d,
+            until=until_d,
+            limit=limit,
+        )
+    except Exception as exc:
+        logger.error("api_error", endpoint="threat-summary", error=str(exc))
         raise HTTPException(status_code=500, detail="Internal server error") from exc
 
 
