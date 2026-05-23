@@ -6,6 +6,49 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.11.0] — 2026-05-23
+
+Initiative E (Actor Triage Phase 2) release — paired with BEACON 0.16.0 + TRACE 1.9.0.
+
+### Added
+
+- **AnnotatesActor write API — CLI** (Phase 5, e7973bf):
+  `cmd/annotate_actor.py` writes analyst annotations to the
+  `AnnotatesActor` Spanner table that was added schema-wise in 0.10.0.
+  Four annotation types (controlled vocabulary):
+    * `false-positive` — analyst rejects actor as relevant
+    * `scope-exclusion` — actor relevant but out-of-scope for org
+    * `analyst-note` — free-text comment, no scoring effect
+    * `confidence-override` — analyst-provided Likelihood override
+  Per-type Pydantic payload validation in `src/sage/models/annotation.py`
+  enforces field constraints (e.g., `confidence-override.overridden_likelihood`
+  must be in [0.0, 1.0]) BEFORE Spanner write.
+
+- **AnnotatesActor write API — REST** (Phase 6, 2650d5a):
+  `POST /api/annotate` on the existing FastAPI app
+  (`src/sage/api/annotation.py`). Re-validates request payload against the
+  per-type Pydantic model. Returns 200 on success, 422 on invalid payload,
+  401/403 on auth failure. Router-level `Depends(_verify_auth)` mirrors
+  existing endpoint auth pattern.
+
+### Changed
+
+- (none — schema unchanged from 0.10.2; this release adds write surface
+  only, on top of the schema introduced in 0.10.0 and DDL-fixed in 0.10.2)
+
+### Fixed
+
+- (none — DDL fix for `AnnotatesActor.created_at` shipped in 0.10.2)
+
+### Security
+
+- (none — starlette pin shipped in 0.10.2)
+
+### Infrastructure
+
+- `.githooks/pre-commit` exports `UV_CACHE_DIR` to handle sandbox env
+  (harmonized with BEACON Phase 7 fix; commit 1cb6bb8).
+
 ## [0.10.2] — 2026-05-23
 
 Security + schema integrity patch release.
