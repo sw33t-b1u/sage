@@ -19,7 +19,7 @@ CREATE TABLE AnnotatesActor (
   actor_stix_id   STRING(128) NOT NULL,
   annotation_type STRING(64),
   payload_json    STRING(MAX),
-  created_at      TIMESTAMP NOT NULL,
+  created_at      TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp=true),
   evidence_url    STRING(512),
 ) PRIMARY KEY (annotator_id, actor_stix_id, created_at);
 

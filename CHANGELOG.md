@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.10.2] — 2026-05-23
+
+Security + schema integrity patch release.
+
+### Security
+
+- Pin `starlette>=1.0.1` (top-level) to address `PYSEC-2026-161`. The
+  vulnerability is transitive via `fastapi`. Detected during the
+  `pip-audit` step of Initiative E Phase 5 review on 2026-05-23.
+  Co-shipped with BEACON 0.15.2 (same CVE).
+  TRACE is unaffected (no starlette/fastapi dependency).
+
+### Fixed — AnnotatesActor.created_at allow_commit_timestamp option
+
+- `schema/spanner_ddl.sql` and
+  `src/sage/spanner/migrations/20260522_120000_actor_rationale.sql`:
+  add `OPTIONS (allow_commit_timestamp=true)` to
+  `AnnotatesActor.created_at`. The original 0.10.0 DDL omitted this
+  option; any Spanner write of `spanner.COMMIT_TIMESTAMP` to that
+  column (as introduced by the upcoming Initiative E Phase 5 write
+  path) would have been rejected by the server. Discovered during
+  Initiative E Phase 5 review; existing schema not yet deployed to
+  production, so the migration file is amended in place rather than
+  superseded with a new migration.
+
 ## [0.10.1] — 2026-05-22
 
 Security patch release.
