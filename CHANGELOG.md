@@ -6,6 +6,87 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.13.0] — 2026-05-24
+
+Initiative G (IR Feedback Ingestion + Diamond Model Support) release —
+paired with BEACON 0.18.0 + TRACE 1.11.0.
+
+### Added
+
+- **`POST /api/incidents` direct IR intake endpoint** (Phase 1,
+  `8a42e85`): operators (or `cmd/register_incident.py`, Phase 3) can
+  register incidents without the OpenCTI relay's 24-hour polling
+  latency. Required fields: `incident_stix_id`, `name`, `occurred_at`,
+  `severity`. Optional: `kill_chain_phases[]`, `ttps[]` (with
+  `sequence_order`), `diamond_model` (4-key dict per Caltagirone
+  et al.), `iocs[]`, `description`. PUT-like full-replace upsert
+  (`incident_stix_id` is PK). Response `warnings[]` includes
+  `kcp_missing` / `sequence_order_null` codes; counters logged as
+  `sage_incident_warnings_total{code}` (structlog fallback for the
+  Prometheus counter the future metrics endpoint will adopt).
+  `Incident.source` value `direct_api` discriminates from
+  OpenCTI-relayed `ir_feedback` rows.
+- **Centralised auth gate `src/sage/api/auth.py`** (Phase 1,
+  `8a42e85`): `verify_auth(enforce_when_unset)` factory. POST routes
+  use `enforce_when_unset=True` (returns **503** when
+  `SAGE_API_AUTH_TOKEN` env is unset — write API foot-gun gate).
+  GET routes remain permissive when unset (backward-compat). The
+  Initiative E `POST /api/annotate` endpoint is retroactively
+  upgraded to the same enforce-when-set policy per Decision 10.
+- **`GET /api/incidents` read endpoint** (Phase 2, `cc664fc`): filter
+  by `?since/?until/?actor_stix_id`, paginate via `?limit=N` (default
+  50, range 1-100). Response is full incident shape: TTPs +
+  `diamond_model` inline-expanded. Spanner strong-read consistency.
+  Helper `_resolve_window` extracted to `src/sage/api/windows.py` so
+  the read path can reuse F Phase 7's default-window logic without
+  creating an import cycle through `app.py`.
+- **`cmd/register_incident.py` Diamond Model CLI** (Phase 3,
+  `8c8e9c8`): click-based helper for IR analysts. Modes:
+  interactive (prompts 4 Diamond Model quadrants with hints drawn
+  from Caltagirone et al.); `--from-file payload.json`;
+  `--navigator-layer layer.json` (imports MITRE Navigator technique
+  list, derives `kill_chain_phases` + `ttps` with `sequence_order`);
+  `--no-api` (air-gapped — writes directly to Spanner). Reuses
+  Phase 1's `IncidentRequest` Pydantic model. `--id` overrides
+  auto-generated `incident--<uuid4>`. `--token` defaults to
+  `$SAGE_API_AUTH_TOKEN`. Navigator technique IDs convert to STIX
+  `attack-pattern--<uuid5>` (UUID5 from MITRE URL namespace —
+  operators must use matching scheme on the Spanner load side; for
+  Spanner-row-accurate joins use `--from-file` with explicit
+  `ttp_stix_id` values).
+- **`docs/ir-feedback-flow.md`** (Phase 8, `39e09a6`): authoritative
+  cross-repo IR loop document. Includes mermaid sequenceDiagram,
+  NIST SP 800-61r3 §2.1 verbatim quote (US gov public domain)
+  anchoring the direct-API rationale, OpenCTI vs direct-API
+  trade-off table, BEACON IR-boost methodology citation (MITRE
+  Cyber Prep), TRACE IoC search workflow, auth-gate (Decision 10)
+  semantics, and operator quick-start commands. BEACON and TRACE
+  host relative symlinks pointing to this file.
+
+### Fixed
+
+- **`spanner/incidents._build_incident_row` kill_chain_phases
+  serialisation** (`30576c4`): Phase 1 helper wrote `kill_chain_phases`
+  as a JSON-string via `json.dumps([p.model_dump() for p in ...])`,
+  but the Spanner DDL declares the column as `ARRAY<STRING(64)>`.
+  Production writes would have failed with a type mismatch; mock-
+  based tests did not surface the bug. Fix: persist as
+  `list[str]` of `phase_name` (each truncated to 64 chars to match
+  the DDL constraint), matching the existing OpenCTI relay mapper
+  convention (`src/sage/stix/mapper.py:220`). Metadata
+  (`kill_chain_name`, `x_ttp_stix_id`) is unaffected — flows to
+  `IncidentUsesTTP` rows separately via `_build_iut_rows`.
+
+### Changed
+
+- **`/api/annotate` auth gate harmonisation** (Phase 1, `8a42e85`):
+  Initiative E's "optional with warning" policy replaced by the same
+  enforce-when-set / 503-when-unset gate that POST `/api/incidents`
+  uses. Backward-compat for deployments that did not set the token:
+  POST returns 503 (previously 200 with warning). Set
+  `SAGE_API_AUTH_TOKEN` to restore writeability. GET routes
+  unaffected.
+
 ## [0.12.0] — 2026-05-24
 
 Initiative F (Temporal Window + Collection Plan + Summary API + RSS)
