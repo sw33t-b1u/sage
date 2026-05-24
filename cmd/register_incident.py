@@ -33,6 +33,13 @@ Exit codes:
 * ``0`` — incident accepted (response logged).
 * ``2`` — argument / Pydantic / Navigator validation error.
 * ``3`` — transport error (HTTP failure or Spanner write exception).
+
+.. deprecated:: SAGE 1.0.0
+
+    Direct invocation as ``python -m cmd.register_incident`` /
+    ``python cmd/register_incident.py`` is deprecated. Use the unified
+    ``sage incident-register`` entry (Initiative H Phase 6). Removal
+    is scheduled for SAGE 2.0.
 """
 
 from __future__ import annotations
@@ -470,4 +477,10 @@ def main(
 
 
 if __name__ == "__main__":
+    sys.stderr.write(
+        "DeprecationWarning: 'python -m cmd.register_incident' / "
+        "'python cmd/register_incident.py' is deprecated as of "
+        "SAGE 1.0.0. Use 'sage incident-register' instead; cmd/* "
+        "invocations are scheduled for removal in SAGE 2.0.\n"
+    )
     main()

@@ -28,6 +28,12 @@ dev = [
     "httpx>=0.27.0",
 ]
 
+# Initiative H Phase 6 (SAGE 1.0.0) — unified ``sage`` entry; legacy
+# ``python -m cmd.<name>`` invocations remain functional in 1.x with a
+# deprecation message and are scheduled for removal in SAGE 2.0.
+[project.scripts]
+sage = "sage.cli:cli"
+
 [tool.ruff]
 line-length = 100
 target-version = "py312"

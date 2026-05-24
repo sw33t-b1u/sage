@@ -11,6 +11,13 @@ Usage:
 Exit codes:
     0 — annotation accepted and Spanner mutation buffered.
     2 — payload validation failed (Pydantic) or argparse rejected args.
+
+.. deprecated:: SAGE 1.0.0
+
+    Direct invocation as ``python -m cmd.annotate_actor`` /
+    ``python cmd/annotate_actor.py`` is deprecated. Use the unified
+    ``sage actor-annotate`` entry (Initiative H Phase 6). Removal is
+    scheduled for SAGE 2.0.
 """
 
 from __future__ import annotations
@@ -120,4 +127,10 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    sys.stderr.write(
+        "DeprecationWarning: 'python -m cmd.annotate_actor' / "
+        "'python cmd/annotate_actor.py' is deprecated as of "
+        "SAGE 1.0.0. Use 'sage actor-annotate' instead; cmd/* "
+        "invocations are scheduled for removal in SAGE 2.0.\n"
+    )
     raise SystemExit(main())

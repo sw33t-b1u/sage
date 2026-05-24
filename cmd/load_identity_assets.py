@@ -17,6 +17,13 @@ Usage:
     export SPANNER_EMULATOR_HOST=localhost:9010  # for local emulator
     uv run python cmd/load_identity_assets.py \\
         --file ../BEACON/output/identity_assets.json
+
+.. deprecated:: SAGE 1.0.0
+
+    Direct invocation as ``python -m cmd.load_identity_assets`` /
+    ``python cmd/load_identity_assets.py`` is deprecated. Use the
+    unified ``sage load-identity-assets`` entry (Initiative H Phase 6).
+    Removal is scheduled for SAGE 2.0.
 """
 
 from __future__ import annotations
@@ -210,4 +217,10 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    sys.stderr.write(
+        "DeprecationWarning: 'python -m cmd.load_identity_assets' / "
+        "'python cmd/load_identity_assets.py' is deprecated as of "
+        "SAGE 1.0.0. Use 'sage load-identity-assets' instead; cmd/* "
+        "invocations are scheduled for removal in SAGE 2.0.\n"
+    )
     main()

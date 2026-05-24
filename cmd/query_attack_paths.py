@@ -7,6 +7,13 @@ Spanner GQL を用いて、指定した資産に Targets エッジで紐づく T
     uv run python cmd/query_attack_paths.py --asset-id asset-001
     uv run python cmd/query_attack_paths.py --asset-id asset-001 --limit 5
     uv run python cmd/query_attack_paths.py --actor-id intrusion-set--apt99
+
+.. deprecated:: SAGE 1.0.0
+
+    Direct invocation as ``python -m cmd.query_attack_paths`` /
+    ``python cmd/query_attack_paths.py`` is deprecated. Use the
+    unified ``sage query-attack-paths`` entry (Initiative H Phase 6).
+    Removal is scheduled for SAGE 2.0.
 """
 
 from __future__ import annotations
@@ -96,4 +103,10 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    sys.stderr.write(
+        "DeprecationWarning: 'python -m cmd.query_attack_paths' / "
+        "'python cmd/query_attack_paths.py' is deprecated as of "
+        "SAGE 1.0.0. Use 'sage query-attack-paths' instead; cmd/* "
+        "invocations are scheduled for removal in SAGE 2.0.\n"
+    )
     main()

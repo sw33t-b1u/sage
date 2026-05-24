@@ -13,6 +13,13 @@ Usage:
 環境変数:
   GHE_TOKEN, GHE_REPO が必要。
   SAGE Analysis API (SAGE_API_URL) が設定されていれば類似インシデントを取得する。
+
+.. deprecated:: SAGE 1.0.0
+
+    Direct invocation as ``python -m cmd.create_ir_template`` /
+    ``python cmd/create_ir_template.py`` is deprecated. Use the
+    unified ``sage ir-template`` entry (Initiative H Phase 6).
+    Removal is scheduled for SAGE 2.0.
 """
 
 from __future__ import annotations
@@ -186,4 +193,10 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    sys.stderr.write(
+        "DeprecationWarning: 'python -m cmd.create_ir_template' / "
+        "'python cmd/create_ir_template.py' is deprecated as of "
+        "SAGE 1.0.0. Use 'sage ir-template' instead; cmd/* "
+        "invocations are scheduled for removal in SAGE 2.0.\n"
+    )
     main()
