@@ -1,0 +1,29 @@
+{
+  "name": "G-Phase3 IR walkthrough",
+  "versions": {
+    "layer": "4.5",
+    "navigator": "5.0.0",
+    "attack": "16"
+  },
+  "domain": "enterprise-attack",
+  "description": "Minimal Navigator layer for register_incident.py tests — 3 techniques across 2 tactics.",
+  "techniques": [
+    {
+      "techniqueID": "T1566",
+      "tactic": "initial-access",
+      "score": 1.0,
+      "comment": "Phishing — initial entry vector"
+    },
+    {
+      "techniqueID": "T1059.001",
+      "tactic": "execution",
+      "score": 1.0,
+      "comment": "PowerShell execution"
+    },
+    {
+      "techniqueID": "T1078",
+      "tactic": "initial-access",
+      "score": 0.5
+    }
+  ]
+}

@@ -170,3 +170,42 @@ uv run python cmd/create_ir_template.py \
 # Sync actor TTPs to Caldera for red team simulation (requires CALDERA_URL)
 uv run python cmd/sync_caldera.py --actor-id <stix-id>
 ```
+
+### Direct IR feedback registration (`cmd/register_incident.py`)
+
+Initiative G Phase 3 adds a CLI for the SAGE direct-API path so IR
+teams can register an incident the same day it occurs (vs OpenCTI's
+24h polling latency). Four modes:
+
+```sh
+# 1) Interactive — prompts for Diamond Model 4 quadrants.
+uv run python cmd/register_incident.py \
+  --name "MIR-4242 mail relay compromise" \
+  --occurred-at 2026-05-20T12:34:56Z \
+  --severity high
+
+# 2) Non-interactive flag mode (Diamond Model via --diamond key=value).
+uv run python cmd/register_incident.py \
+  --name "MIR-4242" --occurred-at 2026-05-20T12:34:56Z --severity high \
+  --diamond adversary=APT99 \
+  --diamond capability="spear-phishing kit" \
+  --diamond infrastructure="fastflux nodes" \
+  --diamond victim="mail relay asset-001" \
+  --no-interactive
+
+# 3) MITRE Navigator layer import — TTP sequence from the Navigator UI.
+uv run python cmd/register_incident.py \
+  --name "MIR-4242" --occurred-at 2026-05-20T12:34:56Z --severity high \
+  --navigator-layer ./layer.json \
+  --no-interactive
+
+# 4) Air-gapped / token-less — bypass the API and write Spanner directly.
+uv run python cmd/register_incident.py \
+  --from-file ./payload.json \
+  --no-api --no-interactive
+```
+
+Defaults: `incident_stix_id` is auto-generated as
+`incident--<uuid4>` (override with `--id`); the Bearer token reads
+from `$SAGE_API_AUTH_TOKEN`; the API base URL reads from
+`$SAGE_API_URL` (else `http://localhost:8000`).
