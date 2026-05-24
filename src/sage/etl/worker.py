@@ -153,16 +153,13 @@ class ETLWorker:
         incident_rows = [r for obj in by_type["incident"] if (r := self._mapper.map_incident(obj))]
         stats["incidents"] = upsert_rows(self._db, "Incident", incident_rows)
 
-        # SAGE 0.8.0 / Initiative C: build stix_id → roles map from in-bundle
-        # identity objects. Passed to map_relationship so the impersonates
-        # mapper can compute effective_priority at write time. x-identity-internal
-        # targets (cross-bundle BEACON references) are not in this map; their
-        # effective_priority is recomputed via recompute_effective_priority_for_identity
-        # when the Identity row is loaded from BEACON.
-        identity_roles_map: dict[str, list[str]] = {
-            r["stix_id"]: r.get("roles") or [] for r in identity_rows
-        }
-        # SAGE 0.9.0 / Initiative C Phase 2: flag map for effective_priority flag-first path.
+        # Build stix_id → is_high_value_impersonation_target flag map from
+        # in-bundle identity objects. Passed to map_relationship so the
+        # impersonates mapper can compute effective_priority at write time.
+        # x-identity-internal targets (cross-bundle BEACON references) are
+        # not in this map; their effective_priority is recomputed via
+        # recompute_effective_priority_for_identity when the Identity row
+        # is loaded from BEACON via load_identity_assets.py.
         identity_flag_map: dict[str, bool] = {
             r["stix_id"]: bool(r.get("is_high_value_impersonation_target", False))
             for r in identity_rows
@@ -198,7 +195,6 @@ class ETLWorker:
             result = self._mapper.map_relationship(
                 obj,
                 x_asset_internal_map=x_asset_internal_map,
-                identity_roles_map=identity_roles_map,
                 identity_flag_map=identity_flag_map,
             )
             if not result:

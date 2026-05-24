@@ -1,8 +1,12 @@
-"""Tests for Initiative C upsert helpers (SAGE 0.8.0 Phase 1 + 0.9.0 Phase 2).
+"""Tests for Initiative C upsert helpers.
 
 Covers AttributedToActor / AttributedToIdentity / ImpersonatesIdentity
-precedence-aware upserts, effective_priority recompute cascade, and
-PirPrioritizesImpersonationTarget derivation (Phase 2).
+precedence-aware upserts, ``effective_priority`` recompute cascade, and
+PirPrioritizesImpersonationTarget derivation.
+
+Initiative H (SAGE 1.0.0) removed the BEACON 0.12.x role-tag fallback;
+``effective_priority`` now reads only the
+``is_high_value_impersonation_target`` flag.
 """
 
 from __future__ import annotations
@@ -195,14 +199,14 @@ class TestPrecedence:
 
 
 # ---------------------------------------------------------------------------
-# Case 4: effective_priority recompute on Identity roles change
+# Case 4: effective_priority recompute when an Identity's flag changes
 # ---------------------------------------------------------------------------
 
 
 class TestEffectivePriorityRecompute:
-    def test_recompute_elevates_priority_when_role_added(self):
-        # Existing ImpersonatesIdentity row has confidence=70 with no roles
-        # (effective_priority was 70). Now Identity gains "cfo" role → 1.5x boost.
+    def test_recompute_elevates_priority_when_flag_set_true(self):
+        # Existing ImpersonatesIdentity row had confidence=70 with flag=False
+        # (effective_priority was 70). Identity flag flips to True → 1.5x boost.
         existing = [
             {
                 "source_stix_id": "threat-actor--ta000001-0000-4000-8000-000000000001",
@@ -214,7 +218,7 @@ class TestEffectivePriorityRecompute:
         count = recompute_effective_priority_for_identity(
             db,
             "identity--id000001-0000-4000-8000-000000000001",
-            ["cfo"],
+            True,
         )
 
         assert count == 1
@@ -228,15 +232,12 @@ class TestEffectivePriorityRecompute:
     def test_recompute_no_rows_is_noop(self):
         db, updated = _mock_db_for_recompute([])
         count = recompute_effective_priority_for_identity(
-            db, "identity--id000099-0000-4000-8000-000000000099", []
+            db, "identity--id000099-0000-4000-8000-000000000099", False
         )
         assert count == 0
         assert updated == []
 
-    # ---- Phase 2: flag-first effective_priority cases ----
-
-    def test_flag_true_alone_gives_1_5_multiplier(self):
-        # flag=True, no roles → multiplier 1.5 (flag-first, role is irrelevant)
+    def test_flag_true_gives_1_5_multiplier(self):
         existing = [
             {
                 "source_stix_id": "threat-actor--ta000002-0000-4000-8000-000000000002",
@@ -247,8 +248,7 @@ class TestEffectivePriorityRecompute:
         count = recompute_effective_priority_for_identity(
             db,
             "identity--id000002-0000-4000-8000-000000000002",
-            [],
-            is_high_value_impersonation_target=True,
+            True,
         )
         assert count == 1
         _table, columns, values = updated[0]
@@ -256,50 +256,7 @@ class TestEffectivePriorityRecompute:
         # min(100, int(60 * 1.5)) = 90
         assert values[0][ep_idx] == 90
 
-    def test_flag_true_with_role_cfo_no_double_boost(self):
-        # flag=True + role=cfo → multiplier 1.5, no double-boost (flag takes precedence)
-        existing = [
-            {
-                "source_stix_id": "threat-actor--ta000003-0000-4000-8000-000000000003",
-                "confidence": 80,
-            }
-        ]
-        db, updated = _mock_db_for_recompute(existing)
-        count = recompute_effective_priority_for_identity(
-            db,
-            "identity--id000003-0000-4000-8000-000000000003",
-            ["cfo"],
-            is_high_value_impersonation_target=True,
-        )
-        assert count == 1
-        _table, columns, values = updated[0]
-        ep_idx = columns.index("effective_priority")
-        # min(100, int(80 * 1.5)) = 100
-        assert values[0][ep_idx] == 100
-
-    def test_flag_false_with_role_cfo_uses_role_fallback(self):
-        # flag=False + role=cfo → multiplier 1.5 via HIGH_VALUE_IMPERSONATION_ROLES fallback
-        existing = [
-            {
-                "source_stix_id": "threat-actor--ta000004-0000-4000-8000-000000000004",
-                "confidence": 60,
-            }
-        ]
-        db, updated = _mock_db_for_recompute(existing)
-        count = recompute_effective_priority_for_identity(
-            db,
-            "identity--id000004-0000-4000-8000-000000000004",
-            ["cfo"],
-            is_high_value_impersonation_target=False,
-        )
-        assert count == 1
-        _table, columns, values = updated[0]
-        ep_idx = columns.index("effective_priority")
-        # min(100, int(60 * 1.5)) = 90
-        assert values[0][ep_idx] == 90
-
-    def test_flag_false_no_role_gives_1_0_multiplier(self):
-        # flag=False + no roles → multiplier 1.0
+    def test_flag_false_gives_1_0_multiplier(self):
         existing = [
             {
                 "source_stix_id": "threat-actor--ta000005-0000-4000-8000-000000000005",
@@ -310,8 +267,7 @@ class TestEffectivePriorityRecompute:
         count = recompute_effective_priority_for_identity(
             db,
             "identity--id000005-0000-4000-8000-000000000005",
-            [],
-            is_high_value_impersonation_target=False,
+            False,
         )
         assert count == 1
         _table, columns, values = updated[0]
@@ -321,34 +277,24 @@ class TestEffectivePriorityRecompute:
 
 
 # ---------------------------------------------------------------------------
-# Phase 2: effective_priority unit tests (constants module)
+# effective_priority unit tests (constants module)
 # ---------------------------------------------------------------------------
 
 
 class TestEffectivePriorityUnit:
-    def test_flag_true_no_role(self):
-        assert effective_priority(60, [], is_high_value_impersonation_target=True) == 90
+    def test_flag_true(self):
+        assert effective_priority(60, True) == 90
 
-    def test_flag_true_with_role_cfo_no_double_boost(self):
-        # flag takes precedence; result same as flag-only
-        assert effective_priority(80, ["cfo"], is_high_value_impersonation_target=True) == 100
-
-    def test_flag_false_with_role_cfo(self):
-        assert effective_priority(60, ["cfo"], is_high_value_impersonation_target=False) == 90
-
-    def test_flag_false_no_role(self):
-        assert effective_priority(60, [], is_high_value_impersonation_target=False) == 60
-
-    def test_backward_compat_default_flag(self):
-        # Calling with old 2-arg signature (flag omitted) behaves as flag=False
-        assert effective_priority(70, ["cfo"]) == 100
-        assert effective_priority(70, []) == 70
+    def test_flag_false(self):
+        assert effective_priority(60, False) == 60
 
     def test_confidence_none_defaults_to_50(self):
-        assert effective_priority(None, [], is_high_value_impersonation_target=True) == 75
+        assert effective_priority(None, True) == 75
+        assert effective_priority(None, False) == 50
 
     def test_capped_at_100(self):
-        assert effective_priority(100, ["cfo"], is_high_value_impersonation_target=True) == 100
+        assert effective_priority(100, True) == 100
+        assert effective_priority(90, True) == 100  # 90*1.5=135 → cap
 
 
 # ---------------------------------------------------------------------------

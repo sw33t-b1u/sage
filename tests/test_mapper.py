@@ -751,9 +751,9 @@ class TestMapImpersonatesIdentity:
             "target_ref": "identity--1d000001-0000-4000-8000-000000000001",
             "confidence": 70,
         }
-        # Identity has no high-value roles → multiplier 1.0 → effective_priority = 70
-        identity_roles_map = {"identity--1d000001-0000-4000-8000-000000000001": ["employee"]}
-        result = mapper.map_relationship(obj, identity_roles_map=identity_roles_map)
+        # flag=False → multiplier 1.0 → effective_priority = 70
+        identity_flag_map = {"identity--1d000001-0000-4000-8000-000000000001": False}
+        result = mapper.map_relationship(obj, identity_flag_map=identity_flag_map)
         assert result is not None
         table, row = result
         assert table == "ImpersonatesIdentity"
@@ -761,7 +761,7 @@ class TestMapImpersonatesIdentity:
         assert row["source_type"] == "threat-actor"
         assert row["source"] == "trace"
 
-    def test_threat_actor_impersonates_executive_identity_boosted(self):
+    def test_threat_actor_impersonates_flagged_identity_boosted(self):
         mapper = StixMapper()
         obj = {
             "type": "relationship",
@@ -772,11 +772,10 @@ class TestMapImpersonatesIdentity:
             "target_ref": "identity--1d000002-0000-4000-8000-000000000002",
             "confidence": 70,
         }
-        # executive role → multiplier 1.5 → effective_priority = min(100, 70*1.5) = 100
-        identity_roles_map = {
-            "identity--1d000002-0000-4000-8000-000000000002": ["cfo", "executive"]
-        }
-        result = mapper.map_relationship(obj, identity_roles_map=identity_roles_map)
+        # is_high_value_impersonation_target=True →
+        # multiplier 1.5 → effective_priority = min(100, 70*1.5) = 100
+        identity_flag_map = {"identity--1d000002-0000-4000-8000-000000000002": True}
+        result = mapper.map_relationship(obj, identity_flag_map=identity_flag_map)
         assert result is not None
         _table, row = result
         assert row["effective_priority"] == 100

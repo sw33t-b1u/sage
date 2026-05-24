@@ -69,7 +69,7 @@
       "roles": ["cfo"],
       "is_high_value_impersonation_target": true,
       "impersonation_risk_factors": ["executive", "public-facing-brand"],
-      "description": "Executive-role identity. Phase 1: HIGH_VALUE_IMPERSONATION_ROLES role-tag fallback. Phase 2: is_high_value_impersonation_target flag-first path (1.5× unconditionally)."
+      "description": "Executive-role identity exercising the is_high_value_impersonation_target flag-driven 1.5× effective_priority multiplier."
     },
     {
       "type": "x-identity-internal",
@@ -157,7 +157,7 @@
       "source_ref": "threat-actor--00000000-0000-4000-8000-000000000203",
       "target_ref": "identity--00000000-0000-4000-8000-000000000205",
       "confidence": 60,
-      "description": "Actor observed using CFO impersonation pretexts in BEC-style phishing — exercises §6.6 HIGH_VALUE_IMPERSONATION_ROLES multiplier (60 × 1.5 = 90 effective_priority)."
+      "description": "Actor observed using CFO impersonation pretexts in BEC-style phishing — exercises the flag-driven 1.5× multiplier (60 × 1.5 = 90 effective_priority)."
     }
   ]
 }

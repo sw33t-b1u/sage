@@ -566,8 +566,10 @@ class TestInitiativeCDispatch:
         captured = capsys.readouterr()
         assert "relationship_type_mismatch_dropped" in captured.out
 
-    def test_impersonates_effective_priority_executive_vs_non_privileged(self):
-        """Executive-role identity gets 1.5x boost; plain employee does not."""
+    def test_impersonates_effective_priority_flagged_vs_unflagged(self):
+        """``is_high_value_impersonation_target=True`` identity gets 1.5x boost;
+        unflagged identity does not (flag-driven; role tags no longer affect
+        the multiplier as of Initiative H / SAGE 1.0.0)."""
         w, recorded = _make_worker_no_snapshot()
         objects = [
             {
@@ -588,6 +590,7 @@ class TestInitiativeCDispatch:
                 "name": "CFO Alice",
                 "identity_class": "individual",
                 "roles": ["cfo"],
+                "is_high_value_impersonation_target": True,
             },
             {
                 "type": "identity",
@@ -598,6 +601,7 @@ class TestInitiativeCDispatch:
                 "name": "Bob Employee",
                 "identity_class": "individual",
                 "roles": ["employee"],
+                "is_high_value_impersonation_target": False,
             },
             {
                 "type": "relationship",

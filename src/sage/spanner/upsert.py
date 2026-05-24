@@ -576,18 +576,16 @@ def upsert_impersonates_identity(database: Database, rows: list[dict]) -> int:
 def recompute_effective_priority_for_identity(
     database: Database,
     identity_stix_id: str,
-    identity_roles: list[str],
-    is_high_value_impersonation_target: bool = False,
+    is_high_value_impersonation_target: bool,
 ) -> int:
-    """Recompute effective_priority for all ImpersonatesIdentity rows that target this identity.
+    """Recompute ``effective_priority`` for all ImpersonatesIdentity rows
+    that target this identity.
 
-    Phase 2 extension: `is_high_value_impersonation_target` flag takes precedence
-    over role-tag intersection when computing the multiplier. Default False preserves
-    backward compat with existing call sites (BEACON 0.12.x / Phase 1 cascade).
-
-    Called from the Identity upsert path whenever a row's roles or flag changes.
-    Walks ImpersonatesIdentity WHERE identity_stix_id = ? and rewrites
-    effective_priority. Returns the number of rows updated.
+    Called from the Identity upsert path whenever the identity's
+    ``is_high_value_impersonation_target`` flag changes. Walks
+    ``ImpersonatesIdentity`` WHERE ``identity_stix_id = ?`` and rewrites
+    ``effective_priority`` using the flag-driven multiplier. Returns the
+    number of rows updated.
     """
     # Fetch all impersonates rows for this identity
     existing_rows: list[dict] = []
@@ -609,11 +607,7 @@ def recompute_effective_priority_for_identity(
         [
             row["source_stix_id"],
             identity_stix_id,
-            _effective_priority(
-                row["confidence"],
-                identity_roles,
-                is_high_value_impersonation_target,
-            ),
+            _effective_priority(row["confidence"], is_high_value_impersonation_target),
         ]
         for row in existing_rows
     ]

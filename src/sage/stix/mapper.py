@@ -14,7 +14,6 @@ from typing import Any
 import structlog
 
 from sage.spanner.constants import effective_priority as _effective_priority
-from sage.spanner.constants import roles_boost_multiplier as _roles_boost_multiplier
 
 logger = structlog.get_logger(__name__)
 
@@ -254,7 +253,6 @@ class StixMapper:
         self,
         obj: dict,
         x_asset_internal_map: dict[str, str] | None = None,
-        identity_roles_map: dict[str, list[str]] | None = None,
         identity_flag_map: dict[str, bool] | None = None,
     ) -> tuple[str, dict] | None:
         """Map a STIX relationship to (table_name, row dict). Returns None if not applicable."""
@@ -413,9 +411,7 @@ class StixMapper:
             return self._map_attributed_to(obj, src, dst, stix_id, confidence)
 
         if rel_type == "impersonates":
-            return self._map_impersonates(
-                obj, src, dst, stix_id, confidence, identity_roles_map, identity_flag_map
-            )
+            return self._map_impersonates(obj, src, dst, stix_id, confidence, identity_flag_map)
 
         return None
 
@@ -488,36 +484,32 @@ class StixMapper:
         dst: str,
         stix_id: str,
         confidence: int | None,
-        identity_roles_map: dict[str, list[str]] | None,
         identity_flag_map: dict[str, bool] | None = None,
     ) -> tuple[str, dict] | None:
         """Route impersonates SRO to ImpersonatesIdentity.
 
-        Phase 2: reads is_high_value_impersonation_target from identity_flag_map
-        (built from in-bundle identity rows) and passes it to effective_priority.
-        x-identity-internal targets are not in the flag map; their flag is applied
-        later by recompute_effective_priority_for_identity when the Identity row
-        is loaded from BEACON via load_identity_assets.py.
+        Reads ``is_high_value_impersonation_target`` from
+        ``identity_flag_map`` (built from in-bundle identity rows) and
+        passes it to ``effective_priority``. ``x-identity-internal``
+        targets are not in the flag map; their flag is applied later by
+        ``recompute_effective_priority_for_identity`` when the Identity
+        row is loaded from BEACON via ``load_identity_assets.py``.
         """
         src_type = src.split("--")[0] if "--" in src else ""
         dst_type = dst.split("--")[0] if "--" in dst else ""
 
         # Emit-ready: threat-actor → identity (or x-identity-internal)
         if src_type == "threat-actor" and dst_type in ("identity", "x-identity-internal"):
-            target_roles: list[str] = []
-            if identity_roles_map is not None:
-                target_roles = identity_roles_map.get(dst, [])
             is_high_value = False
             if identity_flag_map is not None:
                 is_high_value = identity_flag_map.get(dst, False)
-            eff_pri = _effective_priority(confidence, target_roles, is_high_value)
-            actual_multiplier = _roles_boost_multiplier(target_roles) if not is_high_value else 1.5
+            eff_pri = _effective_priority(confidence, is_high_value)
             logger.info(
                 "effective_priority_computed",
                 source_stix_id=src,
                 identity_stix_id=dst,
                 base_confidence=confidence,
-                multiplier=actual_multiplier,
+                multiplier=1.5 if is_high_value else 1.0,
                 is_high_value_impersonation_target=is_high_value,
                 effective_priority=eff_pri,
             )
