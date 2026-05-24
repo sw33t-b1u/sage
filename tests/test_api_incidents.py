@@ -377,6 +377,90 @@ class TestSpannerUpsertContract:
         # sequence_order = 7 (from ttps[]) wins over None (from kcp)
         assert values[0][2] == 7
 
+    def test_kill_chain_phases_column_is_list_of_strings(self):
+        """Regression: must serialise as ARRAY<STRING(64)>, NOT a JSON blob.
+
+        A previous revision wrote ``json.dumps([struct, ...])`` into the
+        column; Spanner rejects that at commit time because the column is
+        ``ARRAY<STRING(64)>``. The fix is to emit plain ``list[str]`` of
+        ``phase_name`` values — same convention as the OpenCTI relay
+        path (``sage.stix.mapper.map_incident``).
+        """
+        body = _valid_body(
+            kill_chain_phases=[
+                {
+                    "kill_chain_name": "mitre-attack",
+                    "phase_name": "initial-access",
+                    "x_ttp_stix_id": VALID_TTP_A,
+                },
+                {
+                    "kill_chain_name": "mitre-attack",
+                    "phase_name": "execution",
+                    "x_ttp_stix_id": VALID_TTP_B,
+                },
+            ],
+        )
+        _, captured, _ = self._run(body)
+        incident_call = captured["upsert"][0]
+        columns = incident_call.kwargs["columns"]
+        values = incident_call.kwargs["values"][0]
+        kcp_idx = columns.index("kill_chain_phases")
+        kcp_value = values[kcp_idx]
+        # Must be a plain Python list of plain Python strings — that
+        # is the on-the-wire shape the Spanner client maps to
+        # ARRAY<STRING(64)>. Reject str (JSON-blob bug) and tuple.
+        assert isinstance(kcp_value, list)
+        assert all(isinstance(item, str) for item in kcp_value)
+        assert kcp_value == ["initial-access", "execution"]
+
+    def test_kill_chain_phases_truncated_to_ddl_max_length(self):
+        """Each phase_name is bounded to STRING(64) per the DDL."""
+        long_phase = "x" * 200
+        body = _valid_body(
+            kill_chain_phases=[
+                {"kill_chain_name": "mitre-attack", "phase_name": long_phase},
+            ],
+        )
+        _, captured, _ = self._run(body)
+        incident_call = captured["upsert"][0]
+        columns = incident_call.kwargs["columns"]
+        values = incident_call.kwargs["values"][0]
+        kcp_value = values[columns.index("kill_chain_phases")]
+        assert len(kcp_value) == 1
+        assert len(kcp_value[0]) <= 64
+
+    def test_kill_chain_phases_column_is_none_when_empty(self):
+        """Empty ``kill_chain_phases[]`` → column NULL (no zero-length array)."""
+        body = _valid_body(kill_chain_phases=[])
+        _, captured, _ = self._run(body)
+        incident_call = captured["upsert"][0]
+        columns = incident_call.kwargs["columns"]
+        values = incident_call.kwargs["values"][0]
+        assert values[columns.index("kill_chain_phases")] is None
+
+    def test_kill_chain_phases_shape_matches_mapper_convention(self):
+        """The direct-API write shape must match the OpenCTI relay path.
+
+        ``sage.stix.mapper.map_incident`` emits
+        ``[p.get("phase_name", "") for p in obj.get("kill_chain_phases", [])]``
+        for the same column. Both write paths must converge so a
+        downstream consumer cannot tell which producer wrote the row.
+        """
+        body = _valid_body(
+            kill_chain_phases=[
+                {"kill_chain_name": "mitre-attack", "phase_name": "credential-access"},
+                {"kill_chain_name": "lockheed", "phase_name": "actions-on-objectives"},
+            ],
+        )
+        _, captured, _ = self._run(body)
+        incident_call = captured["upsert"][0]
+        columns = incident_call.kwargs["columns"]
+        values = incident_call.kwargs["values"][0]
+        kcp_value = values[columns.index("kill_chain_phases")]
+        # Same shape mapper.py would produce from a STIX ``kill_chain_phases``
+        # list of {kill_chain_name, phase_name} dicts.
+        assert kcp_value == ["credential-access", "actions-on-objectives"]
+
 
 # ---------------------------------------------------------------------------
 # Retroactive Decision 10: POST /api/annotate must also gate on token

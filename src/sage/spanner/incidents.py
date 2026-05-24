@@ -144,14 +144,23 @@ def _serialise_diamond_model(req: IncidentRequest) -> str | None:
 def _build_incident_row(req: IncidentRequest, *, stix_modified: datetime) -> list[Any]:
     """Materialise the ``Incident`` row.
 
-    ``kill_chain_phases`` is persisted as the structured list (Spanner
-    ARRAY<STRUCT>) — the column already exists; we just pass the JSON
-    serialisation that the Spanner client accepts.
+    ``kill_chain_phases`` is declared ``ARRAY<STRING(64)>`` in
+    ``schema/spanner_ddl.sql`` (line 74), so the column accepts a plain
+    Python ``list[str]`` — one ``phase_name`` per entry, matching the
+    convention already used by the OpenCTI relay path in
+    ``sage.stix.mapper.map_incident``. ``kill_chain_name`` and the
+    optional ``x_ttp_stix_id`` metadata are NOT lost: they flow into
+    ``IncidentUsesTTP`` rows via :func:`_build_iut_rows`.
+
+    A previous revision serialised ``kill_chain_phases`` as a JSON
+    string — that satisfied the unit mocks but would crash a real
+    Spanner mutation with a STRING → ARRAY<STRING> type mismatch.
+    Each ``phase_name`` is truncated to 64 chars as a defensive bound
+    so a stray long string never trips the column-length check at
+    commit time.
     """
     kcp_payload = (
-        json.dumps([p.model_dump() for p in req.kill_chain_phases])
-        if req.kill_chain_phases
-        else None
+        [p.phase_name[:64] for p in req.kill_chain_phases] if req.kill_chain_phases else None
     )
     return [
         req.incident_stix_id,
