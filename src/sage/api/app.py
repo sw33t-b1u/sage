@@ -14,17 +14,18 @@ Environment variables (loaded via Config.from_env()):
 
 from __future__ import annotations
 
-import secrets
 from contextlib import asynccontextmanager
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 import structlog
-from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Query
 from google.cloud import spanner
 
 from sage.analysis.similarity import find_similar_incidents
 from sage.api.annotation import router as annotation_router
+from sage.api.auth import verify_auth
+from sage.api.incidents import router as incidents_router
 from sage.api.models import ThreatSummaryResponse
 from sage.api.threat_summary import build_threat_summary
 from sage.caldera.client import sync_actor_ttps
@@ -59,19 +60,15 @@ app = FastAPI(title="SAGE Analysis API", version="0.1.0", lifespan=lifespan)
 # ---------------------------------------------------------------------------
 # Authentication
 # ---------------------------------------------------------------------------
+# Read endpoints stay permissive when ``SAGE_API_AUTH_TOKEN`` is unset
+# (backwards-compatible with existing deployments). Write endpoints —
+# ``POST /api/annotate`` (Initiative E, retroactively per Decision 10)
+# and ``POST /api/incidents`` (Initiative G Phase 1) — reject with 503
+# when the token is unset so we cannot accept poisoned data from an
+# unauthenticated caller.
 
-
-async def _verify_auth(request: Request) -> None:
-    """Verify Bearer token if SAGE_API_AUTH_TOKEN is configured."""
-    config: Config = request.app.state.config
-    if not config.api_auth_token:
-        return
-    auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
-    token = auth_header[7:]
-    if not secrets.compare_digest(token, config.api_auth_token):
-        raise HTTPException(status_code=403, detail="Invalid API token")
+_verify_auth = verify_auth(enforce_when_unset=False)
+_verify_auth_write = verify_auth(enforce_when_unset=True)
 
 
 # ---------------------------------------------------------------------------
@@ -301,9 +298,25 @@ def post_caldera_adversary(
 # ---------------------------------------------------------------------------
 # Annotation router (POST /api/annotate)
 # ---------------------------------------------------------------------------
+# Initiative G Decision 10: write endpoint joins POST /api/incidents
+# under ``enforce_when_unset=True`` so the auth policy is uniform across
+# all write APIs (token unset → 503 instead of silently allowing writes).
 
 app.include_router(
     annotation_router,
     prefix="/api",
-    dependencies=[Depends(_verify_auth)],
+    dependencies=[Depends(_verify_auth_write)],
+)
+
+
+# ---------------------------------------------------------------------------
+# Incidents router (POST /api/incidents)
+# ---------------------------------------------------------------------------
+# Auth gate is declared inside the router (router-level Depends would
+# stack with the route-level Depends and confuse OpenAPI). The router
+# wires its own ``verify_auth(enforce_when_unset=True)``.
+
+app.include_router(
+    incidents_router,
+    prefix="/api",
 )

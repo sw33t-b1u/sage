@@ -16,20 +16,29 @@ from sage.api.app import app
 
 VALID_ACTOR = "intrusion-set--00000000-0000-0000-0000-000000000001"
 
+AUTH_TOKEN = "test-secret-token"
+AUTH_HEADER = {"Authorization": f"Bearer {AUTH_TOKEN}"}
+
 
 # ---------------------------------------------------------------------------
 # TestClient fixtures — mirror the pattern in tests/test_api.py.
 # ---------------------------------------------------------------------------
+# Initiative G Phase 1 / Decision 10 retroactively gates POST /api/annotate
+# behind a configured ``SAGE_API_AUTH_TOKEN`` (token unset → 503). The
+# ``client`` fixture below therefore configures a real token and the
+# request-emitting tests pass ``AUTH_HEADER``. The 503-when-unset
+# behaviour is covered by ``test_api_incidents.py::TestAnnotateRetroactive``
+# so we do not duplicate the unset-token fixture here.
 
 
 @pytest.fixture()
 def client():
-    """Client with API authentication disabled."""
+    """Client with a configured token; tests must pass ``AUTH_HEADER``."""
     mock_db = MagicMock()
     mock_config = MagicMock()
     mock_config.caldera_url = ""
     mock_config.caldera_api_key = ""
-    mock_config.api_auth_token = ""
+    mock_config.api_auth_token = AUTH_TOKEN
 
     with (
         patch("sage.api.app.Config.from_env", return_value=mock_config),
@@ -43,12 +52,12 @@ def client():
 
 @pytest.fixture()
 def authed_client():
-    """Client with API authentication enabled (Bearer token required)."""
+    """Alias of ``client`` retained for the auth-specific test class."""
     mock_db = MagicMock()
     mock_config = MagicMock()
     mock_config.caldera_url = ""
     mock_config.caldera_api_key = ""
-    mock_config.api_auth_token = "test-secret-token"
+    mock_config.api_auth_token = AUTH_TOKEN
 
     with (
         patch("sage.api.app.Config.from_env", return_value=mock_config),
@@ -85,6 +94,7 @@ class TestAnnotateHappyPath:
                     "annotation_type": "false-positive",
                     "payload": {"reason": "Mis-tagged by upstream feed"},
                 },
+                headers=AUTH_HEADER,
             )
         assert resp.status_code == 200
         body = resp.json()
@@ -118,6 +128,7 @@ class TestAnnotateHappyPath:
                         "reason": "Recent intrusion attempt confirmed",
                     },
                 },
+                headers=AUTH_HEADER,
             )
         assert resp.status_code == 200
         assert resp.json()["annotation_type"] == "confidence-override"
@@ -145,6 +156,7 @@ class TestAnnotateValidation:
                         "reason": "bogus",
                     },
                 },
+                headers=AUTH_HEADER,
             )
         assert resp.status_code == 422
         write_mock.assert_not_called()
@@ -159,6 +171,7 @@ class TestAnnotateValidation:
                 "annotation_type": "false-positive",
                 "payload": {"reason": "x"},
             },
+            headers=AUTH_HEADER,
         )
         assert resp.status_code == 422
 
@@ -172,6 +185,7 @@ class TestAnnotateValidation:
                 "annotation_type": "not-a-real-type",
                 "payload": {"reason": "x"},
             },
+            headers=AUTH_HEADER,
         )
         assert resp.status_code == 422
 
@@ -185,6 +199,7 @@ class TestAnnotateValidation:
                 "annotation_type": "false-positive",
                 "payload": {"reason": "x"},
             },
+            headers=AUTH_HEADER,
         )
         assert resp.status_code == 422
 
