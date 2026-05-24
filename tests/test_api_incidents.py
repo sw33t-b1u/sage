@@ -15,6 +15,7 @@ Bearer header).
 
 from __future__ import annotations
 
+from datetime import UTC, date, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -420,3 +421,360 @@ class TestAnnotateRetroactive:
                 headers=AUTH_HEADER,
             )
         assert resp.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# GET /api/incidents (Initiative G Phase 2)
+# ---------------------------------------------------------------------------
+
+
+def _sample_read_row(
+    *,
+    incident_stix_id: str = VALID_INCIDENT,
+    occurred_at: datetime | None = None,
+    diamond_model: dict[str, str] | None = None,
+    ttps: list[dict[str, object]] | None = None,
+) -> dict[str, object]:
+    """Build a fake row in the shape ``read_incidents`` returns."""
+    return {
+        "incident_stix_id": incident_stix_id,
+        "name": "Compromise of mail relay",
+        "description": "MIR-ticket 4242",
+        "occurred_at": occurred_at or datetime(2026, 5, 20, 12, 34, 56, tzinfo=UTC),
+        "severity": "high",
+        "source": "direct_api",
+        "kill_chain_phases": ["initial-access", "execution"],
+        "diamond_model": diamond_model
+        or {
+            "adversary": "APT99",
+            "capability": "spear-phishing kit",
+            "infrastructure": "fastflux nodes",
+            "victim": "mail relay (asset-001)",
+        },
+        "ttps": ttps
+        if ttps is not None
+        else [
+            {"ttp_stix_id": VALID_TTP_A, "sequence_order": 0},
+            {"ttp_stix_id": VALID_TTP_B, "sequence_order": 1},
+        ],
+    }
+
+
+class TestGetIncidentsHappyPath:
+    def test_default_window_returns_200(self, client_no_token):
+        """No params, no token configured -> permissive GET works."""
+        c, _ = client_no_token
+        rows = [_sample_read_row()]
+        with patch("sage.api.incidents.read_incidents", return_value=rows) as read_mock:
+            resp = c.get("/api/incidents")
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["count"] == 1
+        assert "since" in body["window"]
+        assert "until" in body["window"]
+        kwargs = read_mock.call_args.kwargs
+        assert kwargs["limit"] == 50
+        assert kwargs["actor_stix_id"] is None
+
+    def test_response_window_echoes_resolved_bounds(self, client_no_token):
+        """Caller can verify which window was actually applied."""
+        c, _ = client_no_token
+        with patch("sage.api.incidents.read_incidents", return_value=[]):
+            resp = c.get(
+                "/api/incidents",
+                params={"since": "2026-01-15", "until": "2026-04-30"},
+            )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["window"]["since"] == "2026-01-15"
+        assert body["window"]["until"] == "2026-04-30"
+
+    def test_response_includes_ttps_and_diamond_model_inline(self, client_no_token):
+        c, _ = client_no_token
+        rows = [_sample_read_row()]
+        with patch("sage.api.incidents.read_incidents", return_value=rows):
+            resp = c.get("/api/incidents")
+        assert resp.status_code == 200
+        entry = resp.json()["incidents"][0]
+        assert entry["ttps"] == [
+            {"ttp_stix_id": VALID_TTP_A, "sequence_order": 0},
+            {"ttp_stix_id": VALID_TTP_B, "sequence_order": 1},
+        ]
+        assert entry["diamond_model"] == {
+            "adversary": "APT99",
+            "capability": "spear-phishing kit",
+            "infrastructure": "fastflux nodes",
+            "victim": "mail relay (asset-001)",
+        }
+        assert entry["kill_chain_phases"] == ["initial-access", "execution"]
+        assert entry["source"] == "direct_api"
+
+
+class TestGetIncidentsFilters:
+    def test_since_until_forwarded_to_helper(self, client_no_token):
+        c, _ = client_no_token
+        with patch("sage.api.incidents.read_incidents", return_value=[]) as read_mock:
+            resp = c.get(
+                "/api/incidents",
+                params={"since": "2026-01-01", "until": "2026-05-01"},
+            )
+        assert resp.status_code == 200
+        kwargs = read_mock.call_args.kwargs
+        assert kwargs["since"].isoformat() == "2026-01-01"
+        assert kwargs["until"].isoformat() == "2026-05-01"
+
+    def test_incidents_outside_window_excluded(self):
+        """Helper binds the right window — params snap to next-day exclusive upper."""
+        from sage.spanner import incidents as inc_mod
+
+        in_window_row = (
+            VALID_INCIDENT,
+            "in window",
+            "",
+            datetime(2026, 3, 1, tzinfo=UTC),
+            "high",
+            "direct_api",
+            ["initial-access"],
+            None,
+        )
+
+        captured: dict[str, object] = {}
+
+        def fake_execute_sql(sql, params=None, param_types=None):
+            captured.setdefault("calls", []).append({"sql": sql, "params": params})
+            # First call = main query; subsequent = IUT lookup
+            if len(captured["calls"]) == 1:
+                return iter([in_window_row])
+            return iter([])
+
+        snap = MagicMock()
+        snap.__enter__ = MagicMock(return_value=snap)
+        snap.__exit__ = MagicMock(return_value=False)
+        snap.execute_sql = MagicMock(side_effect=fake_execute_sql)
+        database = MagicMock()
+        database.snapshot.return_value = snap
+
+        result = inc_mod.read_incidents(
+            database,
+            since=date(2026, 1, 1),
+            until=date(2026, 5, 1),
+            actor_stix_id=None,
+            limit=50,
+        )
+        assert len(result) == 1
+        main_params = captured["calls"][0]["params"]
+        assert main_params["since"].date() == date(2026, 1, 1)
+        # Snap-to-next-day-exclusive: until=2026-05-01 -> 2026-05-02 00:00 UTC
+        assert main_params["until"].date() == date(2026, 5, 2)
+
+    def test_actor_stix_id_filter_passed_through(self, client_no_token):
+        c, _ = client_no_token
+        with patch("sage.api.incidents.read_incidents", return_value=[]) as read_mock:
+            resp = c.get(
+                "/api/incidents",
+                params={"actor_stix_id": VALID_ACTOR_ANNOT},
+            )
+        assert resp.status_code == 200
+        kwargs = read_mock.call_args.kwargs
+        assert kwargs["actor_stix_id"] == VALID_ACTOR_ANNOT
+
+    def test_actor_stix_id_invalid_pattern_returns_422(self, client_no_token):
+        c, _ = client_no_token
+        resp = c.get(
+            "/api/incidents",
+            params={"actor_stix_id": "not-a-stix-id"},
+        )
+        assert resp.status_code == 422
+
+    def test_actor_filter_emits_exists_clause(self):
+        """Spanner SQL includes the EXISTS subquery + bind when actor filter active."""
+        from sage.spanner import incidents as inc_mod
+
+        captured: dict[str, object] = {"sqls": [], "params_list": []}
+
+        def fake_execute_sql(sql, params=None, param_types=None):
+            captured["sqls"].append(sql)
+            captured["params_list"].append(params)
+            return iter([])
+
+        snap = MagicMock()
+        snap.__enter__ = MagicMock(return_value=snap)
+        snap.__exit__ = MagicMock(return_value=False)
+        snap.execute_sql = MagicMock(side_effect=fake_execute_sql)
+        database = MagicMock()
+        database.snapshot.return_value = snap
+
+        inc_mod.read_incidents(
+            database,
+            since=date(2026, 1, 1),
+            until=date(2026, 5, 1),
+            actor_stix_id=VALID_ACTOR_ANNOT,
+            limit=50,
+        )
+        main_sql = captured["sqls"][0]
+        assert "EXISTS" in main_sql
+        assert "Uses u2" in main_sql
+        assert "@actor_stix_id" in main_sql
+        assert captured["params_list"][0]["actor_stix_id"] == VALID_ACTOR_ANNOT
+
+
+class TestGetIncidentsLimit:
+    def test_limit_propagated_to_helper(self, client_no_token):
+        c, _ = client_no_token
+        with patch("sage.api.incidents.read_incidents", return_value=[]) as read_mock:
+            resp = c.get("/api/incidents", params={"limit": 10})
+        assert resp.status_code == 200
+        assert read_mock.call_args.kwargs["limit"] == 10
+
+    def test_limit_zero_returns_422(self, client_no_token):
+        c, _ = client_no_token
+        resp = c.get("/api/incidents", params={"limit": 0})
+        assert resp.status_code == 422
+
+    def test_limit_above_max_returns_422(self, client_no_token):
+        c, _ = client_no_token
+        resp = c.get("/api/incidents", params={"limit": 101})
+        assert resp.status_code == 422
+
+    def test_default_limit_is_50(self, client_no_token):
+        c, _ = client_no_token
+        with patch("sage.api.incidents.read_incidents", return_value=[]) as read_mock:
+            c.get("/api/incidents")
+        assert read_mock.call_args.kwargs["limit"] == 50
+
+
+class TestGetIncidentsAuth:
+    def test_get_permissive_when_token_unset(self, client_no_token):
+        """GET is permissive when SAGE_API_AUTH_TOKEN is unset (plan §2.4)."""
+        c, _ = client_no_token
+        with patch("sage.api.incidents.read_incidents", return_value=[]):
+            resp = c.get("/api/incidents")
+        assert resp.status_code == 200
+
+    def test_get_200_with_valid_bearer_when_token_set(self, client_with_token):
+        c, _ = client_with_token
+        with patch("sage.api.incidents.read_incidents", return_value=[]):
+            resp = c.get("/api/incidents", headers=AUTH_HEADER)
+        assert resp.status_code == 200
+
+    def test_get_401_missing_bearer_when_token_set(self, client_with_token):
+        c, _ = client_with_token
+        resp = c.get("/api/incidents")
+        assert resp.status_code == 401
+
+    def test_get_403_wrong_bearer(self, client_with_token):
+        c, _ = client_with_token
+        resp = c.get(
+            "/api/incidents",
+            headers={"Authorization": "Bearer wrong-token"},
+        )
+        assert resp.status_code == 403
+
+
+class TestGetIncidentsDecoders:
+    """Cover the Spanner-column -> response shape conversion helpers."""
+
+    def test_diamond_model_decodes_string_payload(self):
+        from sage.spanner.incidents import _decode_diamond_model
+
+        raw = '{"adversary": "APT99", "capability": "kit", "infrastructure": "x", "victim": "y"}'
+        assert _decode_diamond_model(raw) == {
+            "adversary": "APT99",
+            "capability": "kit",
+            "infrastructure": "x",
+            "victim": "y",
+        }
+
+    def test_diamond_model_passes_through_dict(self):
+        from sage.spanner.incidents import _decode_diamond_model
+
+        payload = {"adversary": "APT99"}
+        assert _decode_diamond_model(payload) is payload
+
+    def test_diamond_model_returns_none_for_malformed_json(self):
+        from sage.spanner.incidents import _decode_diamond_model
+
+        assert _decode_diamond_model("{not valid") is None
+
+    def test_kill_chain_phases_empty_for_null_column(self):
+        from sage.spanner.incidents import _decode_kill_chain_phases
+
+        assert _decode_kill_chain_phases(None) == []
+        assert _decode_kill_chain_phases([]) == []
+
+    def test_kill_chain_phases_coerces_to_str(self):
+        from sage.spanner.incidents import _decode_kill_chain_phases
+
+        assert _decode_kill_chain_phases(["initial-access", "execution"]) == [
+            "initial-access",
+            "execution",
+        ]
+
+
+class TestGetIncidentsHelperShape:
+    """Exercise ``read_incidents`` directly to lock the IUT-attach contract."""
+
+    def test_ttps_attached_per_incident(self):
+        from sage.spanner import incidents as inc_mod
+
+        main_row = (
+            VALID_INCIDENT,
+            "x",
+            "",
+            datetime(2026, 3, 1, tzinfo=UTC),
+            "high",
+            "direct_api",
+            ["initial-access"],
+            None,
+        )
+        iut_rows = [
+            (VALID_INCIDENT, VALID_TTP_A, 0),
+            (VALID_INCIDENT, VALID_TTP_B, 1),
+        ]
+        call_count = {"n": 0}
+
+        def fake_execute_sql(sql, params=None, param_types=None):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                return iter([main_row])
+            return iter(iut_rows)
+
+        snap = MagicMock()
+        snap.__enter__ = MagicMock(return_value=snap)
+        snap.__exit__ = MagicMock(return_value=False)
+        snap.execute_sql = MagicMock(side_effect=fake_execute_sql)
+        database = MagicMock()
+        database.snapshot.return_value = snap
+
+        result = inc_mod.read_incidents(
+            database,
+            since=date(2026, 1, 1),
+            until=date(2026, 5, 1),
+            actor_stix_id=None,
+            limit=50,
+        )
+        assert len(result) == 1
+        assert result[0]["ttps"] == [
+            {"ttp_stix_id": VALID_TTP_A, "sequence_order": 0},
+            {"ttp_stix_id": VALID_TTP_B, "sequence_order": 1},
+        ]
+
+    def test_empty_main_query_skips_iut_lookup(self):
+        from sage.spanner import incidents as inc_mod
+
+        snap = MagicMock()
+        snap.__enter__ = MagicMock(return_value=snap)
+        snap.__exit__ = MagicMock(return_value=False)
+        snap.execute_sql = MagicMock(return_value=iter([]))
+        database = MagicMock()
+        database.snapshot.return_value = snap
+
+        result = inc_mod.read_incidents(
+            database,
+            since=date(2026, 1, 1),
+            until=date(2026, 5, 1),
+            actor_stix_id=None,
+            limit=50,
+        )
+        assert result == []
+        assert snap.execute_sql.call_count == 1

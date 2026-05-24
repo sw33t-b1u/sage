@@ -114,3 +114,62 @@ class ThreatSummaryResponse(BaseModel):
     choke_points: list[ChokePointEntry]
     vulnerabilities: list[VulnerabilityEntry]
     incidents: list[IncidentEntry]
+
+
+# ---------------------------------------------------------------------------
+# GET /api/incidents (Initiative G Phase 2)
+# ---------------------------------------------------------------------------
+# These models are intentionally separate from the POST request shape
+# in :mod:`sage.models.incident_request` — the read side returns
+# columns Spanner stores (``source``, decoded ``diamond_model``,
+# joined ``ttps[]``) while the write side accepts operator-supplied
+# Diamond Model + ``kill_chain_phases[]`` structures.
+
+
+class IncidentReadTTP(BaseModel):
+    """One ``IncidentUsesTTP`` row joined into the read response."""
+
+    model_config = ConfigDict(extra="forbid")
+    ttp_stix_id: str
+    sequence_order: int | None = None
+
+
+class IncidentReadEntry(BaseModel):
+    """Full incident row returned by ``GET /api/incidents`` (plan §2.4).
+
+    Includes the inline-expanded ``diamond_model`` JSON column and the
+    joined ``ttps[]`` block so BEACON can consume the full incident in
+    one round-trip per plan §2.4 ("response full").
+    """
+
+    model_config = ConfigDict(extra="forbid")
+    incident_stix_id: str
+    name: str
+    occurred_at: datetime | None = None
+    severity: str | None = None
+    source: str | None = None
+    description: str | None = None
+    kill_chain_phases: list[str] = Field(default_factory=list)
+    diamond_model: dict[str, Any] | None = None
+    ttps: list[IncidentReadTTP] = Field(default_factory=list)
+
+
+class IncidentWindow(BaseModel):
+    """Echoed time window for the GET response (plan §2.4).
+
+    Reports the *resolved* bounds — the caller can confirm which
+    window was actually applied when the request omitted either bound.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+    since: date
+    until: date
+
+
+class GetIncidentsResponse(BaseModel):
+    """Envelope for ``GET /api/incidents`` results."""
+
+    model_config = ConfigDict(extra="forbid")
+    count: int = Field(ge=0)
+    window: IncidentWindow
+    incidents: list[IncidentReadEntry]

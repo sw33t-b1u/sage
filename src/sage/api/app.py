@@ -15,7 +15,7 @@ Environment variables (loaded via Config.from_env()):
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from datetime import UTC, date, datetime, timedelta
+from datetime import date
 from typing import Any
 
 import structlog
@@ -28,6 +28,7 @@ from sage.api.auth import verify_auth
 from sage.api.incidents import router as incidents_router
 from sage.api.models import ThreatSummaryResponse
 from sage.api.threat_summary import build_threat_summary
+from sage.api.windows import resolve_window
 from sage.caldera.client import sync_actor_ttps
 from sage.config import Config
 from sage.spanner.query import (
@@ -101,19 +102,11 @@ def get_choke_points(
         raise HTTPException(status_code=500, detail="Internal server error") from exc
 
 
-def _resolve_window(config: Config, since: date | None, until: date | None) -> tuple[date, date]:
-    """Fill in absent since/until bounds from config.
-
-    Default ``until`` is today (UTC); default ``since`` is
-    ``until - activity_window_days`` so the response always carries a
-    bounded window. When the client passes only one bound, the other is
-    derived consistently from it.
-    """
-    if until is None:
-        until = datetime.now(tz=UTC).date()
-    if since is None:
-        since = until - timedelta(days=config.activity_window_days)
-    return since, until
+# ``_resolve_window`` was moved to ``sage.api.windows.resolve_window``
+# in Initiative G Phase 2 so the GET /api/incidents handler can share
+# the same defaulting logic without creating an import cycle. The local
+# alias is kept so existing references in this module read the same.
+_resolve_window = resolve_window
 
 
 @app.get("/actor-ttps", dependencies=[Depends(_verify_auth)])
