@@ -6,6 +6,120 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [1.0.0] — 2026-05-24
+
+**Initiative H — 1.0 Stabilization release.** SAGE 1.0.0 commits to
+the public surface documented in `docs/api-stability.md` under a
+90-day backward-compatibility guarantee. Paired triple: BEACON 1.0.0
++ TRACE 1.12.0 + SAGE 1.0.0.
+
+### Committed surface
+
+See `docs/api-stability.md` §3 for the authoritative inventory.
+Summary:
+
+- 9 REST endpoints: `GET /attack-paths`, `GET /choke-points`,
+  `GET /actor-ttps`, `GET /threat-summary`, `GET /asset-exposure`,
+  `GET /similar-incidents`, `POST /caldera/adversary`,
+  `POST /annotate` (E + G Decision 10 retroactive),
+  `POST /incidents` + `GET /incidents` (G Phase 1 + 2).
+- Spanner Graph DDL (36 tables) — additive only; column type
+  widening (e.g., `STRING(64)` → `STRING(128)`) OK; rename / drop /
+  narrowing requires `2.0.0`.
+- `Incident.source` discriminator values (`ir_feedback` /
+  `direct_api`).
+- Auth gate semantics: `POST` returns 503 when
+  `SAGE_API_AUTH_TOKEN` unset (write-API foot-gun); `GET`
+  permissive when unset.
+- Unified `sage` console-script entry + 9 subcommands.
+- MITRE Navigator import format support
+  (`sage incident-register --navigator-layer`).
+- ETL contract (TRACE STIX bundle ingest + BEACON `pir_output.json`
+  wrapped-envelope ingest).
+- Environment variables: `PROJECT_ID`, `SPANNER_INSTANCE`,
+  `SPANNER_DB`, `GCS_BUCKET`, `OPENCTI_URL`, `OPENCTI_TOKEN`,
+  `PIR_FILE_PATH`, `TLP_MAX_LEVEL`, `ACTIVITY_WINDOW_DAYS`,
+  `SAGE_ACTIVITY_WINDOW_DAYS`, `SAGE_API_AUTH_TOKEN`,
+  `SLACK_WEBHOOK_URL`.
+
+### Migration guide (operator steps)
+
+The Initiative H triple release is a coordinated cut. Apply in
+order:
+
+1. **BEACON 1.0.0**. Re-run `beacon pir-generate` so the emitted
+   `pir_output.json` carries `schema_version: "1.0.0"`.
+2. **TRACE 1.12.0**. Strict validator restricted to
+   `schema_version: "1.0.0"`. Wrapped envelope required.
+3. **SAGE 1.0.0** (this release). Deploy. `PIRFilter.from_file()`
+   now requires the wrapped envelope (bare-list rejected with the
+   migration message). The BEACON 0.12.x identity-asset fallback
+   (`HIGH_VALUE_IMPERSONATION_ROLES` 15-entry frozenset) is removed
+   — operators on BEACON ≤ 0.12.x must upgrade BEACON to 0.13.0+
+   first so `is_high_value_impersonation_target` is emitted
+   directly.
+
+The `effective_priority` recompute API gains a positional
+`is_high_value_impersonation_target` argument (no default). Callers
+must supply the flag explicitly.
+
+### Forward-looking note
+
+SAGE 1.0.0 starts a **90-day backward-compatibility window** for
+every item listed in `docs/api-stability.md` §3 (Committed surface).
+Within that window:
+
+- **Minor releases** (`1.X.0`) ship additive changes only — new
+  tables, new columns, new endpoints, new CLI subcommands, new env
+  vars, new `Incident.source` discriminator values, column type
+  widening (`STRING(64)` → `STRING(128)` etc.).
+- **Breaking changes** to any committed surface item require a new
+  major release (`2.0.0`). Examples that would force SAGE 2.0.0:
+  removing the `/attack-paths` endpoint, renaming the `ThreatActor`
+  table, removing the `Incident.source = 'ir_feedback'`
+  discriminator value (planned OpenCTI relay removal scenario),
+  narrowing a column type, changing the auth gate semantics.
+- **Deprecation path**: announce in 1.X.Y CHANGELOG + emit
+  `DeprecationWarning` at runtime + remove in `2.0.0` after the
+  90-day BC window and at least one further minor.
+
+Items marked Evolving in `docs/api-stability.md` §4 (internal
+SQL query implementation, ETL parallelism strategy, Prometheus
+metric naming beyond documented counters, migration script file
+naming) remain free to change in any minor.
+
+### Removed (BREAKING) — Initiative H Phase 3
+
+- **`HIGH_VALUE_IMPERSONATION_ROLES` 15-entry frozenset** in
+  `src/sage/spanner/constants.py`. The flag-driven
+  `is_high_value_impersonation_target` path (BEACON 0.13.0+) is the
+  only supported input. Operators on BEACON ≤ 0.12.x must upgrade
+  BEACON before SAGE 1.0.0 deployment.
+- **BEACON 0.12.x compat branches in `src/sage/spanner/upsert.py`**.
+
+### Changed (BREAKING) — Initiative H Phase 3
+
+- **`PIRFilter.from_file()` requires the wrapped envelope**
+  (`{"schema_version": "1.0.0", "pirs": [...]}`). Bare-list and
+  single-object payloads are rejected with the migration message.
+- **`effective_priority` recompute API**: the
+  `is_high_value_impersonation_target` argument is positional (no
+  default). Matches the flag-driven Phase 3 contract.
+
+### Added — Initiative H Phase 6: unified `sage` CLI
+
+- New `sage` console script (`sage.cli:cli`) exposes 9 verb-noun
+  subcommands matching `docs/api-stability.md` §3.6: `init-schema`,
+  `load-assets`, `load-identity-assets`, `load-user-accounts`,
+  `incident-register`, `actor-annotate`, `query-attack-paths`,
+  `ir-template`, `serve-api`. Each subcommand delegates to the
+  existing `cmd/<name>.py` via `importlib.util.spec_from_file_location`
+  (sidestepping the stdlib `cmd` module shadow).
+- `cmd/<name>.py` modules gain a deprecation steer (module
+  docstring + stderr warning at script invocation). Legacy
+  invocation form remains supported through SAGE 1.x for backward
+  compatibility; removal scheduled for SAGE 2.0.
+
 ## [0.13.0] — 2026-05-24
 
 Initiative G (IR Feedback Ingestion + Diamond Model Support) release —
