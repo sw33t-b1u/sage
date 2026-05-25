@@ -462,6 +462,76 @@ def load_pir_edges(database: Database) -> dict[str, list[dict[str, Any]]]:
 
 
 # ---------------------------------------------------------------------------
+# Actor name search (Initiative I Phase 3 — GET /actors)
+# ---------------------------------------------------------------------------
+
+
+def find_actors_by_name(
+    database: Database,
+    name_query: str,
+    limit: int = 20,
+) -> list[dict[str, Any]]:
+    """Return ThreatActors whose name contains ``name_query`` (case-insensitive).
+
+    Sorted by ``last_seen`` DESC (most recently active first).
+
+    Returns:
+        [
+          {
+            "stix_id": "intrusion-set--xxx",
+            "name": "APT99",
+            "description": None,
+            "aliases": ["Fancy Bear"],
+            "first_seen": <datetime>,
+            "last_seen": <datetime>,
+            "sophistication_level": "advanced",
+          },
+          ...
+        ]
+    """
+    sql = """
+    SELECT
+      stix_id,
+      name,
+      aliases,
+      first_seen,
+      last_seen,
+      sophistication
+    FROM ThreatActor
+    WHERE LOWER(name) LIKE LOWER(@pattern)
+    ORDER BY last_seen DESC
+    LIMIT @limit
+    """
+    params = {
+        "pattern": f"%{name_query}%",
+        "limit": limit,
+    }
+    param_types = {
+        "pattern": _str_type(),
+        "limit": _int64_type(),
+    }
+
+    rows: list[dict[str, Any]] = []
+    with database.snapshot() as snap:
+        result = snap.execute_sql(sql, params=params, param_types=param_types)
+        for row in result:
+            rows.append(
+                {
+                    "stix_id": row[0],
+                    "name": row[1],
+                    "description": None,
+                    "aliases": list(row[2] or []),
+                    "first_seen": row[3],
+                    "last_seen": row[4],
+                    "sophistication_level": row[5],
+                }
+            )
+
+    logger.info("find_actors_by_name", name_query=name_query, count=len(rows))
+    return rows
+
+
+# ---------------------------------------------------------------------------
 # Threat summary (Initiative F Phase 8 — GET /threat-summary)
 # ---------------------------------------------------------------------------
 

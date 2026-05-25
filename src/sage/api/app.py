@@ -33,6 +33,7 @@ from sage.caldera.client import sync_actor_ttps
 from sage.config import Config
 from sage.spanner.query import (
     find_actor_ttps,
+    find_actors_by_name,
     find_asset_exposure,
     find_attack_paths,
     find_choke_points,
@@ -133,6 +134,32 @@ def get_actor_ttps(
         return find_actor_ttps(app.state.database, actor_id, since=since_d, until=until_d)
     except Exception as exc:
         logger.error("api_error", endpoint="actor-ttps", error=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error") from exc
+
+
+@app.get("/actors", dependencies=[Depends(_verify_auth)])
+def get_actors(
+    name: str = Query(
+        ...,
+        min_length=2,
+        description="Name substring to search (case-insensitive, min 2 chars)",
+    ),
+    limit: int = Query(
+        20,
+        ge=1,
+        le=100,
+        description="Maximum number of results to return (1-100)",
+    ),
+) -> dict[str, Any]:
+    """Return ThreatActors whose name contains the given substring.
+
+    Returns ``{"actors": [...], "count": N}`` sorted by last_seen DESC.
+    """
+    try:
+        actors = find_actors_by_name(app.state.database, name, limit)
+        return {"actors": actors, "count": len(actors)}
+    except Exception as exc:
+        logger.error("api_error", endpoint="actors", error=str(exc))
         raise HTTPException(status_code=500, detail="Internal server error") from exc
 
 

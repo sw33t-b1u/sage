@@ -282,6 +282,55 @@ class TestAuthentication:
 
 
 # ---------------------------------------------------------------------------
+# /actors
+# ---------------------------------------------------------------------------
+
+
+class TestActorsEndpoint:
+    def test_success(self, client):
+        c, _ = client
+        actors = [
+            {
+                "stix_id": "intrusion-set--apt99",
+                "name": "APT99",
+                "description": None,
+                "aliases": ["Fancy Bear"],
+                "first_seen": None,
+                "last_seen": None,
+                "sophistication_level": "advanced",
+            }
+        ]
+        with patch("sage.api.app.find_actors_by_name", return_value=actors):
+            resp = c.get("/actors", params={"name": "APT"})
+        assert resp.status_code == 200
+        body = resp.json()
+        assert "actors" in body
+        assert "count" in body
+        assert body["count"] == 1
+        assert body["actors"][0]["stix_id"] == "intrusion-set--apt99"
+        assert body["actors"][0]["name"] == "APT99"
+
+    def test_missing_name_param(self, client):
+        c, _ = client
+        resp = c.get("/actors")
+        assert resp.status_code == 422
+
+    def test_name_too_short(self, client):
+        c, _ = client
+        resp = c.get("/actors", params={"name": "A"})
+        assert resp.status_code == 422
+
+    def test_limit_validation(self, client):
+        c, _ = client
+        # limit=0 is below the allowed range (ge=1)
+        resp = c.get("/actors", params={"name": "APT", "limit": 0})
+        assert resp.status_code == 422
+        # limit=101 is above the allowed range (le=100)
+        resp = c.get("/actors", params={"name": "APT", "limit": 101})
+        assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
 # Error message sanitization
 # ---------------------------------------------------------------------------
 
