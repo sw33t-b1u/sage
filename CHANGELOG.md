@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [1.1.0] — 2026-05-25
+
+**Initiative I — /actors endpoint + Storage Abstraction.** Paired
+triple: BEACON 1.1.0 + SAGE 1.1.0 + TRACE 1.13.0.
+
+### Added
+
+- **`GET /actors?name=<query>`** — name-based actor search endpoint.
+  Case-insensitive substring match, min 2 chars, returns
+  `{"actors": [...], "count": N}` sorted by `last_seen` DESC.
+- **StorageBackend abstraction layer** — `LocalStorage` and
+  `GCSStorage` implementations (copied from BEACON per Decision I-12).
+  Env vars: `SAGE_STORAGE`, `SAGE_STORAGE_BASE_DIR`,
+  `SAGE_GCS_BUCKET`, `SAGE_GCS_PREFIX`.
+- **Multi-bundle ETL** — `run_etl` processes all STIX bundles in the
+  StorageBackend `stix/` category, not just a single file.
+- `load_assets`, `load_identity_assets`, `load_user_accounts` fall
+  back to StorageBackend when `--input` is not specified.
+
+---
+
 ## [1.0.0] — 2026-05-24
 
 **Initiative H — 1.0 Stabilization release.** SAGE 1.0.0 commits to
