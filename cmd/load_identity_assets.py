@@ -47,6 +47,7 @@ from sage.spanner.upsert import (
     upsert_has_access,
     upsert_rows,
 )
+from sage.storage import create_storage_backend
 
 structlog.configure(
     processors=[
@@ -191,29 +192,56 @@ def main() -> None:
         "--input",
         "-i",
         type=Path,
-        default=DEFAULT_FILE,
-        help=f"identity_assets JSON path (default: {DEFAULT_FILE})",
+        default=None,
+        help="identity_assets JSON path (omit to use StorageBackend latest)",
     )
     args = parser.parse_args()
 
-    if not args.input.exists():
-        logger.error("file_not_found", path=str(args.input))
-        sys.exit(1)
-
     config = Config.from_env()
+
+    if args.input is not None:
+        input_path = args.input
+        if not input_path.exists():
+            logger.error("file_not_found", path=str(input_path))
+            sys.exit(1)
+        with input_path.open() as f:
+            data = json.load(f)
+        logger.info(
+            "loading_identity_assets",
+            file=str(input_path),
+            identities=len(data.get("identities", [])),
+            has_access=len(data.get("has_access", [])),
+        )
+    else:
+        # Try StorageBackend — load the latest identity_assets file from "assets" category
+        storage = create_storage_backend(config)
+        asset_files = [f for f in storage.list_files("assets") if "identity" in f]
+        if asset_files:
+            latest = asset_files[-1]
+            logger.info("loading_identity_assets", file=latest, backend=config.sage_storage)
+            raw = storage.load("assets", latest)
+            data = json.loads(raw)
+        elif DEFAULT_FILE.exists():
+            # Fallback to default path for backward compatibility
+            with DEFAULT_FILE.open() as f:
+                data = json.load(f)
+            logger.info(
+                "loading_identity_assets",
+                file=str(DEFAULT_FILE),
+                identities=len(data.get("identities", [])),
+                has_access=len(data.get("has_access", [])),
+            )
+        else:
+            logger.error(
+                "no_identity_assets_file_found",
+                hint="Specify --input or configure StorageBackend",
+            )
+            sys.exit(1)
+
     spanner_client = spanner.Client(project=config.gcp_project_id)
     instance = spanner_client.instance(config.spanner_instance_id)
     database = instance.database(config.spanner_database_id)
 
-    with args.input.open() as f:
-        data = json.load(f)
-
-    logger.info(
-        "loading_identity_assets",
-        file=str(args.input),
-        identities=len(data.get("identities", [])),
-        has_access=len(data.get("has_access", [])),
-    )
     load_identity_assets(database, data)
 
 

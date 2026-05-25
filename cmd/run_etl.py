@@ -30,6 +30,7 @@ from sage.spanner.client import get_database
 from sage.spanner.query import find_choke_points
 from sage.spanner.upsert import fetch_asset_rows
 from sage.stix.parser import parse_bundle
+from sage.storage import create_storage_backend
 
 structlog.configure(
     processors=[
@@ -76,12 +77,23 @@ def main() -> None:
             bundle = json.load(f)
         objects = parse_bundle(bundle)
     else:
-        modified_after = datetime.now(tz=UTC) - timedelta(days=args.since_days)
-        logger.info("mode", type="opencti", modified_after=modified_after.isoformat())
-        client = OpenCTIClient(config.opencti_url, config.opencti_token)
-        bundle = client.fetch_stix_bundle(modified_after=modified_after)
-        client.save_bundle_to_gcs(bundle, config.gcs_landing_bucket)
-        objects = parse_bundle(bundle)
+        # Try StorageBackend first — if any STIX bundles exist in the
+        # "stix" category, load the latest one.
+        storage = create_storage_backend(config)
+        stix_files = storage.list_files("stix")
+        if stix_files:
+            latest = stix_files[-1]
+            logger.info("mode", type="storage", file=latest, backend=config.sage_storage)
+            raw = storage.load("stix", latest)
+            bundle = json.loads(raw)
+            objects = parse_bundle(bundle)
+        else:
+            modified_after = datetime.now(tz=UTC) - timedelta(days=args.since_days)
+            logger.info("mode", type="opencti", modified_after=modified_after.isoformat())
+            client = OpenCTIClient(config.opencti_url, config.opencti_token)
+            bundle = client.fetch_stix_bundle(modified_after=modified_after)
+            client.save_bundle_to_gcs(bundle, config.gcs_landing_bucket)
+            objects = parse_bundle(bundle)
 
     # Targets エッジ生成のために事前に資産データを取得する
     asset_rows = fetch_asset_rows(database)
