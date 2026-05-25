@@ -35,12 +35,21 @@ real-time SIEM detection, endpoint protection, vulnerability scanning automation
        │ (TRACE: validate_assets / validate_pir /
        │  validate_identity_assets / validate_user_accounts で検証通過後)
        ▼
+[StorageBackend: Local (output/) or GCS]
+  ├── stix/        ← TRACE STIX bundles
+  ├── assets/      ← BEACON assets outputs
+  ├── pir/         ← BEACON PIR outputs
+  └── plans/       ← collection_plan, sources_candidate
+
+       │
+       ▼
 [SAGE: load_assets / load_identity_assets / load_user_accounts /
-       PIR ingest]
+       PIR ingest]  (falls back to StorageBackend when --input omitted)
 
         │
         ▼
 [ETL Worker — Cloud Run]
+  ├── Reads ALL bundles from StorageBackend stix/ category
   ├── STIX parsing + deduplication (identity SDO 含む)
   ├── TLP enforcement
   ├── PIR cascade build (TAP/PTTP/WeightsAsset)
@@ -56,12 +65,36 @@ real-time SIEM detection, endpoint protection, vulnerability scanning automation
 [Analysis API — Cloud Run, VPC-internal]
   GET /attack-paths  GET /choke-points
   GET /actor-ttps    GET /asset-exposure
-  GET /similar-incidents  POST /caldera/adversary
+  GET /actors        GET /similar-incidents
+  POST /caldera/adversary
 
         │
         ▼
 [GHE Issues]  [Slack alerts]  [Caldera adversary profiles]
 ```
+
+## StorageBackend
+
+SAGE uses the same `StorageBackend` abstraction as BEACON and TRACE (Decision I-12). Configure via environment variables:
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `SAGE_STORAGE` | `local` | Backend type: `local` or `gcs` |
+| `SAGE_STORAGE_BASE_DIR` | `output` | Base directory for local storage (shared with TRACE/BEACON) |
+| `SAGE_GCS_BUCKET` | (none) | GCS bucket name (required when `SAGE_STORAGE=gcs`) |
+| `SAGE_GCS_PREFIX` | (none) | GCS object key prefix (optional) |
+
+Categories stored under the backend:
+
+| Category | Contents |
+|----------|---------|
+| `stix` | TRACE STIX bundles — ETL processes all files found here |
+| `assets` | BEACON `assets.json` outputs |
+| `pir` | BEACON `pir_output.json` outputs |
+| `plans` | `collection_plan.md`, `sources_candidate.yaml` |
+| `crawl_state` | TRACE crawl state files |
+
+`cmd/run_etl.py` processes **all** bundles in the `stix/` category when no `--input` flag is given. `cmd/load_assets.py`, `cmd/load_identity_assets.py`, and `cmd/load_user_accounts.py` fall back to StorageBackend automatically when `--input` is omitted.
 
 ## Documentation
 

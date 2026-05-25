@@ -137,7 +137,37 @@ uv run python cmd/analysis_api.py --port 8080
 | `GET /asset-exposure` | ターゲティングアクター数を含む全資産一覧 |
 | `GET /attack-paths?asset_id=<id>` | 指定資産への攻撃経路 |
 | `GET /actor-ttps?actor_id=<id>` | 脅威アクターに関連する TTP |
+| `GET /actors?name=<query>&limit=20` | 脅威アクター名の部分一致検索（大小文字不問、最小 2 文字） |
 | `GET /similar-incidents?incident_id=<id>` | 指定インシデントに類似した過去インシデント |
+
+**アクター名検索の例:**
+
+```sh
+# "apt" を含むアクターを検索
+curl "http://localhost:8080/actors?name=apt"
+
+# "lazarus" を含むアクターを上位 5 件取得
+curl "http://localhost:8080/actors?name=lazarus&limit=5"
+```
+
+レスポンス形式: `{"actors": [{stix_id, name, description, aliases, first_seen, last_seen, sophistication_level}, …], "count": N}`
+
+**StorageBackend 経由でのアーティファクトロード:**
+
+`SAGE_STORAGE_BASE_DIR` が共有の `output/` ディレクトリを指している場合（デフォルト）、
+`--input` を省略するとアセットロードコマンドが自動検出する:
+
+```sh
+# StorageBackend の assets/ カテゴリから自動取得
+uv run sage load-assets
+uv run sage load-identity-assets
+uv run sage load-user-accounts
+
+# StorageBackend の stix/ カテゴリから全 STIX バンドルを ETL 処理
+uv run sage run-etl
+```
+
+StorageBackend は `SAGE_STORAGE`（`local` または `gcs`）、`SAGE_STORAGE_BASE_DIR`（デフォルト: `output`）、`SAGE_GCS_BUCKET`、`SAGE_GCS_PREFIX` で設定する。
 
 ---
 

@@ -133,7 +133,38 @@ Available endpoints:
 | `GET /asset-exposure` | All assets with targeting actor counts |
 | `GET /attack-paths?asset_id=<id>` | Attack paths leading to an asset |
 | `GET /actor-ttps?actor_id=<id>` | TTPs associated with a threat actor |
+| `GET /actors?name=<query>&limit=20` | Threat actor name search (case-insensitive substring, min 2 chars) |
 | `GET /similar-incidents?incident_id=<id>` | Incidents similar to a given one |
+
+**Actor name search examples:**
+
+```sh
+# Find actors whose name contains "apt"
+curl "http://localhost:8080/actors?name=apt"
+
+# Find actors with "lazarus" in the name, top 5
+curl "http://localhost:8080/actors?name=lazarus&limit=5"
+```
+
+Response format: `{"actors": [{stix_id, name, description, aliases, first_seen, last_seen, sophistication_level}, …], "count": N}`
+
+**Loading artifacts via StorageBackend:**
+
+When `SAGE_STORAGE_BASE_DIR` points to the shared `output/` directory (the default),
+asset loading commands auto-detect files without `--input`:
+
+```sh
+# Auto-load from StorageBackend assets/ category
+uv run sage load-assets
+uv run sage load-identity-assets
+uv run sage load-user-accounts
+
+# ETL processes all STIX bundles from StorageBackend stix/ category
+uv run sage run-etl
+```
+
+StorageBackend is configured via `SAGE_STORAGE` (`local` or `gcs`),
+`SAGE_STORAGE_BASE_DIR` (default: `output`), `SAGE_GCS_BUCKET`, and `SAGE_GCS_PREFIX`.
 
 ---
 

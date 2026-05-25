@@ -35,12 +35,21 @@
        │ (TRACE: validate_assets / validate_pir /
        │  validate_identity_assets / validate_user_accounts で検証通過後)
        ▼
+[StorageBackend: ローカル (output/) または GCS]
+  ├── stix/        ← TRACE STIX バンドル
+  ├── assets/      ← BEACON assets 出力
+  ├── pir/         ← BEACON PIR 出力
+  └── plans/       ← collection_plan、sources_candidate
+
+       │
+       ▼
 [SAGE: load_assets / load_identity_assets / load_user_accounts /
-       PIR 取込]
+       PIR 取込]  (--input 省略時は StorageBackend から自動取得)
 
         │
         ▼
 [ETL ワーカー — Cloud Run]
+  ├── StorageBackend の stix/ カテゴリから全バンドルを処理
   ├── STIX パース + 重複排除（identity SDO 含む）
   ├── TLP 制御
   ├── PIR カスケード生成 (TAP/PTTP/WeightsAsset)
@@ -56,12 +65,36 @@
 [Analysis API — Cloud Run、VPC 内]
   GET /attack-paths  GET /choke-points
   GET /actor-ttps    GET /asset-exposure
-  GET /similar-incidents  POST /caldera/adversary
+  GET /actors        GET /similar-incidents
+  POST /caldera/adversary
 
         │
         ▼
 [GHE Issues]  [Slack アラート]  [Caldera Adversary プロファイル]
 ```
+
+## StorageBackend
+
+SAGE は BEACON・TRACE と同じ `StorageBackend` 抽象化を採用（Decision I-12）。環境変数で設定する:
+
+| 変数 | デフォルト | 用途 |
+|------|-----------|------|
+| `SAGE_STORAGE` | `local` | バックエンド種別: `local` または `gcs` |
+| `SAGE_STORAGE_BASE_DIR` | `output` | ローカルストレージのベースディレクトリ（TRACE/BEACON と共有） |
+| `SAGE_GCS_BUCKET` | (なし) | GCS バケット名（`SAGE_STORAGE=gcs` 時に必須） |
+| `SAGE_GCS_PREFIX` | (なし) | GCS オブジェクトキーのプレフィックス（任意） |
+
+バックエンドに保存されるカテゴリ:
+
+| カテゴリ | 内容 |
+|---------|------|
+| `stix` | TRACE STIX バンドル — ETL はここの全ファイルを処理 |
+| `assets` | BEACON `assets.json` 出力 |
+| `pir` | BEACON `pir_output.json` 出力 |
+| `plans` | `collection_plan.md`、`sources_candidate.yaml` |
+| `crawl_state` | TRACE クロール状態ファイル |
+
+`cmd/run_etl.py` は `--input` フラグ未指定時に `stix/` カテゴリの**全バンドル**を処理する。`cmd/load_assets.py`・`cmd/load_identity_assets.py`・`cmd/load_user_accounts.py` は `--input` 省略時に StorageBackend から自動取得する。
 
 ## ドキュメント
 
