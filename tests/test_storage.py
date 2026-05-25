@@ -452,7 +452,7 @@ class TestConfigStorageFields:
         cfg = cfg_mod.Config.from_env()
         assert cfg.sage_storage == "local"
 
-    def test_default_base_dir_is_input(self, monkeypatch):
+    def test_default_base_dir_is_output(self, monkeypatch):
         monkeypatch.delenv("SAGE_STORAGE_BASE_DIR", raising=False)
         monkeypatch.setenv("PROJECT_ID", "test-project")
         monkeypatch.setenv("SPANNER_INSTANCE", "test-instance")
@@ -466,7 +466,7 @@ class TestConfigStorageFields:
 
         reload(cfg_mod)
         cfg = cfg_mod.Config.from_env()
-        assert cfg.sage_storage_base_dir == "input"
+        assert cfg.sage_storage_base_dir == "output"
 
     def test_env_overrides_backend(self, monkeypatch):
         monkeypatch.setenv("SAGE_STORAGE", "gcs")

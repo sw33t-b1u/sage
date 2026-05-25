@@ -78,15 +78,44 @@ def main() -> None:
         objects = parse_bundle(bundle)
     else:
         # Try StorageBackend first — if any STIX bundles exist in the
-        # "stix" category, load the latest one.
+        # "stix" category, process all of them.
         storage = create_storage_backend(config)
         stix_files = storage.list_files("stix")
         if stix_files:
-            latest = stix_files[-1]
-            logger.info("mode", type="storage", file=latest, backend=config.sage_storage)
-            raw = storage.load("stix", latest)
-            bundle = json.loads(raw)
-            objects = parse_bundle(bundle)
+            logger.info(
+                "mode",
+                type="storage",
+                backend=config.sage_storage,
+                bundle_count=len(stix_files),
+            )
+            # Accumulate asset rows once; process each bundle individually so
+            # that stats reflect the full run.
+            asset_rows = fetch_asset_rows(database)
+            logger.info("fetched_assets", count=len(asset_rows))
+            prev_choke_rows = find_choke_points(database, top_n=50)
+
+            combined_stats: dict = {}
+            for stix_filename in stix_files:
+                logger.info("processing_bundle", file=stix_filename)
+                content = storage.load("stix", stix_filename)
+                bundle = json.loads(content)
+                objects = parse_bundle(bundle)
+                stats = worker.process_bundle(objects, asset_rows=asset_rows)
+                for k, v in stats.items():
+                    combined_stats[k] = combined_stats.get(k, 0) + v
+
+            logger.info(
+                "storage_etl_complete",
+                bundles_processed=len(stix_files),
+                **combined_stats,
+            )
+
+            if config.slack_webhook_url:
+                choke_rows = find_choke_points(database, top_n=50)
+                notify_etl_complete(
+                    config.slack_webhook_url, combined_stats, choke_rows, prev_choke_rows
+                )
+            return
         else:
             modified_after = datetime.now(tz=UTC) - timedelta(days=args.since_days)
             logger.info("mode", type="opencti", modified_after=modified_after.isoformat())

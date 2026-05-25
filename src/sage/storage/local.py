@@ -20,7 +20,7 @@ class LocalStorage(StorageBackend):
                   working directory at instantiation time.
     """
 
-    def __init__(self, base_dir: str | Path = "input") -> None:
+    def __init__(self, base_dir: str | Path = "output") -> None:
         self._base = Path(base_dir).resolve()
 
     # ------------------------------------------------------------------

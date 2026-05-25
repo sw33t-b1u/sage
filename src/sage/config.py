@@ -53,8 +53,8 @@ class Config:
     api_auth_token: str = ""
     # Storage backend: "local" (default) or "gcs"
     sage_storage: str = "local"
-    # Base directory for local storage (SAGE reads input artifacts)
-    sage_storage_base_dir: str = "input"
+    # Base directory for local storage (shared output directory with TRACE/BEACON)
+    sage_storage_base_dir: str = "output"
     # GCS bucket name (required when sage_storage="gcs")
     sage_gcs_bucket: str = ""
     # GCS object key prefix (optional)
@@ -104,7 +104,7 @@ class Config:
             caldera_api_key=os.environ.get("CALDERA_API_KEY", ""),
             api_auth_token=os.environ.get("SAGE_API_AUTH_TOKEN", ""),
             sage_storage=os.environ.get("SAGE_STORAGE", "local"),
-            sage_storage_base_dir=os.environ.get("SAGE_STORAGE_BASE_DIR", "input"),
+            sage_storage_base_dir=os.environ.get("SAGE_STORAGE_BASE_DIR", "output"),
             sage_gcs_bucket=os.environ.get("SAGE_GCS_BUCKET", ""),
             sage_gcs_prefix=os.environ.get("SAGE_GCS_PREFIX", ""),
         )
