@@ -12,7 +12,7 @@ plan exactly:
 
 The Diamond Model is enforced as a 4-key dict (adversary / capability /
 infrastructure / victim) per Caltagirone, Pendergast & Betz (2013) —
-see ``ref/diamondmodel.md`` and plan §5. Quadrant **values** are free
+see Caltagirone, Pendergast & Betz (2013). Quadrant **values** are free
 text (may be empty strings) so operators can register an incident with
 partial knowledge; **keys** must all be present so the column always
 round-trips with a complete shape.

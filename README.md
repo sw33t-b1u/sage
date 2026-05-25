@@ -72,6 +72,7 @@ real-time SIEM detection, endpoint protection, vulnerability scanning automation
 | [docs/data-model.md](docs/data-model.md) | Node/edge definitions, PIR weighting formula, FollowedBy weight calculation |
 | [docs/local-testing.md](docs/local-testing.md) | Spanner emulator setup, unit tests, sample fixtures |
 | [docs/dependencies.md](docs/dependencies.md) | Dependency rationale and license information |
+| [docs/pipeline-guide.md](docs/pipeline-guide.md) | End-to-end CTI pipeline workflow: BEACON → TRACE → SAGE ([ja](docs/pipeline-guide.ja.md)) |
 
 ## Quick start
 

@@ -18,7 +18,7 @@ the same rows. The Identity namespace is shared with
 Usage:
     export SPANNER_EMULATOR_HOST=localhost:9010  # for local emulator
     uv run python cmd/load_user_accounts.py \\
-        --file ../BEACON/output/user_accounts.json
+        --input ../BEACON/output/user_accounts.json
 
 .. deprecated:: SAGE 1.0.0
 
@@ -170,15 +170,16 @@ def load_user_accounts(database: spanner.Database, data: dict) -> dict[str, int]
 def main() -> None:
     parser = argparse.ArgumentParser(description="Load user_accounts.json into Spanner")
     parser.add_argument(
-        "--file",
+        "--input",
+        "-i",
         type=Path,
         default=DEFAULT_FILE,
         help=f"user_accounts JSON path (default: {DEFAULT_FILE})",
     )
     args = parser.parse_args()
 
-    if not args.file.exists():
-        logger.error("file_not_found", path=str(args.file))
+    if not args.input.exists():
+        logger.error("file_not_found", path=str(args.input))
         sys.exit(1)
 
     config = Config.from_env()
@@ -186,12 +187,12 @@ def main() -> None:
     instance = spanner_client.instance(config.spanner_instance_id)
     database = instance.database(config.spanner_database_id)
 
-    with args.file.open() as f:
+    with args.input.open() as f:
         data = json.load(f)
 
     logger.info(
         "loading_user_accounts",
-        file=str(args.file),
+        file=str(args.input),
         user_accounts=len(data.get("user_accounts", [])),
         account_on_asset=len(data.get("account_on_asset", [])),
     )

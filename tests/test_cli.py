@@ -45,6 +45,8 @@ SUBCOMMANDS: list[str] = [
     "query-attack-paths",
     "ir-template",
     "serve-api",
+    "run-etl",
+    "visualize-graph",
 ]
 
 
@@ -67,10 +69,10 @@ def test_root_help_advertises_unified_entry():
 
 
 def test_subcommand_count_matches_api_stability_table():
-    """``docs/api-stability.md`` §3.6 freezes exactly 9 subcommands."""
-    assert len(cli.commands) == 9, (
+    """``docs/api-stability.md`` §3.6 freezes exactly 11 subcommands."""
+    assert len(cli.commands) == 11, (
         f"Subcommand count drift: registered={sorted(cli.commands.keys())}, "
-        f"expected 9 per api-stability.md §3.6"
+        f"expected 11 per api-stability.md §3.6"
     )
 
 

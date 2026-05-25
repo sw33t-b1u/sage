@@ -52,7 +52,7 @@ provides no path at all.
 
 NIST SP 800-61r3 (April 2025) §2.1 captures the policy motivation
 behind the direct-API addition (verbatim — NIST publication, US gov
-public domain under 17 USC §105, `ref/NIST.SP.800-61r3.md:308-313`):
+public domain under 17 USC §105):
 
 > The lessons learned during incident response should often be shared
 > **as soon as they are identified**, not delayed until after
@@ -164,7 +164,7 @@ Opportunity = (victimology_match × geographic_match × surface_ttp_coverage × 
 ```
 
 Methodology citation (MITRE Cyber Prep, fair-use academic quote,
-© MITRE Corporation, `ref/mitre_threat.md:141-149`): Cyber Prep
+© MITRE Corporation): Cyber Prep
 defines Capability as "resources, skill or expertise, **knowledge**,
 and opportunity" — IR observation of past attacks directly supplies
 the *knowledge* signal. Cyber Prep's Targeting ("how broadly or

@@ -176,15 +176,16 @@ def _resolve_actor_names(database: spanner.Database) -> dict[str, str]:
 def main() -> None:
     parser = argparse.ArgumentParser(description="社内資産データを Spanner へロード")
     parser.add_argument(
-        "--file",
+        "--input",
+        "-i",
         type=Path,
         default=DEFAULT_ASSET_FILE,
         help=f"資産JSONファイルパス (デフォルト: {DEFAULT_ASSET_FILE})",
     )
     args = parser.parse_args()
 
-    if not args.file.exists():
-        logger.error("file_not_found", path=str(args.file))
+    if not args.input.exists():
+        logger.error("file_not_found", path=str(args.input))
         sys.exit(1)
 
     config = Config.from_env()
@@ -192,10 +193,10 @@ def main() -> None:
     instance = spanner_client.instance(config.spanner_instance_id)
     database = instance.database(config.spanner_database_id)
 
-    with args.file.open() as f:
+    with args.input.open() as f:
         data = json.load(f)
 
-    logger.info("loading_assets", file=str(args.file))
+    logger.info("loading_assets", file=str(args.input))
     load_assets(database, data)
 
 

@@ -500,7 +500,7 @@ def find_prioritized_actors_for_asset(
     WHERE t.asset_id  = @asset_id
       AND p.valid_from  <= @since
       AND p.valid_until >= @until
-    ORDER BY ppa.likelihood DESC NULLS LAST, ppa.overlap_ratio DESC NULLS LAST
+    ORDER BY COALESCE(ppa.likelihood, 0) DESC, COALESCE(ppa.overlap_ratio, 0) DESC
     LIMIT @limit
     """
     params = {
@@ -567,7 +567,7 @@ def find_vulnerabilities_for_asset(
     WHERE hv.asset_id = @asset_id
       AND v.published_date >= @since
       AND v.published_date <  @until
-    ORDER BY v.cvss_score DESC NULLS LAST, v.published_date DESC
+    ORDER BY COALESCE(v.cvss_score, 0) DESC, v.published_date DESC
     LIMIT @limit
     """
     params = {

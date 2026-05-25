@@ -190,6 +190,8 @@ point. Operator-visible surface from 1.0.0:
 | `sage query-attack-paths` | `cmd/query_attack_paths.py` | Attack path CLI query (offline) |
 | `sage ir-template` | `cmd/create_ir_template.py` | Generate IR onboarding template |
 | `sage serve-api` | `cmd/analysis_api.py` | Start REST API server |
+| `sage run-etl` | `cmd/run_etl.py` | Run ETL pipeline (OpenCTI poll or `--input`) |
+| `sage visualize-graph` | `cmd/visualize_graph.py` | Generate interactive HTML graph visualization |
 
 **Committed**: subcommand names + each subcommand's main flags
 (e.g., `incident-register --id`, `--from-file`, `--navigator-layer`,

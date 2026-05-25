@@ -5,7 +5,7 @@ Cloud Run Job として実行される。
 
 使用方法:
     uv run python cmd/run_etl.py
-    uv run python cmd/run_etl.py --manual-bundle /path/to/bundle.json
+    uv run python cmd/run_etl.py --input /path/to/bundle.json
 """
 
 from __future__ import annotations
@@ -43,7 +43,8 @@ logger = structlog.get_logger(__name__)
 def main() -> None:
     parser = argparse.ArgumentParser(description="Threat Intel ETL Worker")
     parser.add_argument(
-        "--manual-bundle",
+        "--input",
+        "-i",
         type=Path,
         help="OpenCTI を使わずローカルの STIX バンドル JSON を処理する（手動更新用）",
     )
@@ -69,9 +70,9 @@ def main() -> None:
         activity_window_days=config.activity_window_days,
     )
 
-    if args.manual_bundle:
-        logger.info("mode", type="manual", path=str(args.manual_bundle))
-        with args.manual_bundle.open() as f:
+    if args.input:
+        logger.info("mode", type="manual", path=str(args.input))
+        with args.input.open() as f:
             bundle = json.load(f)
         objects = parse_bundle(bundle)
     else:

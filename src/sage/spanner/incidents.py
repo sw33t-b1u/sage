@@ -415,7 +415,7 @@ def read_incidents(
     SELECT incident_stix_id, ttp_stix_id, sequence_order
     FROM IncidentUsesTTP
     WHERE incident_stix_id IN UNNEST(@ids)
-    ORDER BY incident_stix_id, sequence_order NULLS LAST, ttp_stix_id
+    ORDER BY incident_stix_id, COALESCE(sequence_order, 9999), ttp_stix_id
     """
     iut_params = {"ids": ids}
     iut_ptypes = {"ids": param_types.Array(param_types.STRING)}

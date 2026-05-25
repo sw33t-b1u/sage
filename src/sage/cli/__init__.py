@@ -190,6 +190,16 @@ _register_passthrough(
     "analysis_api",
     "Start the SAGE Analysis REST API server (uvicorn).",
 )
+_register_passthrough(
+    "run-etl",
+    "run_etl",
+    "Run the ETL pipeline (OpenCTI poll or --input).",
+)
+_register_passthrough(
+    "visualize-graph",
+    "visualize_graph",
+    "Generate an interactive HTML visualization of the attack graph.",
+)
 
 
 __all__ = ["cli"]
