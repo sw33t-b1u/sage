@@ -36,7 +36,7 @@ to BEACON / TRACE (warn in 1.X.Y → remove in 2.0.0). See BEACON
 
 | Surface | Committed? | First version | Notes |
 |---|---|---|---|
-| REST API (9 endpoints) | ✓ | 1.0.0 | See §3.1 for endpoint list |
+| REST API (10 endpoints) | ✓ | 1.0.0 | See §3.1 for endpoint list |
 | Spanner Graph DDL (`schema/spanner_ddl.sql`) | ✓ | 1.0.0 | 36 tables; additive only (type widening OK; rename/drop = 2.0.0) |
 | `Incident.source` discriminator | ✓ | 1.0.0 | Values: `ir_feedback` (OpenCTI relay) / `direct_api` (POST /api/incidents) |
 | Auth gate semantics (POST = 503 when `SAGE_API_AUTH_TOKEN` unset; GET = permissive) | ✓ | 1.0.0 | See §3.2 |
@@ -55,11 +55,12 @@ to BEACON / TRACE (warn in 1.X.Y → remove in 2.0.0). See BEACON
 
 ### 3.1 REST API endpoints
 
-All 9 endpoints below are Committed. Each follows the auth gate
+All 10 endpoints below are Committed. Each follows the auth gate
 semantics in §3.2.
 
 | Endpoint | Method | First | Purpose |
 |---|---|---|---|
+| `/actors` | GET | Initiative I | Actor search by name substring (`?name=` required, min 2 chars; `?limit=` optional) |
 | `/attack-paths` | GET | Initiative C | Multi-hop attack path search (actor → asset) |
 | `/choke-points` | GET | Initiative C | Defense priority computation |
 | `/actor-ttps` | GET | Initiative E + F-7 | Per-actor TTP list + `?since/until` filter |

@@ -32,7 +32,7 @@ Copy `.env.example` to `.env` and fill in the values.
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `PROJECT_ID` | Yes | — | GCP project ID |
-| `REGION` | Yes | `us-central1` | GCP region for Spanner, Cloud Run, and Scheduler |
+| `REGION` | Shell only | `us-central1` | GCP region for `gcloud` commands (not used in Python code) |
 | `SPANNER_INSTANCE` | Yes | — | Spanner instance ID |
 | `SPANNER_DB` | Yes | — | Spanner database ID |
 | `GCS_BUCKET` | Yes | — | GCS bucket for raw STIX landing |
@@ -40,7 +40,8 @@ Copy `.env.example` to `.env` and fill in the values.
 | `OPENCTI_TOKEN` | Yes | — | OpenCTI API token |
 | `PIR_FILE_PATH` | No | `/config/pir.json` | Path to PIR JSON file |
 | `TLP_MAX_LEVEL` | No | `amber` | Maximum TLP level to ingest (`white`/`green`/`amber`) |
-| `ACTIVITY_WINDOW_DAYS` | No | `90` | Lookback window for FollowedBy activity score |
+| `ACTIVITY_WINDOW_DAYS` | No | `90` | Lookback window for FollowedBy activity score (overridden by `SAGE_ACTIVITY_WINDOW_DAYS` if set) |
+| `SAGE_ACTIVITY_WINDOW_DAYS` | No | — | SAGE-specific override for `ACTIVITY_WINDOW_DAYS` |
 | `SLACK_WEBHOOK_URL` | No | — | Slack Incoming Webhook URL for ETL completion alerts |
 | `GHE_TOKEN` | No | — | GitHub Enterprise Personal Access Token |
 | `GHE_REPO` | No | — | GHE repository in `owner/repo` format |
@@ -48,6 +49,11 @@ Copy `.env.example` to `.env` and fill in the values.
 | `CALDERA_URL` | No | — | MITRE Caldera server URL |
 | `CALDERA_API_KEY` | No | — | Caldera REST API key |
 | `SAGE_API_URL` | No | — | Base URL of the running Analysis API |
+| `SAGE_API_AUTH_TOKEN` | API mode | — | Bearer token for Analysis API authentication |
+| `SAGE_STORAGE` | No | `local` | Storage backend: `local` or `gcs` |
+| `SAGE_STORAGE_BASE_DIR` | No | `output` | Base directory for `local` backend |
+| `SAGE_GCS_BUCKET` | GCS mode | — | GCS bucket name (required when `SAGE_STORAGE=gcs`) |
+| `SAGE_GCS_PREFIX` | No | (empty) | Key prefix within the GCS bucket |
 | `OTEL_SDK_DISABLED` | No | — | Set `true` to suppress Spanner client metrics export errors |
 
 ---

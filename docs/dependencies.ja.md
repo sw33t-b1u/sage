@@ -27,7 +27,7 @@
 | パッケージ | バージョン制約 | ライセンス | 目的 |
 |-----------|-------------|---------|------|
 | `ruff` | `>=0.6.0` | MIT | リンター・フォーマッター（flake8 + isort + black を 1 バイナリに統合）|
-| `pytest` | `>=8.3.0` | MIT | テストランナー |
+| `pytest` | `>=9.0.3` | MIT | テストランナー |
 | `pytest-cov` | `>=5.0.0` | MIT | `make test` 用カバレッジレポート |
 | `pip-audit` | `>=2.7.0` | Apache-2.0 | 依存パッケージの既知脆弱性スキャン（ルール 21）。`make audit` / `make check` で実行。|
 | `pyvis` | `>=0.3.2` | BSD-3-Clause | インタラクティブグラフの HTML 生成（`visualize_combined.py`、`visualize_graph.py`、`visualize_attack_flow.py`）|

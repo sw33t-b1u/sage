@@ -27,7 +27,7 @@ per [project Rule 18](../../docs/RULES.md).
 | Package | Version constraint | License | Purpose |
 |---------|-------------------|---------|---------|
 | `ruff` | `>=0.6.0` | MIT | Linter and formatter (replaces flake8 + isort + black in a single binary). |
-| `pytest` | `>=8.3.0` | MIT | Test runner. |
+| `pytest` | `>=9.0.3` | MIT | Test runner. |
 | `pytest-cov` | `>=5.0.0` | MIT | Coverage reporting for `make test`. |
 | `pip-audit` | `>=2.7.0` | Apache-2.0 | Dependency vulnerability scanning (Rule 21). |
 | `pyvis` | `>=0.3.2` | BSD-3-Clause | Interactive graph HTML generation (`visualize_combined.py`, `visualize_graph.py`, `visualize_attack_flow.py`). |

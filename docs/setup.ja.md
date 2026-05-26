@@ -34,7 +34,7 @@ make setup
 | 変数 | 必須 | デフォルト | 説明 |
 |------|------|-----------|------|
 | `PROJECT_ID` | Yes | — | GCP プロジェクト ID |
-| `REGION` | Yes | `us-central1` | Spanner・Cloud Run・Scheduler のリージョン |
+| `REGION` | シェルのみ | `us-central1` | `gcloud` コマンド用リージョン（Python コードでは未使用） |
 | `SPANNER_INSTANCE` | Yes | — | Spanner インスタンス ID |
 | `SPANNER_DB` | Yes | — | Spanner データベース ID |
 | `GCS_BUCKET` | Yes | — | 生 STIX を受け取る GCS バケット |
@@ -42,7 +42,8 @@ make setup
 | `OPENCTI_TOKEN` | Yes | — | OpenCTI API トークン |
 | `PIR_FILE_PATH` | No | `/config/pir.json` | PIR JSON ファイルのパス |
 | `TLP_MAX_LEVEL` | No | `amber` | 取り込む最大 TLP レベル（`white`/`green`/`amber`） |
-| `ACTIVITY_WINDOW_DAYS` | No | `90` | FollowedBy アクティビティスコアの振り返り期間（日） |
+| `ACTIVITY_WINDOW_DAYS` | No | `90` | FollowedBy アクティビティスコアの振り返り期間（日）（`SAGE_ACTIVITY_WINDOW_DAYS` で上書き可） |
+| `SAGE_ACTIVITY_WINDOW_DAYS` | No | — | `ACTIVITY_WINDOW_DAYS` の SAGE 固有オーバーライド |
 | `SLACK_WEBHOOK_URL` | No | — | ETL 完了通知用 Slack Incoming Webhook URL |
 | `GHE_TOKEN` | No | — | GitHub Enterprise Personal Access Token |
 | `GHE_REPO` | No | — | GHE リポジトリ（`owner/repo` 形式） |
@@ -50,6 +51,11 @@ make setup
 | `CALDERA_URL` | No | — | MITRE Caldera サーバー URL |
 | `CALDERA_API_KEY` | No | — | Caldera REST API キー |
 | `SAGE_API_URL` | No | — | 稼働中の Analysis API のベース URL |
+| `SAGE_API_AUTH_TOKEN` | API 利用時 | — | Analysis API の Bearer 認証トークン |
+| `SAGE_STORAGE` | No | `local` | ストレージバックエンド: `local` または `gcs` |
+| `SAGE_STORAGE_BASE_DIR` | No | `output` | `local` バックエンドのベースディレクトリ |
+| `SAGE_GCS_BUCKET` | GCS 利用時 | — | GCS バケット名（`SAGE_STORAGE=gcs` 時必須） |
+| `SAGE_GCS_PREFIX` | No | (空文字) | GCS バケット内のキープレフィックス |
 | `OTEL_SDK_DISABLED` | No | — | `true` に設定すると Spanner クライアントのメトリクスエクスポートエラーを抑制 |
 
 ---

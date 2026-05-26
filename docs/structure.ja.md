@@ -28,6 +28,15 @@ SAGE/
 │   │   └── client.py           # MITRE Caldera REST API クライアント
 │   ├── analysis/
 │   │   └── similarity.py       # ハイブリッドインシデント類似度スコアリング
+│   ├── cli/
+│   │   └── __init__.py         # 統合 ``sage`` CLI エントリポイント（click Group）
+│   ├── models/
+│   │   ├── annotation.py       # アクターアノテーション リクエスト/レスポンスモデル
+│   │   └── incident_request.py # インシデント登録リクエストモデル
+│   ├── storage/
+│   │   ├── backend.py          # StorageBackend ABC
+│   │   ├── local.py            # LocalStorage 実装
+│   │   └── gcs.py              # GCSStorage 実装（オプション依存）
 │   └── opencti/
 │       └── client.py           # OpenCTI STIX 2.1 エクスポートクライアント
 │
