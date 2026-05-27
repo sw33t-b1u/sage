@@ -35,7 +35,7 @@ sequenceDiagram
 
     BEACON->>SAGE: GET /api/incidents?actor_stix_id&since&until
     SAGE-->>BEACON: incidents[]（full + diamond_model）
-    Note right of BEACON: ir_observed_capability + ir_observed_opportunity<br/>（第 4 の Depth & Opportunity 要因）
+    Note right of BEACON: ir_observed<br/>（バイナリ Intent 要因: 攻撃あり=1.0 / なし=0.5）
 
     IR->>TRACE: cmd/search_iocs.py --ioc evil.example.com
     TRACE-->>IR: マッチした記事（LLM 抽出 IoC インデックス）
@@ -142,26 +142,23 @@ IR アナリスト向けの Click ベース CLI。4 つのモード:
 
 BEACON の `generate_pir` パイプラインはアクタートリアージ中に
 SAGE `GET /api/incidents` を呼び出す。`Likelihood = Intent × Capability × Opportunity`
-の計算式に 2 つの新しい要因が加わる:
+の計算式にバイナリ `ir_observed` 要因が加わる:
 
 | 要因 | 位置 | 計算式 |
 |---|---|---|
-| `ir_observed_capability` | Capability の第 4 Depth 要因 | ルックバック期間内に自組織のインシデントがこのアクターの既知 TTP を 1 件以上使用している場合は 1.0; それ以外は 0.5（中立、0 ではない）|
-| `ir_observed_opportunity` | Opportunity の第 4 要因 | ルックバック期間内にアクターが自組織を攻撃したことがある場合は 1.0; それ以外は 0.7（残余中立）|
+| `ir_observed` | Intent 要因 | ルックバック期間内に自組織へのインシデントが 1 件以上存在する場合は 1.0; それ以外は 0.5（中立）|
 
 集約は Initiative E で確立された [0, 1] 幾何平均スケールを維持する:
 
 ```
-Depth       = (sophistication × tool_sophistication × evasion_capability × ir_observed_capability) ^ (1/4)
-Opportunity = (victimology_match × geographic_match × surface_ttp_coverage × ir_observed_opportunity) ^ (1/4)
+Intent      = motivation_alignment × industry_match × ir_observed
+Depth       = (sophistication × tool_usage × evasion_capability) ^ (1/3)
+Opportunity = (victimology_match × geographic_match × surface_ttp_coverage) ^ (1/3)
 ```
 
 方法論の引用（MITRE Cyber Prep、フェアユース学術引用、© MITRE Corporation）:
-Cyber Prep は Capability を「resources, skill or expertise, **knowledge**,
-and opportunity」と定義している — 過去の攻撃の IR 観測は *knowledge* シグナルを
-直接提供する。Cyber Prep の Targeting（「いかに広く・狭く・執拗に
-アドバーサリーが特定の組織を標的にするか」）は BEACON の `ir_observed_opportunity`
-にマッピングされる。
+自組織への攻撃実績は意図の最も強い証拠であり、バイナリ `ir_observed` シグナルは
+Capability/Opportunity ではなく Intent に乗算される。
 
 ### ルックバックウィンドウ
 

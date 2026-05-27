@@ -35,7 +35,7 @@ sequenceDiagram
 
     BEACON->>SAGE: GET /api/incidents?actor_stix_id&since&until
     SAGE-->>BEACON: incidents[] (full + diamond_model)
-    Note right of BEACON: ir_observed_capability + ir_observed_opportunity<br/>(4th Depth & Opportunity factor)
+    Note right of BEACON: ir_observed<br/>(binary Intent factor: 1.0 if attacked, 0.5 if not)
 
     IR->>TRACE: cmd/search_iocs.py --ioc evil.example.com
     TRACE-->>IR: matched articles (LLM-extracted IoC index)
@@ -147,29 +147,26 @@ Click-based CLI for IR analysts. Four modes:
 ## 5. BEACON IR-boost (Phase 6)
 
 BEACON's `generate_pir` pipeline calls SAGE `GET /api/incidents`
-during actor triage. Two new factors enter the
+during actor triage. A binary `ir_observed` factor enters the
 `Likelihood = Intent × Capability × Opportunity` formula:
 
 | Factor | Where | Formula |
 |---|---|---|
-| `ir_observed_capability` | Capability 4th Depth factor | 1.0 if ≥1 own-org incident in lookback uses this actor's known TTPs; else 0.5 (neutral, not 0) |
-| `ir_observed_opportunity` | Opportunity 4th factor | 1.0 if actor ever attacked own org in lookback; else 0.7 (residual neutral) |
+| `ir_observed` | Intent factor | 1.0 if ≥1 own-org incident exists for this actor in the lookback window; else 0.5 (neutral) |
 
 Aggregation preserves the [0, 1] geometric-mean scale established in
 Initiative E:
 
 ```
-Depth       = (sophistication × tool_sophistication × evasion_capability × ir_observed_capability) ^ (1/4)
-Opportunity = (victimology_match × geographic_match × surface_ttp_coverage × ir_observed_opportunity) ^ (1/4)
+Intent      = motivation_alignment × industry_match × ir_observed
+Depth       = (sophistication × tool_usage × evasion_capability) ^ (1/3)
+Opportunity = (victimology_match × geographic_match × surface_ttp_coverage) ^ (1/3)
 ```
 
 Methodology citation (MITRE Cyber Prep, fair-use academic quote,
-© MITRE Corporation): Cyber Prep
-defines Capability as "resources, skill or expertise, **knowledge**,
-and opportunity" — IR observation of past attacks directly supplies
-the *knowledge* signal. Cyber Prep's Targeting ("how broadly or
-narrowly and how persistently the adversary targets a specific
-organization") maps to BEACON's `ir_observed_opportunity`.
+© MITRE Corporation): a confirmed past attack against the organisation
+is the strongest evidence of intent. The binary `ir_observed` signal
+is multiplied into Intent rather than Capability or Opportunity.
 
 ### Lookback window
 
