@@ -1,14 +1,17 @@
 """StixMapper と build_followed_by_weights のユニットテスト。"""
 
 import json
+import uuid
 from pathlib import Path
 
 import pytest
 
 from sage.stix.mapper import (
+    _DETERMINISTIC_ID_NAMESPACE,
     StixMapper,
     build_followed_by_weights,
     build_ir_feedback_followed_by,
+    deterministic_vuln_stix_id,
 )
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -794,3 +797,43 @@ class TestMapImpersonatesIdentity:
         assert result is None
         captured = capsys.readouterr()
         assert "relationship_type_mismatch_dropped" in captured.out
+
+
+# ---------------------------------------------------------------------------
+# SAGE 1.2.0 — deterministic_vuln_stix_id (stub Vulnerability node minting)
+# ---------------------------------------------------------------------------
+
+
+class TestDeterministicVulnStixId:
+    def test_returns_vulnerability_prefixed_string(self):
+        result = deterministic_vuln_stix_id("CVE-2025-1234")
+        assert result.startswith("vulnerability--")
+
+    def test_stable_value_for_known_cve(self):
+        """The id must be reproducible across calls (deterministic)."""
+        id1 = deterministic_vuln_stix_id("CVE-2025-1234")
+        id2 = deterministic_vuln_stix_id("CVE-2025-1234")
+        assert id1 == id2
+
+    def test_equals_uuid5_of_namespace_and_cve_id(self):
+        """The uuid5 portion must match the raw uuid5(NS, cve_id) computation."""
+        cve_id = "CVE-2025-1234"
+        expected = f"vulnerability--{uuid.uuid5(_DETERMINISTIC_ID_NAMESPACE, cve_id)}"
+        assert deterministic_vuln_stix_id(cve_id) == expected
+
+    def test_different_cve_ids_produce_different_stix_ids(self):
+        id_a = deterministic_vuln_stix_id("CVE-2025-1234")
+        id_b = deterministic_vuln_stix_id("CVE-2025-9999")
+        assert id_a != id_b
+
+    def test_namespace_matches_trace_constant(self):
+        """Namespace UUID must be identical to TRACE's _DETERMINISTIC_ID_NAMESPACE."""
+        trace_ns = uuid.UUID("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+        assert _DETERMINISTIC_ID_NAMESPACE == trace_ns
+
+    def test_matches_trace_id_formula(self):
+        """Reproduces TRACE extractor.py's id formula for cross-system parity."""
+        trace_ns = uuid.UUID("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+        cve_id = "CVE-2025-1234"
+        trace_id = f"vulnerability--{uuid.uuid5(trace_ns, cve_id)}"
+        assert deterministic_vuln_stix_id(cve_id) == trace_id

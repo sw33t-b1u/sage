@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [1.2.0] — 2026-05-28
+
+### Added
+
+- `deterministic_vuln_stix_id(cve_id)` helper in `src/sage/stix/mapper.py`
+  and the matching `_DETERMINISTIC_ID_NAMESPACE` constant (uuid5 namespace
+  identical to TRACE 2.0.0's `_DETERMINISTIC_ID_NAMESPACE`).
+
+### Changed
+
+- `cmd/load_assets.py` (and the `sage load-assets` subcommand) now mints a
+  deterministic-id stub `Vulnerability` node for org-provided CVEs that are
+  absent from Spanner, instead of silently dropping the `HasVulnerability`
+  edge. The stub uses `stix_id = vulnerability--uuid5(NS, cve_id)` where
+  `NS = a1b2c3d4-e5f6-7890-abcd-ef1234567890`. Later CTI ETL of the same
+  CVE enriches the same node via INSERT OR UPDATE (idempotent). Invalid CVE
+  refs (non-CVE-YYYY-NNNNN format) are still skipped with a warning and no
+  stub is created. Deterministic id matches TRACE 2.0.0's vulnerability
+  uuid5(CVE) so the stub and the external CTI node collide correctly.
+
+
 ## [1.1.0] — 2026-05-25
 
 **Initiative I — /actors endpoint + Storage Abstraction.** Paired

@@ -7,6 +7,7 @@ Objects outside the target scope return None (caller skips them).
 from __future__ import annotations
 
 import re
+import uuid
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -22,6 +23,23 @@ logger = structlog.get_logger(__name__)
 # not parse as a CVE id rather than truncate (lossy and would silently
 # corrupt analysis). Same regex as TRACE's _CVE_ID_PATTERN.
 _CVE_ID_PATTERN = re.compile(r"^CVE-\d{4}-\d{4,}$")
+
+# MUST match TRACE's _DETERMINISTIC_ID_NAMESPACE in
+# trace_engine/stix/extractor.py — a stub Vulnerability minted here must
+# collide (by design) with the node TRACE emits for the same CVE so that
+# later CTI ETL enriches the same row via INSERT OR UPDATE.
+_DETERMINISTIC_ID_NAMESPACE = uuid.UUID("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+
+
+def deterministic_vuln_stix_id(cve_id: str) -> str:
+    """Return the deterministic vulnerability stix_id for a given CVE id.
+
+    Uses uuid5(namespace, cve_id) — the same algorithm and namespace as
+    TRACE's extractor so stub nodes created here are enriched by later
+    CTI ETL of the same CVE via INSERT OR UPDATE.
+    """
+    return f"vulnerability--{uuid.uuid5(_DETERMINISTIC_ID_NAMESPACE, cve_id)}"
+
 
 # ATT&CK kill chain phase order (used for FollowedBy weight calculation)
 PHASE_ORDER: dict[str, int] = {

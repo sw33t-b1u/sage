@@ -32,6 +32,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from sage.config import Config
 from sage.spanner.upsert import upsert_rows
+from sage.stix.mapper import _CVE_ID_PATTERN, deterministic_vuln_stix_id
 from sage.storage import create_storage_backend
 
 structlog.configure(
@@ -113,14 +114,32 @@ def load_assets(database: spanner.Database, data: dict) -> None:
 
     # HasVulnerability — vuln_stix_id は CVE名から解決する必要があるため
     # STIXバンドルのVulnerabilityテーブルを参照してstix_idを逆引きする
+    # SAGE 1.2.0: CVEがSpannerに存在しない場合、決定論的stix_idでスタブ
+    # Vulnerabilityノードを作成してからHasVulnerabilityエッジを生成する。
+    # 後のCTI ETLで同じCVEが到着した際にINSERT OR UPDATEで情報が補完される。
     cve_to_stix = _resolve_cve_ids(database)
     hv_rows = []
+    stub_vuln_rows = []
     for hv in data.get("asset_vulnerabilities", []):
         cve_ref = hv["vuln_stix_id_ref"]
         stix_id = cve_to_stix.get(cve_ref)
         if not stix_id:
-            logger.warning("cve_not_found", cve=cve_ref, hint="先にSTIXバンドルをETLしてください")
-            continue
+            if not _CVE_ID_PATTERN.fullmatch(cve_ref):
+                logger.warning(
+                    "cve_invalid_format",
+                    cve=cve_ref,
+                    hint="CVE-YYYY-NNNNN 形式でないため stub を作成しません",
+                )
+                continue
+            stix_id = deterministic_vuln_stix_id(cve_ref)
+            stub_vuln_rows.append(
+                {
+                    "stix_id": stix_id,
+                    "cve_id": cve_ref,
+                    "stix_modified": _now(),
+                }
+            )
+            logger.info("vuln_stub_created", cve=cve_ref, stix_id=stix_id)
         hv_rows.append(
             {
                 "asset_id": hv["asset_id"],
@@ -129,6 +148,8 @@ def load_assets(database: spanner.Database, data: dict) -> None:
                 "detected_at": _now(),
             }
         )
+    if stub_vuln_rows:
+        upsert_rows(database, "Vulnerability", stub_vuln_rows)
     stats["has_vulnerability"] = upsert_rows(database, "HasVulnerability", hv_rows)
 
     # Targets (ThreatActor → Asset) — actor名からstix_idを解決
