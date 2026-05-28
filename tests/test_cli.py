@@ -21,11 +21,9 @@ Deeper behavioural coverage already exists per-module:
 * The argparse ``main()`` functions in the other 8 modules are
   exercised by the surrounding unit tests for the routines they call.
 
-The deprecation steer added in each ``cmd/<name>.py`` (in the
-``if __name__ == "__main__":`` guard) is documented in the module
-docstring and is not asserted here because it requires subprocess
-invocation against modules that may hang on a credential lookup —
-the message itself is verbatim and trivially auditable in the source.
+The standalone ``if __name__ == "__main__":`` blocks were removed from
+all ``cmd/<name>.py`` modules in SAGE 1.3.0. The unified ``sage``
+entry point is now the only supported invocation form.
 """
 
 from __future__ import annotations
@@ -47,6 +45,11 @@ SUBCOMMANDS: list[str] = [
     "serve-api",
     "run-etl",
     "visualize-graph",
+    "report-choke-points",
+    "sync-caldera",
+    "visualize-attack-flow",
+    "visualize-combined",
+    "setup-emulator",
 ]
 
 
@@ -69,10 +72,10 @@ def test_root_help_advertises_unified_entry():
 
 
 def test_subcommand_count_matches_api_stability_table():
-    """``docs/api-stability.md`` §3.6 freezes exactly 11 subcommands."""
-    assert len(cli.commands) == 11, (
+    """``docs/api-stability.md`` §3.6 freezes exactly 16 subcommands."""
+    assert len(cli.commands) == 16, (
         f"Subcommand count drift: registered={sorted(cli.commands.keys())}, "
-        f"expected 11 per api-stability.md §3.6"
+        f"expected 16 per api-stability.md §3.6"
     )
 
 

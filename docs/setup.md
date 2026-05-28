@@ -116,12 +116,12 @@ cp tests/fixtures/sample_assets.json input/assets.json
 > gate for `assets.json`, `pir_output.json`, and STIX bundles):
 >
 > ```sh
-> cd ../TRACE && uv run python cmd/validate_assets.py --assets ../SAGE/input/assets.json
+> cd ../TRACE && uv run trace validate-assets --assets ../SAGE/input/assets.json
 > ```
 
 ```sh
-uv run python cmd/load_assets.py            # reads input/assets.json by default
-uv run python cmd/load_assets.py --file path/to/assets.json   # custom path
+uv run sage load-assets            # reads input/assets.json by default
+uv run sage load-assets --file path/to/assets.json   # custom path
 ```
 
 ---
@@ -137,11 +137,11 @@ against `assets.json` and validates the Initiative C Phase 2 flag
 ```sh
 cp /path/to/identity_assets.json input/identity_assets.json
 
-cd ../TRACE && uv run python cmd/validate_identity_assets.py \
+cd ../TRACE && uv run trace validate-identity \
   --identity-assets ../SAGE/input/identity_assets.json \
   --assets          ../SAGE/input/assets.json
 
-cd ../SAGE && uv run python cmd/load_identity_assets.py \
+cd ../SAGE && uv run sage load-identity-assets \
   --file input/identity_assets.json
 ```
 
@@ -160,11 +160,11 @@ layer. Validate via TRACE and load:
 ```sh
 cp /path/to/user_accounts.json input/user_accounts.json
 
-cd ../TRACE && uv run python cmd/validate_user_accounts.py \
+cd ../TRACE && uv run trace validate-accounts \
   --user-accounts ../SAGE/input/user_accounts.json \
   --assets        ../SAGE/input/assets.json
 
-cd ../SAGE && uv run python cmd/load_user_accounts.py \
+cd ../SAGE && uv run sage load-user-accounts \
   --file input/user_accounts.json
 ```
 
@@ -189,7 +189,7 @@ cp /path/to/pir_output_<timestamp>.json input/pir.json
 > assets file:
 >
 > ```sh
-> cd ../TRACE && uv run python cmd/validate_pir.py \
+> cd ../TRACE && uv run trace validate-pir \
 >   --pir ../SAGE/input/pir.json --assets ../SAGE/input/assets.json
 > ```
 
@@ -206,7 +206,7 @@ cp /path/to/pir_output_<timestamp>.json input/pir.json
 
 ```sh
 # No OpenCTI required — use a local STIX bundle
-uv run python cmd/run_etl.py --manual-bundle tests/fixtures/sample_bundle_mirrorface.json
+uv run sage run-etl --manual-bundle tests/fixtures/sample_bundle_mirrorface.json
 
 # Against live OpenCTI
 make run-etl
@@ -246,14 +246,14 @@ docker run -d --name spanner-emulator -p 9010:9010 -p 9020:9020 \
 export SPANNER_EMULATOR_HOST=localhost:9010
 
 # 2. Create instance, database, and schema
-uv run python cmd/setup_emulator.py
+uv run sage setup-emulator
 make init-schema
 
 # 3. Load threat intelligence (Attack Flow)
 # NOTE: external or hand-authored bundles must be enriched first so PIR filtering retains actors:
-#   cd ../TRACE && uv run python cmd/enrich_bundle.py --input <bundle.json> --output enriched.json && cd ../SAGE
-uv run python cmd/run_etl.py --manual-bundle tests/fixtures/sample_bundle_mirrorface.json
-uv run python cmd/run_etl.py --manual-bundle tests/fixtures/sample_bundle_inc.json
+#   cd ../TRACE && uv run trace enrich-bundle --input <bundle.json> --output enriched.json && cd ../SAGE
+uv run sage run-etl --manual-bundle tests/fixtures/sample_bundle_mirrorface.json
+uv run sage run-etl --manual-bundle tests/fixtures/sample_bundle_inc.json
 
 # 4. Load internal assets (Attack Graph)
 make load-assets
@@ -309,10 +309,10 @@ Steps 2–5 (uv and `make` commands) are unchanged.
 
 Options:
 ```sh
-uv run python cmd/visualize_combined.py --no-open   # combined view, suppress auto-open
-uv run python cmd/visualize_combined.py --limit 200 # cap rows per table
-uv run python cmd/visualize_graph.py --no-open      # attack graph only
-uv run python cmd/visualize_attack_flow.py --no-open # attack flow only
+uv run sage visualize-combined --no-open   # combined view, suppress auto-open
+uv run sage visualize-combined --limit 200 # cap rows per table
+uv run sage visualize-graph --no-open      # attack graph only
+uv run sage visualize-attack-flow --no-open # attack flow only
 ```
 
 ---

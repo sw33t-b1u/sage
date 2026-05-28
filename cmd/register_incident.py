@@ -474,13 +474,3 @@ def main(
         result = _submit_via_api(api_url=api_url, token=token or None, payload=payload)
 
     click.echo(json.dumps(result, default=str, indent=2))
-
-
-if __name__ == "__main__":
-    sys.stderr.write(
-        "DeprecationWarning: 'python -m cmd.register_incident' / "
-        "'python cmd/register_incident.py' is deprecated as of "
-        "SAGE 1.0.0. Use 'sage incident-register' instead; cmd/* "
-        "invocations are scheduled for removal in SAGE 2.0.\n"
-    )
-    main()

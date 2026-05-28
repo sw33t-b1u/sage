@@ -27,7 +27,7 @@ ETL を手動で実行するには:
 make run-etl
 
 # ローカルの STIX バンドルを使用（OpenCTI 不要）
-uv run python cmd/run_etl.py --manual-bundle tests/fixtures/sample_bundle_mirrorface.json
+uv run sage run-etl --manual-bundle tests/fixtures/sample_bundle_mirrorface.json
 ```
 
 ---
@@ -38,13 +38,13 @@ uv run python cmd/run_etl.py --manual-bundle tests/fixtures/sample_bundle_mirror
 
 ```sh
 # 上位 10 件をターミナルに表示
-uv run python cmd/report_choke_points.py --top 10
+uv run sage report-choke-points --top 10
 
 # Markdown として保存
-uv run python cmd/report_choke_points.py --top 10 --output /tmp/choke_report.md
+uv run sage report-choke-points --top 10 --output /tmp/choke_report.md
 
 # GitHub Enterprise Issue として投稿（GHE_TOKEN と GHE_REPO が必要）
-uv run python cmd/report_choke_points.py --ghe
+uv run sage report-choke-points --ghe
 ```
 
 出力例:
@@ -86,10 +86,10 @@ gcloud spanner databases execute-sql sage-db \
 
 ```sh
 # 特定の資産を狙う攻撃経路
-uv run python cmd/query_attack_paths.py --asset-id asset-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+uv run sage query-attack-paths --asset-id asset-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 
 # 特定のアクターが使用する全 TTP
-uv run python cmd/query_attack_paths.py --actor-id intrusion-set--xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+uv run sage query-attack-paths --actor-id intrusion-set--xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 ```
 
 ---
@@ -100,19 +100,19 @@ uv run python cmd/query_attack_paths.py --actor-id intrusion-set--xxxxxxxx-xxxx-
 
 ```sh
 # 統合ビュー（攻撃グラフ + FollowedBy 重み付き攻撃フロー）
-uv run python cmd/visualize_combined.py --output /tmp/sage_combined.html
+uv run sage visualize-combined --output /tmp/sage_combined.html
 
 # 特定アクターに絞る
-uv run python cmd/visualize_combined.py --actor-id "intrusion-set--xxx"
+uv run sage visualize-combined --actor-id "intrusion-set--xxx"
 
 # 攻撃グラフのみ（全ノード、均一エッジ）
-uv run python cmd/visualize_graph.py --output /tmp/sage_graph.html
+uv run sage visualize-graph --output /tmp/sage_graph.html
 
 # 攻撃フローのみ（FollowedBy 重み付き TTP 遷移）
-uv run python cmd/visualize_attack_flow.py --output /tmp/attack_flow.html
+uv run sage visualize-attack-flow --output /tmp/attack_flow.html
 
 # ブラウザ自動起動を抑制 / テーブルごとの行数を制限
-uv run python cmd/visualize_combined.py --no-open --limit 200
+uv run sage visualize-combined --no-open --limit 200
 ```
 
 > `make visualize` はローカル/エミュレーター用のショートカット。本番データに対しては上記コマンドを直接実行する。
@@ -124,7 +124,7 @@ uv run python cmd/visualize_combined.py --no-open --limit 200
 他のツールとの統合やアドホッククエリのために、本番 Spanner を参照して API サーバーをローカルで起動する:
 
 ```sh
-uv run python cmd/analysis_api.py --port 8080
+uv run sage serve-api --port 8080
 ```
 
 起動後は `http://localhost:8080/docs` でインタラクティブな API ドキュメント（Swagger UI）を参照できる。
@@ -177,10 +177,10 @@ StorageBackend は `SAGE_STORAGE`（`local` または `gcs`）、`SAGE_STORAGE_B
 
 ```
 1. business_context.json（または .md）を更新  ← BEACON リポジトリで実施
-2. uv run python cmd/generate_pir.py ...        ← BEACON リポジトリで実行（BEACON ドキュメント参照）
+2. uv run beacon pir-generate ...               ← BEACON リポジトリで実行（BEACON ドキュメント参照）
 3. cp pir_output.json /path/to/config/pir.json
 4. make run-etl                                  ← 新しい PIR 重みを適用するために ETL を再実行
-5. uv run python cmd/report_choke_points.py      ← クリティカリティの変化を確認
+5. uv run sage report-choke-points               ← クリティカリティの変化を確認
 ```
 
 PIR の生成（Step 2）は SAGE ではなく [BEACON](https://github.com/sw33t-b1u/beacon) で行う。
@@ -194,27 +194,27 @@ PIR の生成（Step 2）は SAGE ではなく [BEACON](https://github.com/sw33t
 
 ```sh
 # IR インシデントテンプレートを GHE Issue として作成
-uv run python cmd/create_ir_template.py \
+uv run sage ir-template \
   --actor-id <stix-id> \
   --asset-id <asset-id>
 
 # レッドチームシミュレーション用にアクターの TTP を Caldera に同期（CALDERA_URL が必要）
-uv run python cmd/sync_caldera.py --actor-id <stix-id>
+uv run sage sync-caldera --actor-id <stix-id>
 ```
 
-### 直接 IR フィードバック登録（`cmd/register_incident.py`）
+### 直接 IR フィードバック登録（`sage incident-register`）
 
 Initiative G Phase 3 では、IR チームがインシデント発生当日に登録できる SAGE 直接 API パスの CLI を追加している（OpenCTI の 24 時間ポーリング遅延との対比）。4 つのモード:
 
 ```sh
 # 1) インタラクティブ — Diamond Model 4 象限をプロンプトで入力。
-uv run python cmd/register_incident.py \
+uv run sage incident-register \
   --name "MIR-4242 mail relay compromise" \
   --occurred-at 2026-05-20T12:34:56Z \
   --severity high
 
 # 2) 非インタラクティブフラグモード（--diamond key=value で Diamond Model を指定）。
-uv run python cmd/register_incident.py \
+uv run sage incident-register \
   --name "MIR-4242" --occurred-at 2026-05-20T12:34:56Z --severity high \
   --diamond adversary=APT99 \
   --diamond capability="spear-phishing kit" \
@@ -223,13 +223,13 @@ uv run python cmd/register_incident.py \
   --no-interactive
 
 # 3) MITRE Navigator レイヤーインポート — Navigator UI からの TTP シーケンス。
-uv run python cmd/register_incident.py \
+uv run sage incident-register \
   --name "MIR-4242" --occurred-at 2026-05-20T12:34:56Z --severity high \
   --navigator-layer ./layer.json \
   --no-interactive
 
 # 4) エアギャップ / トークンレス — API をバイパスして Spanner に直接書き込む。
-uv run python cmd/register_incident.py \
+uv run sage incident-register \
   --from-file ./payload.json \
   --no-api --no-interactive
 ```
@@ -247,7 +247,7 @@ uv run python cmd/register_incident.py \
 make run-etl
 
 # ローカルの STIX バンドルを使用（OpenCTI 不要）
-uv run python cmd/run_etl.py --manual-bundle tests/fixtures/sample_bundle_mirrorface.json
+uv run sage run-etl --manual-bundle tests/fixtures/sample_bundle_mirrorface.json
 
 # StorageBackend の stix/ カテゴリから全バンドルを処理
 uv run sage run-etl
@@ -289,7 +289,7 @@ SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
 API サーバーをローカルで起動:
 
 ```sh
-uv run python cmd/analysis_api.py --port 8080
+uv run sage serve-api --port 8080
 ```
 
 ヘルス・スモークチェック:
@@ -389,7 +389,7 @@ uv run sage run-etl          # stix/ カテゴリの全バンドルを処理
 
 ```sh
 # チョークポイントレポートを GHE Issue として投稿
-uv run python cmd/report_choke_points.py --ghe
+uv run sage report-choke-points --ghe
 ```
 
 ---

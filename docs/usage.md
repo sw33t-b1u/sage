@@ -24,7 +24,7 @@ To trigger ETL manually:
 make run-etl
 
 # With a local STIX bundle (no OpenCTI required)
-uv run python cmd/run_etl.py --manual-bundle tests/fixtures/sample_bundle_mirrorface.json
+uv run sage run-etl --manual-bundle tests/fixtures/sample_bundle_mirrorface.json
 ```
 
 ---
@@ -35,13 +35,13 @@ Choke points are assets with the highest `choke_score = pir_adjusted_criticality
 
 ```sh
 # Print top 10 to terminal
-uv run python cmd/report_choke_points.py --top 10
+uv run sage report-choke-points --top 10
 
 # Save as Markdown
-uv run python cmd/report_choke_points.py --top 10 --output /tmp/choke_report.md
+uv run sage report-choke-points --top 10 --output /tmp/choke_report.md
 
 # Post as GitHub Enterprise Issue (requires GHE_TOKEN and GHE_REPO)
-uv run python cmd/report_choke_points.py --ghe
+uv run sage report-choke-points --ghe
 ```
 
 Example output:
@@ -82,10 +82,10 @@ The choke point report also prints targeting actor names alongside each asset �
 
 ```sh
 # Attack paths targeting a specific asset
-uv run python cmd/query_attack_paths.py --asset-id asset-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+uv run sage query-attack-paths --asset-id asset-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 
 # All TTPs used by a specific actor
-uv run python cmd/query_attack_paths.py --actor-id intrusion-set--xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+uv run sage query-attack-paths --actor-id intrusion-set--xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 ```
 
 ---
@@ -96,19 +96,19 @@ Generates an interactive HTML file and opens it in your browser. Nodes are color
 
 ```sh
 # Combined view (attack graph + attack flow with FollowedBy weights)
-uv run python cmd/visualize_combined.py --output /tmp/sage_combined.html
+uv run sage visualize-combined --output /tmp/sage_combined.html
 
 # Filter to a specific actor
-uv run python cmd/visualize_combined.py --actor-id "intrusion-set--xxx"
+uv run sage visualize-combined --actor-id "intrusion-set--xxx"
 
 # Attack graph only (all nodes, uniform edges)
-uv run python cmd/visualize_graph.py --output /tmp/sage_graph.html
+uv run sage visualize-graph --output /tmp/sage_graph.html
 
 # Attack flow only (TTP transitions with FollowedBy weights)
-uv run python cmd/visualize_attack_flow.py --output /tmp/attack_flow.html
+uv run sage visualize-attack-flow --output /tmp/attack_flow.html
 
 # Suppress auto-open / limit rows per table
-uv run python cmd/visualize_combined.py --no-open --limit 200
+uv run sage visualize-combined --no-open --limit 200
 ```
 
 > `make visualize` is a shortcut for local/emulator use. For production data, run the command directly as shown above.
@@ -120,7 +120,7 @@ uv run python cmd/visualize_combined.py --no-open --limit 200
 For integration with other tools or ad-hoc queries, start the API server locally pointing at production Spanner:
 
 ```sh
-uv run python cmd/analysis_api.py --port 8080
+uv run sage serve-api --port 8080
 ```
 
 Interactive API documentation (Swagger UI) is available at `http://localhost:8080/docs` once the server is running.
@@ -174,13 +174,13 @@ Run this when organizational context changes (new projects, M&A, regulatory upda
 
 ```
 1. Update input/<context>.md                  ← in BEACON repo (see docs/context_template.md)
-2. uv run python cmd/generate_pir.py \        ← run in BEACON repo
+2. uv run beacon pir-generate \               ← run in BEACON repo
      --context input/<context>.md \
      --output output/pir_output.json \
      --collection-plan output/collection_plan.md
 3. cp output/pir_output.json /path/to/config/pir.json
 4. make run-etl                               ← re-run ETL to apply new PIR weights
-5. uv run python cmd/report_choke_points.py   ← verify criticality changes
+5. uv run sage report-choke-points            ← verify criticality changes
 ```
 
 PIR generation (step 2) is handled by [BEACON](https://github.com/sw33t-b1u/beacon), not SAGE.
@@ -194,15 +194,15 @@ When an incident is detected or suspected:
 
 ```sh
 # Create an IR incident template as a GHE Issue
-uv run python cmd/create_ir_template.py \
+uv run sage ir-template \
   --actor-id <stix-id> \
   --asset-id <asset-id>
 
 # Sync actor TTPs to Caldera for red team simulation (requires CALDERA_URL)
-uv run python cmd/sync_caldera.py --actor-id <stix-id>
+uv run sage sync-caldera --actor-id <stix-id>
 ```
 
-### Direct IR feedback registration (`cmd/register_incident.py`)
+### Direct IR feedback registration (`sage incident-register`)
 
 Initiative G Phase 3 adds a CLI for the SAGE direct-API path so IR
 teams can register an incident the same day it occurs (vs OpenCTI's
@@ -210,13 +210,13 @@ teams can register an incident the same day it occurs (vs OpenCTI's
 
 ```sh
 # 1) Interactive — prompts for Diamond Model 4 quadrants.
-uv run python cmd/register_incident.py \
+uv run sage incident-register \
   --name "MIR-4242 mail relay compromise" \
   --occurred-at 2026-05-20T12:34:56Z \
   --severity high
 
 # 2) Non-interactive flag mode (Diamond Model via --diamond key=value).
-uv run python cmd/register_incident.py \
+uv run sage incident-register \
   --name "MIR-4242" --occurred-at 2026-05-20T12:34:56Z --severity high \
   --diamond adversary=APT99 \
   --diamond capability="spear-phishing kit" \
@@ -225,13 +225,13 @@ uv run python cmd/register_incident.py \
   --no-interactive
 
 # 3) MITRE Navigator layer import — TTP sequence from the Navigator UI.
-uv run python cmd/register_incident.py \
+uv run sage incident-register \
   --name "MIR-4242" --occurred-at 2026-05-20T12:34:56Z --severity high \
   --navigator-layer ./layer.json \
   --no-interactive
 
 # 4) Air-gapped / token-less — bypass the API and write Spanner directly.
-uv run python cmd/register_incident.py \
+uv run sage incident-register \
   --from-file ./payload.json \
   --no-api --no-interactive
 ```
@@ -252,7 +252,7 @@ from `$SAGE_API_AUTH_TOKEN`; the API base URL reads from
 make run-etl
 
 # With a local STIX bundle (no OpenCTI required)
-uv run python cmd/run_etl.py --manual-bundle tests/fixtures/sample_bundle_mirrorface.json
+uv run sage run-etl --manual-bundle tests/fixtures/sample_bundle_mirrorface.json
 
 # Process all STIX bundles from StorageBackend stix/ category
 uv run sage run-etl
@@ -294,7 +294,7 @@ SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
 Start the API server locally:
 
 ```sh
-uv run python cmd/analysis_api.py --port 8080
+uv run sage serve-api --port 8080
 ```
 
 Health and smoke checks:
@@ -394,7 +394,7 @@ Set `GHE_TOKEN`, `GHE_REPO` (format: `owner/repo`), and optionally `GHE_API_BASE
 
 ```sh
 # Post choke-point report as a GHE Issue
-uv run python cmd/report_choke_points.py --ghe
+uv run sage report-choke-points --ghe
 ```
 
 ---

@@ -127,7 +127,3 @@ def main() -> None:
         logger.info("report_written", path=str(args.output))
     else:
         print(report)
-
-
-if __name__ == "__main__":
-    main()

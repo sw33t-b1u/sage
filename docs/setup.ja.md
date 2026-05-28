@@ -118,12 +118,12 @@ cp tests/fixtures/sample_assets.json input/assets.json
 > に集約されている:
 >
 > ```sh
-> cd ../TRACE && uv run python cmd/validate_assets.py --assets ../SAGE/input/assets.json
+> cd ../TRACE && uv run trace validate-assets --assets ../SAGE/input/assets.json
 > ```
 
 ```sh
-uv run python cmd/load_assets.py                              # デフォルト: input/assets.json
-uv run python cmd/load_assets.py --file path/to/assets.json  # カスタムパス
+uv run sage load-assets                              # デフォルト: input/assets.json
+uv run sage load-assets --file path/to/assets.json  # カスタムパス
 ```
 
 ---
@@ -140,11 +140,11 @@ person / role / group) も emit する。`input/` に配置し、TRACE で検証
 ```sh
 cp /path/to/identity_assets.json input/identity_assets.json
 
-cd ../TRACE && uv run python cmd/validate_identity_assets.py \
+cd ../TRACE && uv run trace validate-identity \
   --identity-assets ../SAGE/input/identity_assets.json \
   --assets          ../SAGE/input/assets.json
 
-cd ../SAGE && uv run python cmd/load_identity_assets.py \
+cd ../SAGE && uv run sage load-identity-assets \
   --file input/identity_assets.json
 ```
 
@@ -163,11 +163,11 @@ TRACE で検証してロード:
 ```sh
 cp /path/to/user_accounts.json input/user_accounts.json
 
-cd ../TRACE && uv run python cmd/validate_user_accounts.py \
+cd ../TRACE && uv run trace validate-accounts \
   --user-accounts ../SAGE/input/user_accounts.json \
   --assets        ../SAGE/input/assets.json
 
-cd ../SAGE && uv run python cmd/load_user_accounts.py \
+cd ../SAGE && uv run sage load-user-accounts \
   --file input/user_accounts.json
 ```
 
@@ -191,7 +191,7 @@ cp /path/to/pir_output_<timestamp>.json input/pir.json
 > いずれかのタグにマッチするかを TRACE 側でチェックする:
 >
 > ```sh
-> cd ../TRACE && uv run python cmd/validate_pir.py \
+> cd ../TRACE && uv run trace validate-pir \
 >   --pir ../SAGE/input/pir.json --assets ../SAGE/input/assets.json
 > ```
 
@@ -208,7 +208,7 @@ cp /path/to/pir_output_<timestamp>.json input/pir.json
 
 ```sh
 # OpenCTI 不要 — ローカルの STIX バンドルを使用
-uv run python cmd/run_etl.py --manual-bundle tests/fixtures/sample_bundle_mirrorface.json
+uv run sage run-etl --manual-bundle tests/fixtures/sample_bundle_mirrorface.json
 
 # ライブの OpenCTI に対して実行
 make run-etl
@@ -249,14 +249,14 @@ docker run -d --name spanner-emulator -p 9010:9010 -p 9020:9020 \
 export SPANNER_EMULATOR_HOST=localhost:9010
 
 # 2. インスタンス・データベース・スキーマを作成
-uv run python cmd/setup_emulator.py
+uv run sage setup-emulator
 make init-schema
 
 # 3. 脅威インテリジェンスを投入（Attack Flow）
 # 注意: 外部バンドルや手動作成バンドルは PIR フィルタがアクターを保持できるよう事前にエンリッチが必要:
-#   cd ../TRACE && uv run python cmd/enrich_bundle.py --input <bundle.json> --output enriched.json && cd ../SAGE
-uv run python cmd/run_etl.py --manual-bundle tests/fixtures/sample_bundle_mirrorface.json
-uv run python cmd/run_etl.py --manual-bundle tests/fixtures/sample_bundle_inc.json
+#   cd ../TRACE && uv run trace enrich-bundle --input <bundle.json> --output enriched.json && cd ../SAGE
+uv run sage run-etl --manual-bundle tests/fixtures/sample_bundle_mirrorface.json
+uv run sage run-etl --manual-bundle tests/fixtures/sample_bundle_inc.json
 
 # 4. 内部資産を投入（Attack Graph）
 make load-assets
@@ -313,10 +313,10 @@ podman stop spanner-emulator && podman rm spanner-emulator
 オプション:
 
 ```sh
-uv run python cmd/visualize_combined.py --no-open   # 統合ビュー、ブラウザ自動起動を抑制
-uv run python cmd/visualize_combined.py --limit 200 # テーブルごとの行数を制限
-uv run python cmd/visualize_graph.py --no-open      # 攻撃グラフのみ
-uv run python cmd/visualize_attack_flow.py --no-open # 攻撃フローのみ
+uv run sage visualize-combined --no-open   # 統合ビュー、ブラウザ自動起動を抑制
+uv run sage visualize-combined --limit 200 # テーブルごとの行数を制限
+uv run sage visualize-graph --no-open      # 攻撃グラフのみ
+uv run sage visualize-attack-flow --no-open # 攻撃フローのみ
 ```
 
 ---

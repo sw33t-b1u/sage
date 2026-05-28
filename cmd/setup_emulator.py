@@ -73,7 +73,3 @@ def main() -> None:
         logger.info("database_already_exists", database_id=config.spanner_database_id)
 
     logger.info("emulator_setup_complete")
-
-
-if __name__ == "__main__":
-    main()

@@ -91,13 +91,3 @@ def main() -> None:
     logger.info("done", success=success, skipped=skipped, failed=failed)
     if failed:
         sys.exit(1)
-
-
-if __name__ == "__main__":
-    sys.stderr.write(
-        "DeprecationWarning: 'python -m cmd.init_schema' / "
-        "'python cmd/init_schema.py' is deprecated as of SAGE 1.0.0. "
-        "Use 'sage init-schema' instead; cmd/* invocations are "
-        "scheduled for removal in SAGE 2.0.\n"
-    )
-    main()

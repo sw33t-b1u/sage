@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [1.3.0] — 2026-05-28
+
+### Added
+
+- `sage report-choke-points` — unified CLI subcommand for choke-point
+  reporting (wraps `cmd/report_choke_points.py`).
+- `sage sync-caldera` — unified CLI subcommand for Caldera TTP sync
+  (wraps `cmd/sync_caldera.py`).
+- `sage visualize-attack-flow` — unified CLI subcommand for attack-flow
+  HTML visualisation (wraps `cmd/visualize_attack_flow.py`).
+- `sage visualize-combined` — unified CLI subcommand for combined
+  (attack flow + attack graph) HTML visualisation (wraps
+  `cmd/visualize_combined.py`).
+- `sage setup-emulator` — unified CLI subcommand for Spanner emulator
+  bootstrap (wraps `cmd/setup_emulator.py`).
+
+### Removed
+
+- Standalone `python -m cmd.<name>` / `python cmd/<name>.py` invocation
+  syntax. All entry points are now exclusively reached via the `sage
+  <subcommand>` unified CLI. Docs migrated accordingly.
+
+
 ## [1.2.0] — 2026-05-28
 
 ### Added

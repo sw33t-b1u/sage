@@ -239,13 +239,3 @@ def main() -> None:
     database = instance.database(config.spanner_database_id)
 
     load_assets(database, data)
-
-
-if __name__ == "__main__":
-    sys.stderr.write(
-        "DeprecationWarning: 'python -m cmd.load_assets' / "
-        "'python cmd/load_assets.py' is deprecated as of SAGE 1.0.0. "
-        "Use 'sage load-assets' instead; cmd/* invocations are "
-        "scheduled for removal in SAGE 2.0.\n"
-    )
-    main()

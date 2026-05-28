@@ -124,13 +124,3 @@ def main(argv: list[str] | None = None) -> int:
         f"created_at_pending={result['created_at_pending']}"
     )
     return 0
-
-
-if __name__ == "__main__":
-    sys.stderr.write(
-        "DeprecationWarning: 'python -m cmd.annotate_actor' / "
-        "'python cmd/annotate_actor.py' is deprecated as of "
-        "SAGE 1.0.0. Use 'sage actor-annotate' instead; cmd/* "
-        "invocations are scheduled for removal in SAGE 2.0.\n"
-    )
-    raise SystemExit(main())

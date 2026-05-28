@@ -71,7 +71,3 @@ def main() -> None:
         action=result["action"],
         ability_count=result["ability_count"],
     )
-
-
-if __name__ == "__main__":
-    main()

@@ -24,7 +24,7 @@ sequenceDiagram
 
     Note over IR,OpenCTI: 2 intake paths converge on SAGE Incident table
 
-    IR->>SAGE: POST /api/incidents (direct, low-latency)<br/>or cmd/register_incident.py
+    IR->>SAGE: POST /api/incidents (direct, low-latency)<br/>or sage incident-register
     SAGE-->>IR: 200 + warnings[]<br/>(kcp_missing, sequence_order_null)
     Note right of SAGE: source='direct_api'
 
@@ -37,7 +37,7 @@ sequenceDiagram
     SAGE-->>BEACON: incidents[] (full + diamond_model)
     Note right of BEACON: ir_observed<br/>(binary Intent factor: 1.0 if attacked, 0.5 if not)
 
-    IR->>TRACE: cmd/search_iocs.py --ioc evil.example.com
+    IR->>TRACE: trace search-iocs --ioc evil.example.com
     TRACE-->>IR: matched articles (LLM-extracted IoC index)
 ```
 
@@ -128,7 +128,7 @@ GET routes remain permissive when `SAGE_API_AUTH_TOKEN` is unset
 Bearer auth applies. POST routes are required-when-set and return
 **503 when the token is unset** (write API foot-gun gate — see §7).
 
-### cmd/register_incident.py (CLI helper)
+### sage incident-register (CLI helper)
 
 Click-based CLI for IR analysts. Four modes:
 
@@ -201,7 +201,7 @@ prompt requests empty list in preference to speculative extractions.
 
 ### Search CLI (Phase 5)
 
-`cmd/search_iocs.py --ioc <value> [--type <t>] [--tlp-max <level>]`
+`trace search-iocs --ioc <value> [--type <t>] [--tlp-max <level>]`
 queries `crawl_state.json` for matching IoCs and returns the
 articles that mention them.
 
@@ -264,17 +264,17 @@ discriminates downstream analyses.
 
 ```sh
 # Interactive (recommended for first-time):
-uv run python -m cmd.register_incident
+uv run sage incident-register
 
 # From MITRE Navigator export:
-uv run python -m cmd.register_incident \
+uv run sage incident-register \
     --name "Q1 2026 spear-phishing wave" \
     --occurred-at 2026-03-15T10:30:00Z \
     --severity high \
     --navigator-layer ./navigator_2026q1.json
 
 # Air-gapped (write Spanner directly, no HTTP):
-uv run python -m cmd.register_incident \
+uv run sage incident-register \
     --from-file payload.json --no-api
 ```
 
@@ -282,16 +282,16 @@ uv run python -m cmd.register_incident \
 
 ```sh
 # Domain seen in a phishing payload — has it appeared in CTI before?
-uv run python -m cmd.search_iocs --ioc evil.example.com
+uv run trace search-iocs --ioc evil.example.com
 
 # Narrow to a specific type:
-uv run python -m cmd.search_iocs --ioc T1078 --type cve_id
+uv run trace search-iocs --ioc T1078 --type cve_id
 
 # Machine-readable for downstream pipelines:
-uv run python -m cmd.search_iocs --ioc evil.example.com --json | jq '.[].matched_url'
+uv run trace search-iocs --ioc evil.example.com --json | jq '.[].matched_url'
 
 # Include TLP:RED (explicit opt-in):
-uv run python -m cmd.search_iocs --ioc evil.example.com --tlp-max red
+uv run trace search-iocs --ioc evil.example.com --tlp-max red
 ```
 
 ### BEACON operator: enabling IR-boost
@@ -301,10 +301,10 @@ uv run python -m cmd.search_iocs --ioc evil.example.com --tlp-max red
 SAGE_API_URL=http://sage:8000 \
 SAGE_API_AUTH_TOKEN=<token> \
 BEACON_IR_LOOKBACK_DAYS=365 \
-    uv run python -m cmd.generate_pir
+    uv run beacon pir-generate
 
 # Skip SAGE call entirely (air-gapped / SAGE not deployed):
-uv run python -m cmd.generate_pir --no-sage
+uv run beacon pir-generate --no-sage
 ```
 
 ---

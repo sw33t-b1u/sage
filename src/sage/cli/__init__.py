@@ -3,9 +3,9 @@
 Each subcommand is a thin click wrapper that delegates to the existing
 ``cmd/<name>.py`` module's ``main()``. The wrappers exist so the
 single committed CLI surface — see ``docs/api-stability.md`` §3.6 —
-is owned by one click ``Group``, while the legacy
-``python cmd/<name>.py`` / ``python -m cmd.<name>`` invocations stay
-functional for the 1.x line (with a deprecation steer).
+is owned by one click ``Group``. The legacy
+``python cmd/<name>.py`` / ``python -m cmd.<name>`` invocations were
+removed in 1.3.0; ``sage <subcommand>`` is the only supported entry.
 
 This module also retains its historical ``cli``-helper purpose:
 ``sage.cli.navigator_loader`` continues to live alongside the click
@@ -199,6 +199,31 @@ _register_passthrough(
     "visualize-graph",
     "visualize_graph",
     "Generate an interactive HTML visualization of the attack graph.",
+)
+_register_passthrough(
+    "report-choke-points",
+    "report_choke_points",
+    "Generate a Markdown choke-point asset report (Blue Team).",
+)
+_register_passthrough(
+    "sync-caldera",
+    "sync_caldera",
+    "Sync actor TTPs to a Caldera adversary profile.",
+)
+_register_passthrough(
+    "visualize-attack-flow",
+    "visualize_attack_flow",
+    "Generate a weighted Attack Flow HTML visualization.",
+)
+_register_passthrough(
+    "visualize-combined",
+    "visualize_combined",
+    "Generate a combined Attack Graph + Attack Flow HTML visualization.",
+)
+_register_passthrough(
+    "setup-emulator",
+    "setup_emulator",
+    "Create Spanner emulator instance and database (dev only).",
 )
 
 

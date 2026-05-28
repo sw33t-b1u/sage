@@ -190,13 +190,3 @@ def main() -> None:
     else:
         print("Failed to create Issue.", file=sys.stderr)
         sys.exit(1)
-
-
-if __name__ == "__main__":
-    sys.stderr.write(
-        "DeprecationWarning: 'python -m cmd.create_ir_template' / "
-        "'python cmd/create_ir_template.py' is deprecated as of "
-        "SAGE 1.0.0. Use 'sage ir-template' instead; cmd/* "
-        "invocations are scheduled for removal in SAGE 2.0.\n"
-    )
-    main()

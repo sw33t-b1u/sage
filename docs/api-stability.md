@@ -39,7 +39,7 @@ the full policy text.
 | `Incident.source` discriminator | ✓ | 1.0.0 | Values: `ir_feedback` (OpenCTI relay) / `direct_api` (POST /api/incidents) |
 | Auth gate semantics (POST = 503 when `SAGE_API_AUTH_TOKEN` unset; GET = permissive) | ✓ | 1.0.0 | See §3.2 |
 | `sage` CLI entry + subcommands (Phase 6 of H) | ✓ | 1.0.0 | Subcommand names + main flags frozen |
-| Legacy `python -m cmd.<name>` | (deprecated) | n/a | Deprecated in 1.0.0 → removed in 2.0.0 |
+| Legacy `python -m cmd.<name>` | (removed) | n/a | Removed in 1.3.0; use `sage <subcommand>` |
 | MITRE Navigator import format support (`sage incident-register --navigator-layer`) | ✓ | 1.0.0 | Reads MITRE Navigator JSON layer file |
 | ETL contract (TRACE STIX bundle ingest) | ✓ | 1.0.0 | Conforms to STIX 2.1; `x_trace_*` properties stripped at landing |
 | Env vars (§5) | ✓ | 1.0.0 | Name + meaning + default frozen |
@@ -191,6 +191,11 @@ point. Operator-visible surface from 1.0.0:
 | `sage serve-api` | `cmd/analysis_api.py` | Start REST API server |
 | `sage run-etl` | `cmd/run_etl.py` | Run ETL pipeline (OpenCTI poll or `--input`) |
 | `sage visualize-graph` | `cmd/visualize_graph.py` | Generate interactive HTML graph visualization |
+| `sage report-choke-points` | `cmd/report_choke_points.py` | Generate a Markdown choke-point asset report (Blue Team) |
+| `sage sync-caldera` | `cmd/sync_caldera.py` | Sync actor TTPs to a Caldera adversary profile |
+| `sage visualize-attack-flow` | `cmd/visualize_attack_flow.py` | Generate a weighted Attack Flow HTML visualization |
+| `sage visualize-combined` | `cmd/visualize_combined.py` | Generate a combined Attack Graph + Attack Flow HTML visualization |
+| `sage setup-emulator` | `cmd/setup_emulator.py` | Create Spanner emulator instance and database (dev only) |
 
 **Committed**: subcommand names + each subcommand's main flags
 (e.g., `incident-register --id`, `--from-file`, `--navigator-layer`,
@@ -198,10 +203,9 @@ point. Operator-visible surface from 1.0.0:
 
 **Evolving**: optional flag defaults, help text, output formatting.
 
-**Deprecated (removal in 2.0.0)**: `python -m cmd.<name>` invocation
-syntax. The cmd modules remain in 1.x for backward compat but emit
-`DeprecationWarning` directing operators to the unified `sage`
-entry.
+**Removed in 1.3.0**: `python -m cmd.<name>` invocation syntax. The
+unified `sage` CLI is the only supported entry point from 1.3.0
+onwards.
 
 ### 3.7 MITRE Navigator import (Initiative G Phase 3)
 

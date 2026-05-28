@@ -138,7 +138,3 @@ def main() -> None:
     if config.slack_webhook_url:
         choke_rows = find_choke_points(database, top_n=50)
         notify_etl_complete(config.slack_webhook_url, stats, choke_rows, prev_choke_rows)
-
-
-if __name__ == "__main__":
-    main()

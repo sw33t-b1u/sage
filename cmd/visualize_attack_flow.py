@@ -444,7 +444,3 @@ def main() -> None:
 
     if not args.no_open:
         webbrowser.open(output_path.resolve().as_uri())
-
-
-if __name__ == "__main__":
-    main()

@@ -100,13 +100,3 @@ def main() -> None:
     else:
         rows = find_actor_ttps(database, actor_stix_id=args.actor_id)
         _print_actor_ttps(rows, args.actor_id)
-
-
-if __name__ == "__main__":
-    sys.stderr.write(
-        "DeprecationWarning: 'python -m cmd.query_attack_paths' / "
-        "'python cmd/query_attack_paths.py' is deprecated as of "
-        "SAGE 1.0.0. Use 'sage query-attack-paths' instead; cmd/* "
-        "invocations are scheduled for removal in SAGE 2.0.\n"
-    )
-    main()

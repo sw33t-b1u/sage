@@ -243,13 +243,3 @@ def main() -> None:
     database = instance.database(config.spanner_database_id)
 
     load_identity_assets(database, data)
-
-
-if __name__ == "__main__":
-    sys.stderr.write(
-        "DeprecationWarning: 'python -m cmd.load_identity_assets' / "
-        "'python cmd/load_identity_assets.py' is deprecated as of "
-        "SAGE 1.0.0. Use 'sage load-identity-assets' instead; cmd/* "
-        "invocations are scheduled for removal in SAGE 2.0.\n"
-    )
-    main()
