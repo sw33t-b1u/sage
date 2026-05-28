@@ -43,12 +43,14 @@ class PIRFilter:
 
     @classmethod
     def from_file(cls, path: Path) -> PIRFilter:
-        """Load PIRs from a BEACON 1.0.0 wrapped ``pir_output.json`` file.
+        """Load PIRs from a BEACON wrapped ``pir_output.json`` file.
 
-        Strictly accepts the ``{"schema_version": "1.0.0", "pirs": [...]}``
+        Strictly accepts the ``{"schema_version": "2.0.0", "pirs": [...]}``
         envelope shape — the pre-Initiative H bare-list / single-object
         fallback was dropped to match TRACE's
-        ``PIROutputDocument`` contract.
+        ``PIROutputDocument`` contract. The ``schema_version`` value itself
+        is not gated here (SAGE consumes score_breakdown opaquely); TRACE is
+        the validation gate for the contract version.
         """
         with path.open() as f:
             data = json.load(f)
@@ -56,7 +58,7 @@ class PIRFilter:
             raise ValueError(
                 "Bare-list PIR input is no longer supported as of SAGE 1.0.0; "
                 "wrap your input as "
-                '{"schema_version": "1.0.0", "pirs": [...]}'
+                '{"schema_version": "2.0.0", "pirs": [...]}'
             )
         pirs = data.get("pirs") or []
         if not isinstance(pirs, list):

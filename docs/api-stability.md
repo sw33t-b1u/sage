@@ -23,12 +23,10 @@ strictly from 1.0.0 onwards.
   additive; narrowing or renaming is breaking).
 - **Patch** (`1.0.X`) — bug fixes only, no surface change.
 
-### 90-day BC guarantee
-
-Committed surface items are guaranteed BC for **at least 90 days**
-from the release that introduced them. Deprecation path is identical
-to BEACON / TRACE (warn in 1.X.Y → remove in 2.0.0). See BEACON
-`docs/api-stability.md` §1 for the full policy text.
+Deprecation path: announce in a `### Deprecated` CHANGELOG section with
+the planned removal version, emit a runtime warning where applicable,
+then remove in the next major. See BEACON `docs/api-stability.md` §1 for
+the full policy text.
 
 ---
 

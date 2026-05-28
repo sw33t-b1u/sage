@@ -18,9 +18,7 @@ SAGE は 1.0.0 以降、[Semantic Versioning 2.0.0](https://semver.org/spec/v2.0
 - **マイナー** (`1.X.0`) — 追加的変更: 新規テーブル / カラム / REST エンドポイント / CLI サブコマンド / 環境変数。Spanner DDL は追加のみ（`STRING(64)` → `STRING(128)` のようなカラム型の拡張は追加的; 縮小または改名は破壊的）。
 - **パッチ** (`1.0.X`) — バグ修正のみ。サーフェス変更なし。
 
-### 90 日間 BC 保証
-
-Committed サーフェス項目は、導入されたリリースから **少なくとも 90 日間** BC が保証される。廃止パスは BEACON / TRACE と同一（1.X.Y で警告 → 2.0.0 で削除）。完全なポリシー文はは BEACON `docs/api-stability.md` §1 を参照。
+廃止パス: `### Deprecated` CHANGELOG セクションで削除予定バージョンを告知し、該当する場合はランタイム警告を出し、次のメジャーで削除する。完全なポリシー文は BEACON `docs/api-stability.md` §1 を参照。
 
 ---
 
