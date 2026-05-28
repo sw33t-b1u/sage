@@ -65,11 +65,13 @@ SAGE/
 │
 ├── docs/                       # 英語ドキュメント（正本）
 │   ├── high-level-design.md    # システム設計ドキュメント（正本; local-only / gitignored）
-│   ├── setup.md                # GCP リソース作成・デプロイ・スケジューラ設定
-│   ├── analyst-guide.md        # CTI アナリスト向け日常利用ガイド
+│   ├── setup.md                # クローン・インストール・設定・初回実行・テスト
+│   ├── deploy.md               # Cloud Run デプロイと Cloud Scheduler
+│   ├── usage.md                # CLI コマンド・ワークフロー・運用・トラブルシューティング
 │   ├── data-model.md           # ノード/エッジ定義・PIR 計算式・FollowedBy 重み
-│   ├── local-testing.md        # Spanner エミュレーターのセットアップとユニットテスト手順
+│   ├── ir-feedback-flow.md     # IR フィードバックループとスコアリング計算式
 │   ├── dependencies.md         # サードパーティ依存の選定理由とライセンス
+│   ├── api-stability.md        # API 安定性ポリシーと後方互換性保証
 │   ├── structure.md            # ディレクトリレイアウトリファレンス（英語正本）
 │   └── *.ja.md                 # 日本語翻訳（英語版と同じディレクトリに配置）
 │

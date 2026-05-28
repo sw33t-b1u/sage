@@ -1,1 +1,0 @@
-../../beacon/docs/citations.ja.md

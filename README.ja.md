@@ -73,38 +73,22 @@
 [GHE Issues]  [Slack アラート]  [Caldera Adversary プロファイル]
 ```
 
-## StorageBackend
-
-SAGE は BEACON・TRACE と同じ `StorageBackend` 抽象化を採用（Decision I-12）。環境変数で設定する:
-
-| 変数 | デフォルト | 用途 |
-|------|-----------|------|
-| `SAGE_STORAGE` | `local` | バックエンド種別: `local` または `gcs` |
-| `SAGE_STORAGE_BASE_DIR` | `output` | ローカルストレージのベースディレクトリ（TRACE/BEACON と共有） |
-| `SAGE_GCS_BUCKET` | (なし) | GCS バケット名（`SAGE_STORAGE=gcs` 時に必須） |
-| `SAGE_GCS_PREFIX` | (なし) | GCS オブジェクトキーのプレフィックス（任意） |
-
-バックエンドに保存されるカテゴリ:
-
-| カテゴリ | 内容 |
-|---------|------|
-| `stix` | TRACE STIX バンドル — ETL はここの全ファイルを処理 |
-| `assets` | BEACON `assets.json` 出力 |
-| `pir` | BEACON `pir_output.json` 出力 |
-| `plans` | `collection_plan.md`、`sources_candidate.yaml` |
-| `crawl_state` | TRACE クロール状態ファイル |
-
-`cmd/run_etl.py` は `--input` フラグ未指定時に `stix/` カテゴリの**全バンドル**を処理する。`cmd/load_assets.py`・`cmd/load_identity_assets.py`・`cmd/load_user_accounts.py` は `--input` 省略時に StorageBackend から自動取得する。
-
 ## ドキュメント
 
 | ドキュメント | 内容 |
 |-------------|------|
-| [docs/setup.ja.md](docs/setup.ja.md) | GCP リソース作成、スキーマ初期化、Cloud Run・Scheduler デプロイ |
-| [docs/analyst-guide.ja.md](docs/analyst-guide.ja.md) | 日常利用: ETL・チョークポイント・グラフ可視化・PIR 更新・IR ワークフロー |
-| [docs/data-model.ja.md](docs/data-model.ja.md) | ノード/エッジ定義、PIR 重み付け計算式、FollowedBy 重み計算 |
-| [docs/local-testing.ja.md](docs/local-testing.ja.md) | Spanner エミュレーター、ユニットテスト、サンプルフィクスチャ |
+| [docs/setup.ja.md](docs/setup.ja.md) | クローン、インストール、設定、初回実行、テスト |
+| [docs/deploy.ja.md](docs/deploy.ja.md) | Cloud Run デプロイと Cloud Scheduler |
+| [docs/usage.ja.md](docs/usage.ja.md) | CLI コマンド、ワークフロー、運用、トラブルシューティング |
+| [docs/data-model.ja.md](docs/data-model.ja.md) | Spanner Graph スキーマ、ノード/エッジ定義、PIR 計算式 |
+| [docs/ir-feedback-flow.ja.md](docs/ir-feedback-flow.ja.md) | IR フィードバックループとスコアリング計算式 |
+| [docs/structure.ja.md](docs/structure.ja.md) | プロジェクトディレクトリ構成 |
 | [docs/dependencies.ja.md](docs/dependencies.ja.md) | 依存パッケージの選定理由とライセンス情報 |
+| [docs/api-stability.ja.md](docs/api-stability.ja.md) | API 安定性ポリシーと後方互換性保証 |
+
+クロスプロジェクト:
+- [BEACON pipeline-guide.md](https://github.com/sw33t-b1u/beacon/blob/main/docs/pipeline-guide.md) — エンドツーエンド CTI パイプライン
+- [BEACON citations.md](https://github.com/sw33t-b1u/beacon/blob/main/docs/citations.md) — 外部引用とライセンス一覧
 
 ## クイックスタート
 
@@ -132,16 +116,6 @@ make format    # ruff format + fix
 make test      # pytest
 make audit     # pip-audit
 make setup     # Git フックをインストール（pre-commit: vet lint、pre-push: check）
-```
-
-## GCP インフラ構成
-
-```
-Spanner (us-central1)       — ThreatIntelGraph
-Cloud Storage               — STIX ランディングゾーン（90 日 TTL）
-Cloud Run                   — ETL ワーカー + Analysis API
-Cloud Scheduler             — 日次 ETL トリガー（03:00 JST）
-Secret Manager              — API トークンと認証情報
 ```
 
 ## PIR 方法論の参考資料

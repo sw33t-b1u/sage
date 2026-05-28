@@ -73,39 +73,22 @@ real-time SIEM detection, endpoint protection, vulnerability scanning automation
 [GHE Issues]  [Slack alerts]  [Caldera adversary profiles]
 ```
 
-## StorageBackend
-
-SAGE uses the same `StorageBackend` abstraction as BEACON and TRACE (Decision I-12). Configure via environment variables:
-
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `SAGE_STORAGE` | `local` | Backend type: `local` or `gcs` |
-| `SAGE_STORAGE_BASE_DIR` | `output` | Base directory for local storage (shared with TRACE/BEACON) |
-| `SAGE_GCS_BUCKET` | (none) | GCS bucket name (required when `SAGE_STORAGE=gcs`) |
-| `SAGE_GCS_PREFIX` | (none) | GCS object key prefix (optional) |
-
-Categories stored under the backend:
-
-| Category | Contents |
-|----------|---------|
-| `stix` | TRACE STIX bundles — ETL processes all files found here |
-| `assets` | BEACON `assets.json` outputs |
-| `pir` | BEACON `pir_output.json` outputs |
-| `plans` | `collection_plan.md`, `sources_candidate.yaml` |
-| `crawl_state` | TRACE crawl state files |
-
-`cmd/run_etl.py` processes **all** bundles in the `stix/` category when no `--input` flag is given. `cmd/load_assets.py`, `cmd/load_identity_assets.py`, and `cmd/load_user_accounts.py` fall back to StorageBackend automatically when `--input` is omitted.
-
 ## Documentation
 
 | Document | Description |
 |----------|-------------|
-| [docs/setup.md](docs/setup.md) | GCP resource creation, schema init, Cloud Run & Scheduler deployment |
-| [docs/analyst-guide.md](docs/analyst-guide.md) | Day-to-day usage: ETL, choke points, graph visualization, PIR updates, IR workflow |
-| [docs/data-model.md](docs/data-model.md) | Node/edge definitions, PIR weighting formula, FollowedBy weight calculation |
-| [docs/local-testing.md](docs/local-testing.md) | Spanner emulator setup, unit tests, sample fixtures |
-| [docs/dependencies.md](docs/dependencies.md) | Dependency rationale and license information |
-| [docs/pipeline-guide.md](docs/pipeline-guide.md) | End-to-end CTI pipeline workflow: BEACON → TRACE → SAGE ([ja](docs/pipeline-guide.ja.md)) |
+| [docs/setup.md](docs/setup.md) | Clone, install, configure, first run, testing |
+| [docs/deploy.md](docs/deploy.md) | Cloud Run deployment and Cloud Scheduler |
+| [docs/usage.md](docs/usage.md) | CLI commands, workflows, operations, troubleshooting |
+| [docs/data-model.md](docs/data-model.md) | Spanner Graph schema, node/edge definitions, PIR formulas |
+| [docs/ir-feedback-flow.md](docs/ir-feedback-flow.md) | IR feedback loop and scoring formulas |
+| [docs/structure.md](docs/structure.md) | Project directory layout |
+| [docs/dependencies.md](docs/dependencies.md) | Dependency rationale and licenses |
+| [docs/api-stability.md](docs/api-stability.md) | API stability policy and BC guarantees |
+
+Cross-project:
+- [BEACON pipeline-guide.md](https://github.com/sw33t-b1u/beacon/blob/main/docs/pipeline-guide.md) — End-to-end CTI pipeline
+- [BEACON citations.md](https://github.com/sw33t-b1u/beacon/blob/main/docs/citations.md) — External citations and license inventory
 
 ## Quick start
 
@@ -131,16 +114,6 @@ make lint      # ruff format --check
 make format    # ruff format + fix
 make test      # pytest
 make audit     # pip-audit
-```
-
-## GCP Infrastructure
-
-```
-Spanner (us-central1)       — ThreatIntelGraph
-Cloud Storage               — STIX landing zone (90-day TTL)
-Cloud Run                   — ETL worker + Analysis API
-Cloud Scheduler             — daily ETL trigger (03:00 JST)
-Secret Manager              — API tokens and credentials
 ```
 
 ## PIR Methodology References

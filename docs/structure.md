@@ -63,11 +63,13 @@ SAGE/
 │
 ├── docs/                       # English documentation (authoritative)
 │   ├── high-level-design.md    # Authoritative system design (local-only; gitignored)
-│   ├── setup.md                # GCP resource creation, deployment, scheduler setup
-│   ├── analyst-guide.md        # Day-to-day usage guide for CTI analysts
+│   ├── setup.md                # Clone, install, configure, first run, testing
+│   ├── deploy.md               # Cloud Run deployment and Cloud Scheduler
+│   ├── usage.md                # CLI commands, workflows, operations, troubleshooting
 │   ├── data-model.md           # Node/edge definitions, PIR formula, FollowedBy weights
-│   ├── local-testing.md        # Spanner emulator setup and unit test instructions
+│   ├── ir-feedback-flow.md     # IR feedback loop and scoring formulas
 │   ├── dependencies.md         # Third-party dependency rationale and licenses
+│   ├── api-stability.md        # API stability policy and BC guarantees
 │   ├── structure.md            # This file — directory layout reference
 │   └── *.ja.md                 # Japanese translations alongside each English doc
 │

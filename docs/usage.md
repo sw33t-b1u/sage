@@ -1,4 +1,4 @@
-# SAGE — Analyst Usage Guide
+# SAGE — Usage Guide
 
 This guide describes the day-to-day workflow for CTI analysts and Blue Team members.
 
@@ -240,3 +240,185 @@ Defaults: `incident_stix_id` is auto-generated as
 `incident--<uuid4>` (override with `--id`); the Bearer token reads
 from `$SAGE_API_AUTH_TOKEN`; the API base URL reads from
 `$SAGE_API_URL` (else `http://localhost:8000`).
+
+---
+
+## ETL Pipeline Operations
+
+### Manual ETL run
+
+```sh
+# Against live OpenCTI
+make run-etl
+
+# With a local STIX bundle (no OpenCTI required)
+uv run python cmd/run_etl.py --manual-bundle tests/fixtures/sample_bundle_mirrorface.json
+
+# Process all STIX bundles from StorageBackend stix/ category
+uv run sage run-etl
+```
+
+### Scheduled ETL (Cloud Scheduler)
+
+ETL runs automatically at 03:00 JST (18:00 UTC) via Cloud Scheduler. The job is named `sage-daily-etl` and targets the `sage-etl` Cloud Run service.
+
+To check scheduler status:
+
+```sh
+gcloud scheduler jobs describe sage-daily-etl --location=${REGION} --project=${PROJECT_ID}
+```
+
+To trigger the scheduled job immediately:
+
+```sh
+gcloud scheduler jobs run sage-daily-etl --location=${REGION} --project=${PROJECT_ID}
+```
+
+### ETL monitoring (Slack notifications)
+
+When `SLACK_WEBHOOK_URL` is configured, each ETL run posts a Slack notification containing:
+
+- Count of new/updated threat actors, TTPs, and vulnerabilities ingested
+- Top choke-point assets and their scores compared to the previous run
+
+Configure the webhook in `.env`:
+
+```
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
+```
+
+---
+
+## Analysis API Health Check
+
+Start the API server locally:
+
+```sh
+uv run python cmd/analysis_api.py --port 8080
+```
+
+Health and smoke checks:
+
+```sh
+curl http://localhost:8080/choke-points?top_n=5
+curl http://localhost:8080/asset-exposure
+curl http://localhost:8080/actors?name=apt&limit=5
+```
+
+Interactive API documentation (Swagger UI) is at `http://localhost:8080/docs`.
+
+In production (Cloud Run, VPC-internal), the API requires a Bearer token:
+
+```sh
+curl -H "Authorization: Bearer ${SAGE_API_AUTH_TOKEN}" \
+  https://<cloud-run-url>/choke-points?top_n=5
+```
+
+---
+
+## Spanner Data Management
+
+### Deleting nodes by STIX ID
+
+```sh
+# Delete a ThreatActor
+gcloud spanner databases execute-sql ${SPANNER_DB} \
+  --instance=${SPANNER_INSTANCE} --project=${PROJECT_ID} \
+  --sql="DELETE FROM ThreatActor WHERE stix_id = 'intrusion-set--xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'"
+
+# Delete a TTP (also removes downstream FollowedBy edges referencing it)
+gcloud spanner databases execute-sql ${SPANNER_DB} \
+  --instance=${SPANNER_INSTANCE} --project=${PROJECT_ID} \
+  --sql="DELETE FROM TTP WHERE stix_id = 'attack-pattern--xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'"
+
+# Delete an Asset loaded by mistake
+gcloud spanner databases execute-sql ${SPANNER_DB} \
+  --instance=${SPANNER_INSTANCE} --project=${PROJECT_ID} \
+  --sql="DELETE FROM Asset WHERE id = 'asset-001-xxxxx-xxxx-xxxxxxxxxxxx'"
+```
+
+### Deleting edges only (keep nodes)
+
+```sh
+# Remove all Targets edges for a specific actor
+gcloud spanner databases execute-sql ${SPANNER_DB} \
+  --instance=${SPANNER_INSTANCE} --project=${PROJECT_ID} \
+  --sql="DELETE FROM Targets WHERE src_actor_stix_id = 'intrusion-set--xxxx'"
+
+# Remove FollowedBy edges from a specific source
+gcloud spanner databases execute-sql ${SPANNER_DB} \
+  --instance=${SPANNER_INSTANCE} --project=${PROJECT_ID} \
+  --sql="DELETE FROM FollowedBy WHERE source = 'manual'"
+```
+
+### Full schema reset (wipe all data, keep schema)
+
+```sh
+# Drops and recreates all tables — use only when a clean slate is needed
+make init-schema
+```
+
+---
+
+## StorageBackend Management
+
+SAGE uses the `StorageBackend` abstraction (Decision I-12). Configure via environment variables:
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `SAGE_STORAGE` | `local` | Backend type: `local` or `gcs` |
+| `SAGE_STORAGE_BASE_DIR` | `output` | Base directory for local storage (shared with TRACE/BEACON) |
+| `SAGE_GCS_BUCKET` | (none) | GCS bucket name (required when `SAGE_STORAGE=gcs`) |
+| `SAGE_GCS_PREFIX` | (none) | GCS object key prefix (optional) |
+
+Auto-load commands (omit `--input` to pull from StorageBackend):
+
+```sh
+uv run sage load-assets
+uv run sage load-identity-assets
+uv run sage load-user-accounts
+uv run sage run-etl          # processes all bundles in stix/ category
+```
+
+---
+
+## Slack / GHE Notification Configuration
+
+### Slack
+
+Set `SLACK_WEBHOOK_URL` in `.env`. The ETL worker and choke-point reporter both use this webhook.
+
+### GitHub Enterprise
+
+Set `GHE_TOKEN`, `GHE_REPO` (format: `owner/repo`), and optionally `GHE_API_BASE` (defaults to `https://api.github.com`) for GHE self-hosted.
+
+```sh
+# Post choke-point report as a GHE Issue
+uv run python cmd/report_choke_points.py --ghe
+```
+
+---
+
+## Troubleshooting
+
+### ETL returns 0 new objects
+
+- Verify OpenCTI connectivity: `curl ${OPENCTI_URL}/graphql -H "Authorization: Bearer ${OPENCTI_TOKEN}"`
+- Check that STIX bundles exist in the StorageBackend `stix/` category.
+- Inspect Spanner for existing data: `SELECT COUNT(*) FROM ThreatActor`
+
+### `OTEL_SDK_DISABLED` metric export errors
+
+Set `OTEL_SDK_DISABLED=true` in `.env` to suppress Spanner client OpenTelemetry metric export errors in environments without a metrics backend.
+
+### Spanner `ALREADY_EXISTS` on schema init
+
+The schema was previously initialized. Run `make init-schema` only when a clean slate is needed — it drops all tables.
+
+### Analysis API returns 401
+
+Ensure `SAGE_API_AUTH_TOKEN` is set and matches the token the API server was started with.
+
+### StorageBackend path mismatch
+
+When `SAGE_STORAGE=local`, SAGE, TRACE, and BEACON must all share the same `output/` base directory. Set `SAGE_STORAGE_BASE_DIR` (and the equivalent in TRACE/BEACON) to an absolute path to avoid working-directory-dependent mismatches.

@@ -1,1 +1,0 @@
-../../beacon/docs/pipeline-guide.md
