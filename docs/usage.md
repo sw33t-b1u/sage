@@ -204,9 +204,7 @@ uv run sage sync-caldera --actor-id <stix-id>
 
 ### Direct IR feedback registration (`sage incident-register`)
 
-Initiative G Phase 3 adds a CLI for the SAGE direct-API path so IR
-teams can register an incident the same day it occurs (vs OpenCTI's
-24h polling latency). Four modes:
+The `sage incident-register` CLI lets IR teams register an incident the same day it occurs (vs OpenCTI's 24h polling latency). Four modes:
 
 ```sh
 # 1) Interactive — prompts for Diamond Model 4 quadrants.

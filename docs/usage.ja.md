@@ -204,7 +204,7 @@ uv run sage sync-caldera --actor-id <stix-id>
 
 ### 直接 IR フィードバック登録（`sage incident-register`）
 
-Initiative G Phase 3 では、IR チームがインシデント発生当日に登録できる SAGE 直接 API パスの CLI を追加している（OpenCTI の 24 時間ポーリング遅延との対比）。4 つのモード:
+`sage incident-register` CLI を使うと、IR チームはインシデント発生当日に登録できる（OpenCTI の 24 時間ポーリング遅延との対比）。4 つのモード:
 
 ```sh
 # 1) インタラクティブ — Diamond Model 4 象限をプロンプトで入力。

@@ -126,12 +126,12 @@ uv run sage load-assets --file path/to/assets.json   # custom path
 
 ---
 
-## Step 5.1 — Load identity assets (Initiative A / Initiative C Phase 2)
+## Step 5.1 — Load identity assets
 
 BEACON also emits `identity_assets.json` (people / roles / groups granted
 access on internal assets). Place it under `input/` and validate via TRACE
-before loading — TRACE 1.6.0+ cross-checks each `has_access[].asset_id`
-against `assets.json` and validates the Initiative C Phase 2 flag
+before loading — TRACE cross-checks each `has_access[].asset_id`
+against `assets.json` and validates the flag
 `is_high_value_impersonation_target` plus `impersonation_risk_factors`:
 
 ```sh
@@ -151,7 +151,7 @@ set — derives the `PirPrioritizesImpersonationTarget` cascade edge so
 
 ---
 
-## Step 5.2 — Load user accounts (Initiative B)
+## Step 5.2 — Load user accounts
 
 BEACON `user_accounts.json` carries account-level granularity (individual
 login identifiers like `alice@corp`, `svc-jenkins`) below the identity

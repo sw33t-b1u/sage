@@ -1,14 +1,12 @@
 # IR Feedback Flow — closing the CTI loop
 
-**Authoritative source**: `sage/docs/ir-feedback-flow.md`. BEACON and
-TRACE copies live at `beacon/docs/ir-feedback-flow.md` and
-`trace/docs/ir-feedback-flow.md` as relative symlinks to this file.
-Update once here and both consumers see the change.
+**Authoritative source**: this document lives in the SAGE repo
+(`sage/docs/ir-feedback-flow.md`). BEACON and TRACE link to it from
+their READMEs.
 
 This document describes the end-to-end IR-observe → SAGE-register →
-BEACON-rescore → TRACE-search loop introduced in Initiative G
-(BEACON 0.18.0 + TRACE 1.11.0 + SAGE 0.13.0). It supplements (does
-not replace) the existing OpenCTI-relayed incident ingestion path.
+BEACON-rescore → TRACE-search loop. It supplements (does not replace)
+the OpenCTI-relayed incident ingestion path.
 
 ---
 
@@ -20,7 +18,7 @@ sequenceDiagram
     participant SAGE as SAGE<br/>(POST/GET /api/incidents)
     participant BEACON as BEACON<br/>(generate_pir → triage)
     participant TRACE as TRACE<br/>(crawl_state + search_iocs)
-    participant OpenCTI as OpenCTI<br/>(legacy 24h polling)
+    participant OpenCTI as OpenCTI<br/>(24h polling)
 
     Note over IR,OpenCTI: 2 intake paths converge on SAGE Incident table
 
@@ -28,7 +26,7 @@ sequenceDiagram
     SAGE-->>IR: 200 + warnings[]<br/>(kcp_missing, sequence_order_null)
     Note right of SAGE: source='direct_api'
 
-    OpenCTI-->>SAGE: 24h polled STIX bundle (legacy)
+    OpenCTI-->>SAGE: 24h polled STIX bundle
     Note right of SAGE: source='ir_feedback'
 
     Note over SAGE: Both paths land in<br/>Incident + IncidentUsesTTP
@@ -69,7 +67,7 @@ property. The OpenCTI path remains valid; the two converge on the
 
 ## 3. Two intake paths
 
-### 3.1 OpenCTI-relayed (legacy, retained)
+### 3.1 OpenCTI-relayed
 
 | Property | Value |
 |---|---|
@@ -79,11 +77,11 @@ property. The OpenCTI path remains valid; the two converge on the
 | Pre-req | OpenCTI deployment |
 | Best fit | Orgs already running OpenCTI |
 
-### 3.2 Direct-API (new — Initiative G)
+### 3.2 Direct-API
 
 | Property | Value |
 |---|---|
-| Component | `POST /api/incidents` (SAGE Phase 1) |
+| Component | `POST /api/incidents` |
 | Latency | seconds |
 | `Incident.source` | `direct_api` |
 | Pre-req | `SAGE_API_AUTH_TOKEN` env (write API gate) |
@@ -123,8 +121,7 @@ CLI tooling. Filters: `since` / `until` (occurred_at range) /
 `actor_stix_id`. Pagination is limit-only (default 50, range 1-100).
 Response includes `incidents[].ttps[]` + `diamond_model` inline.
 
-GET routes remain permissive when `SAGE_API_AUTH_TOKEN` is unset
-(backward-compatible with current deployments); when set, normal
+GET routes remain permissive when `SAGE_API_AUTH_TOKEN` is unset; when set, normal
 Bearer auth applies. POST routes are required-when-set and return
 **503 when the token is unset** (write API foot-gun gate — see §7).
 
@@ -144,7 +141,7 @@ Click-based CLI for IR analysts. Four modes:
 
 ---
 
-## 5. BEACON IR-boost (Phase 6)
+## 5. BEACON IR-boost
 
 BEACON's `generate_pir` pipeline calls SAGE `GET /api/incidents`
 during actor triage. A binary `ir_observed` factor enters the
@@ -154,8 +151,7 @@ during actor triage. A binary `ir_observed` factor enters the
 |---|---|---|
 | `ir_observed` | Intent factor | 1.0 if ≥1 own-org incident exists for this actor in the lookback window; else 0.5 (neutral) |
 
-Aggregation preserves the [0, 1] geometric-mean scale established in
-Initiative E:
+Aggregation preserves the [0, 1] geometric-mean scale:
 
 ```
 Intent      = motivation_alignment × industry_match × ir_observed
@@ -171,7 +167,7 @@ is multiplied into Intent rather than Capability or Opportunity.
 ### Lookback window
 
 `BEACON_IR_LOOKBACK_DAYS` env var (default 365). Single global
-setting — no per-actor configurability in this initiative.
+setting — no per-actor configurability.
 
 ### Fail-soft
 
@@ -184,9 +180,9 @@ for caller visibility).
 
 ---
 
-## 6. TRACE IoC search (Phase 4 + 5)
+## 6. TRACE IoC search
 
-### IoC index (Phase 4)
+### IoC index
 
 TRACE's existing google-genai (Vertex AI) call that runs the L2 PIR
 relevance gate is extended to also return a structured `iocs[]` list.
@@ -199,7 +195,7 @@ Regex-based extraction was rejected by user policy (2026-05-23) due
 to unacceptable false-positive rate on real CTI articles. The LLM
 prompt requests empty list in preference to speculative extractions.
 
-### Search CLI (Phase 5)
+### Search CLI
 
 `trace search-iocs --ioc <value> [--type <t>] [--tlp-max <level>]`
 queries `crawl_state.json` for matching IoCs and returns the
@@ -223,21 +219,15 @@ not yet acted on).
 
 ## 7. Auth gate (Decision 10)
 
-Write APIs (`POST /api/incidents` from G + `POST /api/annotate` from
-Initiative E) require Bearer auth via `SAGE_API_AUTH_TOKEN`. When the
+Write APIs (`POST /api/incidents` + `POST /api/annotate`) require Bearer auth via `SAGE_API_AUTH_TOKEN`. When the
 env var is unset:
 
 - **POST** routes return **503** (write API foot-gun gate — explicit
   refusal beats silent permissiveness)
-- **GET** routes remain permissive (backward-compat with deployments
-  that never set the token)
+- **GET** routes remain permissive when `SAGE_API_AUTH_TOKEN` is unset
 
 When the env var is set, all routes require Bearer headers (401 on
 missing, 403 on wrong token).
-
-The harmonization applied retroactively to `/api/annotate` in
-Initiative G Phase 1 commit — prior E behavior of "optional with
-warning" replaced by the gate.
 
 ---
 
@@ -329,5 +319,4 @@ Full citation inventory: `beacon/docs/citations.md`.
 
 ---
 
-*Initiative G — IR Feedback Ingestion. Last updated 2026-05-24
-(triple release BEACON 0.18.0 + TRACE 1.11.0 + SAGE 0.13.0).*
+*IR Feedback Ingestion.*

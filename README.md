@@ -15,7 +15,7 @@ real-time SIEM detection, endpoint protection, vulnerability scanning automation
 - **Attack Graph** — Models asset connectivity and reachable attack paths. Asset criticality is dynamically adjusted per PIR at ETL time
 - **Attack Flow** — Tracks TTP time-series transitions as weighted `FollowedBy` edges
 - **PIR cascade** — `PIR` is a first-class graph node with `PirPrioritizesActor` (TAP), `PirPrioritizesTTP` (PTTP), and `PirWeightsAsset` edges materializing the Strategic → Operational → Tactical cascade
-- **Identity targeting** — `Identity` SDO and `ActorTargetsIdentity` edges capture credential / org-targeting attribution (paired with TRACE 1.0.0+)
+- **Identity targeting** — `Identity` SDO and `ActorTargetsIdentity` edges capture credential / org-targeting attribution (paired with TRACE)
 - **Analysis API** — Internal REST API (Cloud Run, VPC-internal, IAP-protected) exposing attack paths, choke points, actor TTPs, and asset exposure queries
 - **Team outputs** — GitHub Enterprise playbook issues, Slack priority alerts, Caldera adversary profiles for red team simulations
 - **TLP enforcement** — TLP Red objects excluded from storage; only `white`/`green`/`amber` ingested

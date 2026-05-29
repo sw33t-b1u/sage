@@ -15,7 +15,7 @@
 - **アタックグラフ** — 資産間の接続性と到達可能な攻撃経路をモデル化。PIR に基づく資産重要度を ETL 時に動的調整
 - **アタックフロー** — TTP の時系列遷移を重み付き `FollowedBy` エッジで追跡
 - **PIR カスケード** — `PIR` をグラフのノードとして格納し、`PirPrioritizesActor`(TAP) / `PirPrioritizesTTP`(PTTP) / `PirWeightsAsset` エッジで Strategic → Operational → Tactical のカスケードを表現
-- **Identity ターゲティング** — `Identity` SDO と `ActorTargetsIdentity` エッジで認証情報・組織を狙う攻撃の帰属を捕捉（TRACE 1.0.0+ と連動）
+- **Identity ターゲティング** — `Identity` SDO と `ActorTargetsIdentity` エッジで認証情報・組織を狙う攻撃の帰属を捕捉（TRACE と連動）
 - **Analysis API** — 攻撃経路・チョークポイント・アクター TTP・資産露出クエリを提供する内部 REST API（Cloud Run、VPC 内、IAP 保護）
 - **チーム別出力** — GitHub Enterprise プレイブック Issue、Slack 優先度別アラート、Caldera レッドチーム用 Adversary プロファイル生成
 - **TLP 制御** — TLP Red オブジェクトはストレージ除外。`white`/`green`/`amber` のみ取り込む

@@ -19,8 +19,8 @@ Cross-domain join: `Targets` edge links ThreatActor → Asset.
 | `TTP` | ATT&CK techniques/sub-techniques with detection difficulty level |
 | `Vulnerability` | CVEs with CVSS score, EPSS score, and affected platforms |
 | `MalwareTool` | Malware families and attacker tools |
-| `Identity` | Targeted persons / groups / systems / organizations (STIX 2.1 §4.4 SDO). Emitted by TRACE 1.0.0+ and addressed by `ActorTargetsIdentity`. SAGE-internal soft-delete column `deleted_at` is independent of STIX `revoked` — it captures HR-side departures the upstream STIX object cannot represent. |
-| `UserAccount` | Individual login accounts (STIX 2.1 §6.4 SCO) — `alice@corp`, `svc-jenkins`, domain SIDs. Initiative B (SAGE 0.7.0). Optional `identity_stix_id` FK to Identity (1:N). Drops one level deeper than Initiative A's role-based access for credential-theft impact tracing. |
+| `Identity` | Targeted persons / groups / systems / organizations (STIX 2.1 §4.4 SDO). Emitted by TRACE and addressed by `ActorTargetsIdentity`. SAGE-internal soft-delete column `deleted_at` is independent of STIX `revoked` — it captures HR-side departures the upstream STIX object cannot represent. |
+| `UserAccount` | Individual login accounts (STIX 2.1 §6.4 SCO) — `alice@corp`, `svc-jenkins`, domain SIDs. Optional `identity_stix_id` FK to Identity (1:N). Provides one level deeper granularity than role-based access for credential-theft impact tracing. |
 | `Asset` | Internal assets (server, endpoint, SaaS, storage, network device) with PIR-adjusted criticality. Network segment info (name, CIDR, zone) stored as properties. |
 | `SecurityControl` | Defensive controls: EDR, WAF, SIEM, firewall, IAM |
 | `Observable` | IoCs — IPs, domains, hashes, emails, URLs with TLP and confidence |
@@ -39,10 +39,10 @@ Cross-domain join: `Targets` edge links ThreatActor → Asset.
 | `IncidentUsesTTP` | Incident → TTP | IR incident observed using a technique |
 | `Targets` | ThreatActor → Asset | Actor targets an internal asset (auto-generated via PIR tag matching) |
 | `TargetsAsset` | TTP → Asset | TTP technique-id matches asset tags (e.g. `T1078` → assets tagged `identity`); fills in exposure when no CVE link exists. Implemented by `src/sage/analysis/ttp_asset_matcher.py`. |
-| `ActorTargetsIdentity` | ThreatActor → Identity | Sourced from STIX `targets` relationships emitted by TRACE 1.0.0+ (restricted to `threat-actor` / `intrusion-set` source per STIX 2.1 §4.13 suggested subset) |
-| `HasAccess` | Identity → Asset | Identity-asset access edge (Initiative A). Sources: `beacon` (from BEACON `identity_assets.json`), `trace` (from TRACE 1.2.0+ `x-trace-has-access` relationships), `manual` (analyst direct upsert). Precedence at upsert: `manual > beacon > trace`. Backed by NIST SP 800-53 AC-2/3, NIST SP 800-207, ISO/IEC 27001 A.5.16/18. |
-| `AccountOnAsset` | UserAccount → Asset | Account validity on host (Initiative B / SAGE 0.7.0). One edge per (account, host); same login on two hosts produces two edges. Sources: `beacon` / `trace` / `manual` with the same precedence as HasAccess. Backed by NIST SP 800-53 IA-2/IA-4 / AC-2, CIS Controls v8 #5. |
-| `UserAccountBelongsTo` | Identity → UserAccount | Account ownership (Initiative B). 1:N: one Identity owns multiple accounts. Optional — many UserAccounts (shared / unattributed) won't have a parent Identity. |
+| `ActorTargetsIdentity` | ThreatActor → Identity | Sourced from STIX `targets` relationships emitted by TRACE (restricted to `threat-actor` / `intrusion-set` source per STIX 2.1 §4.13 suggested subset) |
+| `HasAccess` | Identity → Asset | Identity-asset access edge. Sources: `beacon` (from BEACON `identity_assets.json`), `trace` (from TRACE `x-trace-has-access` relationships), `manual` (analyst direct upsert). Precedence at upsert: `manual > beacon > trace`. Backed by NIST SP 800-53 AC-2/3, NIST SP 800-207, ISO/IEC 27001 A.5.16/18. |
+| `AccountOnAsset` | UserAccount → Asset | Account validity on host. One edge per (account, host); same login on two hosts produces two edges. Sources: `beacon` / `trace` / `manual` with the same precedence as HasAccess. Backed by NIST SP 800-53 IA-2/IA-4 / AC-2, CIS Controls v8 #5. |
+| `UserAccountBelongsTo` | Identity → UserAccount | Account ownership. 1:N: one Identity owns multiple accounts. Optional — many UserAccounts (shared / unattributed) won't have a parent Identity. |
 | `HasVulnerability` | Asset → Vulnerability | Asset has an unpatched CVE |
 | `ConnectedTo` | Asset ↔ Asset | Network reachability between assets |
 | `ProtectedBy` | Asset → SecurityControl | Asset is covered by a control |
@@ -51,10 +51,10 @@ Cross-domain join: `Targets` edge links ThreatActor → Asset.
 | `PirPrioritizesActor` | PIR → ThreatActor | TAP — actor matches a PIR's `threat_actor_tags` (carries `overlap_ratio`) |
 | `PirPrioritizesTTP` | PIR → TTP | PTTP — derived transitively via `Uses` from prioritized actors |
 | `PirWeightsAsset` | PIR → Asset | Asset matches a PIR's `asset_weight_rules` (carries `matched_tag` + max `criticality_multiplier`) |
-| `AttributedToActor` | Campaign / IntrusionSet → ThreatActor / IntrusionSet | STIX 2.1 §7.2 `attributed-to` SRO (Initiative C Phase 1 / SAGE 0.8.0). Polymorphic edge table with `source_type` + `target_type` discriminators. Phase 1 emit-ready combos: `campaign → {threat-actor, intrusion-set}`, `intrusion-set → threat-actor`. Precedence-aware upsert (`manual > beacon > trace`). |
-| `AttributedToIdentity` | ThreatActor → Identity | STIX 2.1 §7.2 `attributed-to` SRO for real-world actor provenance (Initiative C Phase 1 / SAGE 0.8.0). Phase 1 source: `threat-actor` only; `source_type` retained for Phase 2 `intrusion-set` activation. Precedence-aware upsert. |
-| `ImpersonatesIdentity` | ThreatActor → Identity | STIX 2.1 §7.2 `impersonates` SRO (Initiative C Phase 1 / SAGE 0.8.0). Carries ETL-computed `effective_priority INT64` per HLD §6.6. Phase 2 (SAGE 0.9.0) refactored `effective_priority` to **flag-first / role-fallback**: when target Identity's `is_high_value_impersonation_target=TRUE` (BEACON 0.13.0+) → multiplier 1.5 unconditionally, otherwise `HIGH_VALUE_IMPERSONATION_ROLES` 15-entry frozenset intersection on `roles[]`. Precedence-aware upsert. |
-| `PirPrioritizesImpersonationTarget` | PIR → Identity | Cascade derived from `ImpersonatesIdentity ⨝ Identity.is_high_value_impersonation_target=TRUE ⨝ PIR.threat_actor_tags ∩ ThreatActor.tags ≠ ∅` (Initiative C Phase 2 / SAGE 0.9.0). `effective_priority` denormalized from the source `ImpersonatesIdentity` row. Surfaces impersonation-aware PIR prioritization to analysts. |
+| `AttributedToActor` | Campaign / IntrusionSet → ThreatActor / IntrusionSet | STIX 2.1 §7.2 `attributed-to` SRO. Polymorphic edge table with `source_type` + `target_type` discriminators. Emit-ready combos: `campaign → {threat-actor, intrusion-set}`, `intrusion-set → threat-actor`. Precedence-aware upsert (`manual > beacon > trace`). |
+| `AttributedToIdentity` | ThreatActor → Identity | STIX 2.1 §7.2 `attributed-to` SRO for real-world actor provenance. Source: `threat-actor`; `source_type` retained for `intrusion-set` sources. Precedence-aware upsert. |
+| `ImpersonatesIdentity` | ThreatActor → Identity | STIX 2.1 §7.2 `impersonates` SRO. Carries ETL-computed `effective_priority INT64` per HLD §6.6. `effective_priority` is **flag-first / role-fallback**: when target Identity's `is_high_value_impersonation_target=TRUE` → multiplier 1.5 unconditionally, otherwise `HIGH_VALUE_IMPERSONATION_ROLES` 15-entry frozenset intersection on `roles[]`. Precedence-aware upsert. |
+| `PirPrioritizesImpersonationTarget` | PIR → Identity | Cascade derived from `ImpersonatesIdentity ⨝ Identity.is_high_value_impersonation_target=TRUE ⨝ PIR.threat_actor_tags ∩ ThreatActor.tags ≠ ∅`. `effective_priority` denormalized from the source `ImpersonatesIdentity` row. Surfaces impersonation-aware PIR prioritization to analysts. |
 
 PIR cascade edges are built at ETL time from the loaded PIR JSON together
 with the actor / asset / `Uses` rows. They materialize the
@@ -107,7 +107,7 @@ The vocabulary is derived from MITRE ATT&CK + MISP Galaxy `threat-actor` cluster
 | Non-state motivation | `espionage`, `financial-crime`, `sabotage`, `subversion` — from MISP `cfr-type-of-incident` |
 | Crime | `cybercriminal` |
 
-**Removed in BEACON 0.8 (Phase 7)**: `ip-theft`, `financially-motivated`, `destructive`, `hacktivism`, `bec`, `fraud`, `double-extortion`, `insider-threat`, `ot-targeting`, `critical-infrastructure`, `cloud-targeting`, `supply-chain-attack`, `phi-targeting`, `erp-targeting`, `msp-targeting`, `software-supply-chain`, `source-code-theft`, `research-theft`, `targets-*`, `ransomware`, `raas`, `initial-access-broker`. SAGE's PIR filter is tag-vocabulary-agnostic (pure set intersection), so older PIRs containing these tags still load, but no new PIRs will produce them.
+SAGE's PIR filter matches threat-actor tags by pure set intersection, so it is agnostic to the exact tag vocabulary.
 
 ### Available asset_weight_rules tags
 
