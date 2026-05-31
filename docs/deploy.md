@@ -36,6 +36,13 @@ gcloud run jobs create sage-etl \
   --project=${PROJECT_ID}
 ```
 
+> **`--set-env-vars` vs `--update-env-vars`:** Subsequent invocations of
+> `gcloud run jobs update --set-env-vars=...` **replace** the
+> entire env-var set, silently dropping any keys not re-listed. To merge,
+> use `--update-env-vars=KEY=VAL` instead. Verify with
+> `gcloud run jobs describe sage-etl --format="value(spec.template.spec.containers[0].env[].name)"`
+> after every update.
+
 > **Secret Manager:** Store sensitive values with `gcloud secrets create sage-bucket --data-file=- <<< "your-bucket"` and reference with `--set-secrets` instead of `--set-env-vars`.
 
 > **OpenCTI-skip deployments:** If you are not connecting to an OpenCTI instance, pass `OPENCTI_URL=https://example.com` and `OPENCTI_TOKEN=skip` as shown above. The ETL job will skip OpenCTI ingestion and proceed with STIX bundles from GCS.
@@ -101,6 +108,13 @@ gcloud run deploy sage-api \
   --set-env-vars="PROJECT_ID=${PROJECT_ID},SPANNER_INSTANCE=${SPANNER_INSTANCE},SPANNER_DB=${SPANNER_DB}" \
   --project=${PROJECT_ID}
 ```
+
+> **`--set-env-vars` vs `--update-env-vars`:** Subsequent invocations of
+> `gcloud run services update --set-env-vars=...` **replace** the
+> entire env-var set, silently dropping any keys not re-listed. To merge,
+> use `--update-env-vars=KEY=VAL` instead. Verify with
+> `gcloud run services describe sage-api --format="value(spec.template.spec.containers[0].env[].name)"`
+> after every update.
 
 > **IAP / Internal Load Balancer:** For BEACON-only access, place the Service behind an Internal Load Balancer or configure Identity-Aware Proxy (IAP) so the endpoint is not reachable from the public internet. `--no-allow-unauthenticated` is a minimum baseline; add IAP or VPC-SC for production deployments.
 

@@ -38,6 +38,10 @@ gcloud run jobs create sage-etl \
   --project=${PROJECT_ID}
 ```
 
+> **`--set-env-vars` vs `--update-env-vars`:** `gcloud run jobs update --set-env-vars=...` を後から実行すると、env-var セット全体が**置き換え**られ、再指定しなかったキーは無音で削除される。マージするには `--update-env-vars=KEY=VAL` を使うこと。毎回の更新後に
+> `gcloud run jobs describe sage-etl --format="value(spec.template.spec.containers[0].env[].name)"`
+> で確認すること。
+
 > **Secret Manager:** `gcloud secrets create sage-bucket --data-file=- <<< "your-bucket"` で機密値を登録し、`--set-env-vars` の代わりに `--set-secrets` で参照する。
 
 > **OpenCTI なし構成:** OpenCTI インスタンスに接続しない場合は、上記のように `OPENCTI_URL=https://example.com` と `OPENCTI_TOKEN=skip` を渡す。ETL ジョブは OpenCTI 取り込みをスキップし、GCS 上の STIX バンドルを処理する。
@@ -103,6 +107,10 @@ gcloud run deploy sage-api \
   --set-env-vars="PROJECT_ID=${PROJECT_ID},SPANNER_INSTANCE=${SPANNER_INSTANCE},SPANNER_DB=${SPANNER_DB}" \
   --project=${PROJECT_ID}
 ```
+
+> **`--set-env-vars` vs `--update-env-vars`:** `gcloud run services update --set-env-vars=...` を後から実行すると、env-var セット全体が**置き換え**られ、再指定しなかったキーは無音で削除される。マージするには `--update-env-vars=KEY=VAL` を使うこと。毎回の更新後に
+> `gcloud run services describe sage-api --format="value(spec.template.spec.containers[0].env[].name)"`
+> で確認すること。
 
 > **IAP / 内部ロードバランサ:** BEACON 専用アクセスにする場合は、Service を内部ロードバランサの背後に配置するか Identity-Aware Proxy (IAP) を設定し、エンドポイントが公開インターネットから到達できない状態にする。`--no-allow-unauthenticated` は最低限の設定であり、本番環境では IAP または VPC-SC を追加すること。
 
