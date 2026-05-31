@@ -122,12 +122,12 @@ def main() -> None:
             if not config.opencti_url or not config.opencti_token:
                 logger.error(
                     "opencti_credentials_missing",
-                    hint="set OPENCTI_URL / OPENCTI_TOKEN in .env or pass --manual-bundle",
+                    hint="set OPENCTI_URL / OPENCTI_TOKEN in .env or pass --input <bundle.json>",
                 )
                 raise SystemExit(
                     "OpenCTI mode requested but OPENCTI_URL / OPENCTI_TOKEN are not set. "
-                    "Either provide them via .env / --set-env-vars, or run with --manual-bundle "
-                    "to bypass OpenCTI ingestion."
+                    "Either provide them via .env / --set-env-vars, or pass --input <bundle.json> "
+                    "to process a local STIX bundle instead."
                 )
             client = OpenCTIClient(config.opencti_url, config.opencti_token)
             bundle = client.fetch_stix_bundle(modified_after=modified_after)
