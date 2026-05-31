@@ -18,6 +18,7 @@ __pycache__/
 # Runtime data directories
 input/
 output/
+cache/
 
 # Secrets
 .env
