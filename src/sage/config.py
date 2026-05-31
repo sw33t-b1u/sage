@@ -32,9 +32,11 @@ class Config:
     spanner_instance_id: str
     spanner_database_id: str
     gcs_landing_bucket: str
-    opencti_url: str
-    opencti_token: str
     pir_file_path: str = "/config/pir.json"
+    # OpenCTI — optional; only required for OpenCTI ingestion mode.
+    # Not needed for --manual-bundle ETL or for sage serve-api.
+    opencti_url: str = ""
+    opencti_token: str = ""
     # Ingest only data at or below this TLP level (red is always excluded)
     tlp_max_level: str = "amber"
     # Lookback window in days for FollowedBy activity score calculation
@@ -70,21 +72,23 @@ class Config:
                 "SPANNER_INSTANCE",
                 "SPANNER_DB",
                 "GCS_BUCKET",
-                "OPENCTI_URL",
-                "OPENCTI_TOKEN",
             )
             if not os.environ.get(k)
         ]
         if missing:
-            raise RuntimeError(f"Required environment variables not set: {', '.join(missing)}")
+            raise RuntimeError(
+                f"Required environment variables not set: {', '.join(missing)}. "
+                "Hint: populate them in `.env` (local) or `--set-env-vars` (Cloud Run). "
+                "See docs/setup.md Step 2 for the full env-var matrix."
+            )
 
         return cls(
             gcp_project_id=os.environ["PROJECT_ID"],
             spanner_instance_id=os.environ["SPANNER_INSTANCE"],
             spanner_database_id=os.environ["SPANNER_DB"],
             gcs_landing_bucket=os.environ["GCS_BUCKET"],
-            opencti_url=os.environ["OPENCTI_URL"],
-            opencti_token=os.environ["OPENCTI_TOKEN"],
+            opencti_url=os.environ.get("OPENCTI_URL", ""),
+            opencti_token=os.environ.get("OPENCTI_TOKEN", ""),
             pir_file_path=os.environ.get("PIR_FILE_PATH", "/config/pir.json"),
             tlp_max_level=os.environ.get("TLP_MAX_LEVEL", "amber"),
             # SAGE-specific override takes precedence; falls back to the
