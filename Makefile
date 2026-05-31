@@ -25,13 +25,13 @@ setup:
 	@echo "Git hooks installed (pre-commit: vet+lint, pre-push: full check)."
 
 init-schema:
-	uv run python cmd/init_schema.py
+	uv run sage init-schema
 
 run-etl:
-	uv run python cmd/run_etl.py
+	uv run sage run-etl
 
 load-assets:
-	uv run python cmd/load_assets.py
+	uv run sage load-assets
 
 visualize:
-	uv run python cmd/visualize_combined.py
+	uv run sage visualize-combined

@@ -1,0 +1,38 @@
+# .gcloudignore — excludes files not needed for Cloud Run image build
+# gitignore-compatible syntax
+
+# Python virtual environment (large, ~245MB)
+.venv/
+
+# Git metadata
+.git/
+
+# Python bytecode
+__pycache__/
+*.pyc
+
+# Test / lint caches
+.pytest_cache/
+.ruff_cache/
+
+# Runtime data directories
+input/
+output/
+
+# Secrets
+.env
+.env.*
+
+# Test and documentation (not needed at runtime)
+tests/
+docs/
+
+# Markdown docs
+CHANGELOG.md
+README.md
+README.ja.md
+*.ja.md
+
+# Git config files
+.gitignore
+.githooks/

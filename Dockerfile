@@ -16,4 +16,4 @@ COPY schema/ ./schema/
 
 ENV PYTHONPATH=/app/src
 
-ENTRYPOINT ["uv", "run", "python", "cmd/run_etl.py"]
+ENTRYPOINT ["uv", "run", "sage", "run-etl"]
