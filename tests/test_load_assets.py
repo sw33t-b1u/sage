@@ -18,11 +18,8 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-# Match sibling tests that import CLI modules by name from cmd/.
-sys.path.insert(0, str(Path(__file__).parent.parent / "cmd"))
 
-from load_assets import load_assets
-
+from sage.cli.load_assets import load_assets
 from sage.stix.mapper import (
     _DETERMINISTIC_ID_NAMESPACE,
     deterministic_vuln_stix_id,

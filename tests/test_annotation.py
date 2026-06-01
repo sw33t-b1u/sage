@@ -14,16 +14,11 @@ Spanner is mocked at the ``Database`` level; no emulator required.
 from __future__ import annotations
 
 import json
-import sys
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import google.cloud.spanner as spanner
 import pytest
 from pydantic import BaseModel, ValidationError
-
-# Match sibling tests that import CLI modules by name from cmd/.
-sys.path.insert(0, str(Path(__file__).parent.parent / "cmd"))
 
 from sage.models.annotation import (  # noqa: E402
     AnalystNotePayload,
@@ -262,7 +257,7 @@ class TestCLI:
         return p
 
     def test_argparse_accepts_required_flags(self, tmp_path):
-        from annotate_actor import _build_parser
+        from sage.cli.annotate_actor import _build_parser
 
         parser = _build_parser()
         args = parser.parse_args(
@@ -283,7 +278,7 @@ class TestCLI:
         assert args.evidence_url is None
 
     def test_argparse_rejects_unknown_type(self):
-        from annotate_actor import _build_parser
+        from sage.cli.annotate_actor import _build_parser
 
         parser = _build_parser()
         with pytest.raises(SystemExit):
@@ -301,7 +296,7 @@ class TestCLI:
             )
 
     def test_cli_calls_write_once_on_happy_path(self, tmp_path):
-        import annotate_actor as cli_mod
+        import sage.cli.annotate_actor as cli_mod
 
         payload_path = self._write_payload(
             tmp_path,
@@ -350,7 +345,7 @@ class TestCLI:
         assert kwargs["evidence_url"] is None
 
     def test_cli_passes_evidence_url_through(self, tmp_path):
-        import annotate_actor as cli_mod
+        import sage.cli.annotate_actor as cli_mod
 
         payload_path = self._write_payload(tmp_path, {"reason": "Mis-tagged"})
 
@@ -388,7 +383,7 @@ class TestCLI:
         assert write_mock.call_args.kwargs["evidence_url"] == "https://example.com/evidence"
 
     def test_cli_invalid_payload_exits_with_code_two(self, tmp_path, capsys):
-        import annotate_actor as cli_mod
+        import sage.cli.annotate_actor as cli_mod
 
         # overridden_likelihood out of range — fails Pydantic before any
         # Config / Spanner code runs.
@@ -428,7 +423,7 @@ class TestCLI:
         assert "validation" in (captured.out + captured.err).lower()
 
     def test_cli_missing_required_field_exits_with_code_two(self, tmp_path):
-        import annotate_actor as cli_mod
+        import sage.cli.annotate_actor as cli_mod
 
         # confidence-override missing "reason"
         payload_path = self._write_payload(
@@ -460,7 +455,7 @@ class TestCLI:
         write_mock.assert_not_called()
 
     def test_cli_unreadable_payload_file_exits_with_code_two(self, tmp_path):
-        import annotate_actor as cli_mod
+        import sage.cli.annotate_actor as cli_mod
 
         missing = tmp_path / "does-not-exist.json"
         rc = cli_mod.main(
