@@ -5,7 +5,7 @@ Each subcommand is a thin click wrapper that delegates to the corresponding
 single committed CLI surface — see ``docs/api-stability.md`` §3.6 —
 is owned by one click ``Group``. The legacy
 ``python cmd/<name>.py`` / ``python -m cmd.<name>`` invocations were
-removed in 1.3.0; ``sage <subcommand>`` is the only supported entry.
+removed in 2.0.0; ``sage <subcommand>`` is the only supported entry.
 
 This module also retains its historical ``cli``-helper purpose:
 ``sage.cli.navigator_loader`` continues to live alongside the click
