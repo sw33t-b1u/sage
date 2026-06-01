@@ -4,22 +4,15 @@
 類似インシデント（/similar-incidents API）が提供できる場合は本文に含める。
 
 Usage:
-  uv run python -m cmd.create_ir_template \\
-    --incident-id incident--xxx \\
-    --name "Emotet 感染 #2026-Q2-01" \\
-    --severity high \\
+  uv run sage ir-template \
+    --incident-id incident--xxx \
+    --name "Emotet 感染 #2026-Q2-01" \
+    --severity high \
     --occurred-at "2026-04-04T09:00:00Z"
 
 環境変数:
   GHE_TOKEN, GHE_REPO が必要。
   SAGE Analysis API (SAGE_API_URL) が設定されていれば類似インシデントを取得する。
-
-.. deprecated:: SAGE 1.0.0
-
-    Direct invocation as ``python -m cmd.create_ir_template`` /
-    ``python cmd/create_ir_template.py`` is deprecated. Use the
-    unified ``sage ir-template`` entry (Initiative H Phase 6).
-    Removal is scheduled for SAGE 2.0.
 """
 
 from __future__ import annotations

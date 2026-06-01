@@ -5,9 +5,9 @@
 
 使用方法:
     export SPANNER_EMULATOR_HOST=localhost:9010  # エミュレーター使用時
-    uv run python cmd/visualize_graph.py
-    uv run python cmd/visualize_graph.py --output /tmp/graph.html
-    uv run python cmd/visualize_graph.py --limit 200
+    uv run sage visualize-graph
+    uv run sage visualize-graph --output /tmp/graph.html
+    uv run sage visualize-graph --limit 200
 """
 
 from __future__ import annotations

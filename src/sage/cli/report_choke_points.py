@@ -5,9 +5,9 @@ choke_score（= pir_adjusted_criticality × 攻撃元アクター数）でラン
 Blue Team 向けの Markdown レポートを stdout / ファイル / GHE Issue へ出力する。
 
 使用方法:
-    uv run python cmd/report_choke_points.py
-    uv run python cmd/report_choke_points.py --top 10 --output report.md
-    uv run python cmd/report_choke_points.py --ghe   # GHE Issue として投稿
+    uv run sage report-choke-points
+    uv run sage report-choke-points --top 10 --output report.md
+    uv run sage report-choke-points --ghe   # GHE Issue として投稿
 """
 
 from __future__ import annotations

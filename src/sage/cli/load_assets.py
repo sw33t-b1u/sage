@@ -6,15 +6,8 @@ ConnectedTo / ProtectedBy / Targets テーブルへ upsert する。
 
 使用方法:
     export SPANNER_EMULATOR_HOST=localhost:9010  # エミュレーター使用時
-    uv run python cmd/load_assets.py
-    uv run python cmd/load_assets.py --file path/to/assets.json
-
-.. deprecated:: SAGE 1.0.0
-
-    Direct invocation as ``python -m cmd.load_assets`` /
-    ``python cmd/load_assets.py`` is deprecated. Use the unified
-    ``sage load-assets`` entry (Initiative H Phase 6). Removal is
-    scheduled for SAGE 2.0.
+    uv run sage load-assets
+    uv run sage load-assets --file path/to/assets.json
 """
 
 from __future__ import annotations

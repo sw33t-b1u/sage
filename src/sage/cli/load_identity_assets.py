@@ -15,15 +15,8 @@ row even when BEACON regenerates the artifact.
 
 Usage:
     export SPANNER_EMULATOR_HOST=localhost:9010  # for local emulator
-    uv run python cmd/load_identity_assets.py \\
+    uv run sage load-identity-assets \
         --file ../BEACON/output/identity_assets.json
-
-.. deprecated:: SAGE 1.0.0
-
-    Direct invocation as ``python -m cmd.load_identity_assets`` /
-    ``python cmd/load_identity_assets.py`` is deprecated. Use the
-    unified ``sage load-identity-assets`` entry (Initiative H Phase 6).
-    Removal is scheduled for SAGE 2.0.
 """
 
 from __future__ import annotations

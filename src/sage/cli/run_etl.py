@@ -4,8 +4,8 @@ Cloud Run Job として実行される。
 環境変数から設定を読み込み、OpenCTI → Spanner Graph の ETL を実行する。
 
 使用方法:
-    uv run python cmd/run_etl.py
-    uv run python cmd/run_etl.py --input /path/to/bundle.json
+    uv run sage run-etl
+    uv run sage run-etl --input /path/to/bundle.json
 """
 
 from __future__ import annotations

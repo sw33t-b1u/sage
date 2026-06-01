@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [2.0.0] - 2026-06-01
+
+### Breaking Changes
+- **Removed deprecated `cmd/` directory and `python cmd/X.py` / `python -m cmd.X`
+  invocation paths.** These were deprecated in 1.0.0 (Initiative H Phase 6) when
+  the unified `sage <subcommand>` CLI was introduced. The 90-day backwards-
+  compatibility window expired.
+
+### Refactored
+- Moved CLI implementations from top-level `cmd/` to `src/sage/cli/` as a proper
+  Python package. `sage <subcommand>` API surface (16 commands) is unchanged.
+- Rewrote `src/sage/cli/__init__.py` wrapper to use direct imports instead of
+  `importlib.util.spec_from_file_location` dynamic loading.
+
+### Internal
+- Removed 13 vestigial `sys.path.insert(0, str(Path(__file__).parent.parent / "src"))`
+  statements from moved CLI modules (no-op in installed package context).
+- Cleaned up unused `import sys` and `from pathlib import Path` left after
+  sys.path removal.
+- Dockerfile no longer COPYs cmd/ (was dead code).
+- Makefile ruff invocations no longer reference cmd/.
+
+
 ## [1.3.0] — 2026-05-28
 
 ### Added

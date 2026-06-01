@@ -17,15 +17,8 @@ the same rows. The Identity namespace is shared with
 
 Usage:
     export SPANNER_EMULATOR_HOST=localhost:9010  # for local emulator
-    uv run python cmd/load_user_accounts.py \\
+    uv run sage load-user-accounts \
         --input ../BEACON/output/user_accounts.json
-
-.. deprecated:: SAGE 1.0.0
-
-    Direct invocation as ``python -m cmd.load_user_accounts`` /
-    ``python cmd/load_user_accounts.py`` is deprecated. Use the
-    unified ``sage load-user-accounts`` entry (Initiative H Phase 6).
-    Removal is scheduled for SAGE 2.0.
 """
 
 from __future__ import annotations

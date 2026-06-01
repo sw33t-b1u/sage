@@ -180,22 +180,22 @@ point. Operator-visible surface from 1.0.0:
 
 | Subcommand | Replaces | Purpose |
 |---|---|---|
-| `sage init-schema` | `cmd/init_schema.py` | Apply Spanner Graph DDL + create indexes |
-| `sage load-assets` | `cmd/load_assets.py` | Load BEACON assets.json into Spanner |
-| `sage load-identity-assets` | `cmd/load_identity_assets.py` | Load identity_assets.json |
-| `sage load-user-accounts` | `cmd/load_user_accounts.py` | Load user_accounts.json |
-| `sage incident-register` | `cmd/register_incident.py` | Interactive Diamond Model CLI (Initiative G Phase 3) |
-| `sage actor-annotate` | `cmd/annotate_actor.py` | AnnotatesActor write CLI (Initiative E) |
-| `sage query-attack-paths` | `cmd/query_attack_paths.py` | Attack path CLI query (offline) |
-| `sage ir-template` | `cmd/create_ir_template.py` | Generate IR onboarding template |
-| `sage serve-api` | `cmd/analysis_api.py` | Start REST API server |
-| `sage run-etl` | `cmd/run_etl.py` | Run ETL pipeline (OpenCTI poll or `--input`) |
-| `sage visualize-graph` | `cmd/visualize_graph.py` | Generate interactive HTML graph visualization |
-| `sage report-choke-points` | `cmd/report_choke_points.py` | Generate a Markdown choke-point asset report (Blue Team) |
-| `sage sync-caldera` | `cmd/sync_caldera.py` | Sync actor TTPs to a Caldera adversary profile |
-| `sage visualize-attack-flow` | `cmd/visualize_attack_flow.py` | Generate a weighted Attack Flow HTML visualization |
-| `sage visualize-combined` | `cmd/visualize_combined.py` | Generate a combined Attack Graph + Attack Flow HTML visualization |
-| `sage setup-emulator` | `cmd/setup_emulator.py` | Create Spanner emulator instance and database (dev only) |
+| `sage init-schema` | `src/sage/cli/init_schema.py` | Apply Spanner Graph DDL + create indexes |
+| `sage load-assets` | `src/sage/cli/load_assets.py` | Load BEACON assets.json into Spanner |
+| `sage load-identity-assets` | `src/sage/cli/load_identity_assets.py` | Load identity_assets.json |
+| `sage load-user-accounts` | `src/sage/cli/load_user_accounts.py` | Load user_accounts.json |
+| `sage incident-register` | `src/sage/cli/register_incident.py` | Interactive Diamond Model CLI (Initiative G Phase 3) |
+| `sage actor-annotate` | `src/sage/cli/annotate_actor.py` | AnnotatesActor write CLI (Initiative E) |
+| `sage query-attack-paths` | `src/sage/cli/query_attack_paths.py` | Attack path CLI query (offline) |
+| `sage ir-template` | `src/sage/cli/create_ir_template.py` | Generate IR onboarding template |
+| `sage serve-api` | `src/sage/cli/analysis_api.py` | Start REST API server |
+| `sage run-etl` | `src/sage/cli/run_etl.py` | Run ETL pipeline (OpenCTI poll or `--input`) |
+| `sage visualize-graph` | `src/sage/cli/visualize_graph.py` | Generate interactive HTML graph visualization |
+| `sage report-choke-points` | `src/sage/cli/report_choke_points.py` | Generate a Markdown choke-point asset report (Blue Team) |
+| `sage sync-caldera` | `src/sage/cli/sync_caldera.py` | Sync actor TTPs to a Caldera adversary profile |
+| `sage visualize-attack-flow` | `src/sage/cli/visualize_attack_flow.py` | Generate a weighted Attack Flow HTML visualization |
+| `sage visualize-combined` | `src/sage/cli/visualize_combined.py` | Generate a combined Attack Graph + Attack Flow HTML visualization |
+| `sage setup-emulator` | `src/sage/cli/setup_emulator.py` | Create Spanner emulator instance and database (dev only) |
 
 **Committed**: subcommand names + each subcommand's main flags
 (e.g., `incident-register --id`, `--from-file`, `--navigator-layer`,

@@ -34,12 +34,6 @@ Exit codes:
 * ``2`` — argument / Pydantic / Navigator validation error.
 * ``3`` — transport error (HTTP failure or Spanner write exception).
 
-.. deprecated:: SAGE 1.0.0
-
-    Direct invocation as ``python -m cmd.register_incident`` /
-    ``python cmd/register_incident.py`` is deprecated. Use the unified
-    ``sage incident-register`` entry (Initiative H Phase 6). Removal
-    is scheduled for SAGE 2.0.
 """
 
 from __future__ import annotations

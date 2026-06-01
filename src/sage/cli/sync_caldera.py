@@ -1,8 +1,8 @@
 """Caldera 連携 CLI — アクター TTP を Caldera Adversary プロファイルに同期する。
 
 Usage:
-  uv run python -m cmd.sync_caldera --actor-id intrusion-set--xxx
-  uv run python -m cmd.sync_caldera --list-adversaries
+  uv run sage sync-caldera --actor-id intrusion-set--xxx
+  uv run sage sync-caldera --list-adversaries
 
 環境変数:
   CALDERA_URL, CALDERA_API_KEY が必要。

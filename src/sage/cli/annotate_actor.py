@@ -1,23 +1,16 @@
 """CLI for writing AnnotatesActor rows (Initiative E Phase 5).
 
 Usage:
-    uv run python -m cmd.annotate_actor \\
-        --annotator alice@example.com \\
-        --actor-stix-id intrusion-set--<uuid> \\
-        --type confidence-override \\
-        --payload-file payload.json \\
+    uv run sage actor-annotate \
+        --annotator alice@example.com \
+        --actor-stix-id intrusion-set--<uuid> \
+        --type confidence-override \
+        --payload-file payload.json \
         [--evidence-url https://example.com/evidence]
 
 Exit codes:
     0 — annotation accepted and Spanner mutation buffered.
     2 — payload validation failed (Pydantic) or argparse rejected args.
-
-.. deprecated:: SAGE 1.0.0
-
-    Direct invocation as ``python -m cmd.annotate_actor`` /
-    ``python cmd/annotate_actor.py`` is deprecated. Use the unified
-    ``sage actor-annotate`` entry (Initiative H Phase 6). Removal is
-    scheduled for SAGE 2.0.
 """
 
 from __future__ import annotations

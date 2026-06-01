@@ -4,16 +4,9 @@ Spanner GQL を用いて、指定した資産に Targets エッジで紐づく T
 その TTP（Uses エッジ）を信頼度順に表示する。
 
 使用方法:
-    uv run python cmd/query_attack_paths.py --asset-id asset-001
-    uv run python cmd/query_attack_paths.py --asset-id asset-001 --limit 5
-    uv run python cmd/query_attack_paths.py --actor-id intrusion-set--apt99
-
-.. deprecated:: SAGE 1.0.0
-
-    Direct invocation as ``python -m cmd.query_attack_paths`` /
-    ``python cmd/query_attack_paths.py`` is deprecated. Use the
-    unified ``sage query-attack-paths`` entry (Initiative H Phase 6).
-    Removal is scheduled for SAGE 2.0.
+    uv run sage query-attack-paths --asset-id asset-001
+    uv run sage query-attack-paths --asset-id asset-001 --limit 5
+    uv run sage query-attack-paths --actor-id intrusion-set--apt99
 """
 
 from __future__ import annotations
