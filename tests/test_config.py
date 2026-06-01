@@ -89,24 +89,15 @@ class TestRunEtlOpenctiGuard:
     def test_run_etl_opencti_mode_without_credentials_exits(self, tmp_path, monkeypatch):
         """run_etl guard: OpenCTI mode + no credentials → SystemExit with --input hint.
 
-        Approach: Load cmd/run_etl.py via importlib.util.spec_from_file_location to
-        avoid the name conflict with Python's built-in `cmd` package. Monkeypatch
-        Config.from_env, get_database, PIRFilter, ETLWorker, and create_storage_backend
-        so no network calls are made. Then call main() directly and assert SystemExit.
+        Approach: Import sage.cli.run_etl directly. Monkeypatch Config.from_env,
+        get_database, PIRFilter, ETLWorker, and create_storage_backend so no network
+        calls are made. Then call main() directly and assert SystemExit.
         This is more reliable than subprocess (avoids Spanner client init race).
         """
-        import importlib.util
         import sys
-        from pathlib import Path
         from unittest.mock import MagicMock, patch
 
-        repo_root = Path(__file__).parent.parent
-        run_etl_path = repo_root / "cmd" / "run_etl.py"
-
-        # Load the module under a unique name to avoid caching / built-in conflicts
-        spec = importlib.util.spec_from_file_location("_run_etl_under_test", run_etl_path)
-        run_etl_mod = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
-        spec.loader.exec_module(run_etl_mod)  # type: ignore[union-attr]
+        from sage.cli.run_etl import main as run_etl_main
 
         # Build a minimal stub config — no OPENCTI_URL / OPENCTI_TOKEN
         from sage.config import Config
@@ -125,11 +116,11 @@ class TestRunEtlOpenctiGuard:
         monkeypatch.setattr(sys, "argv", ["run_etl.py"])
 
         with (
-            patch.object(run_etl_mod, "Config") as mock_config_cls,
-            patch.object(run_etl_mod, "get_database", return_value=MagicMock()),
-            patch.object(run_etl_mod, "PIRFilter") as mock_pir_cls,
-            patch.object(run_etl_mod, "ETLWorker", return_value=MagicMock()),
-            patch.object(run_etl_mod, "create_storage_backend") as mock_storage,
+            patch("sage.cli.run_etl.Config") as mock_config_cls,
+            patch("sage.cli.run_etl.get_database", return_value=MagicMock()),
+            patch("sage.cli.run_etl.PIRFilter") as mock_pir_cls,
+            patch("sage.cli.run_etl.ETLWorker", return_value=MagicMock()),
+            patch("sage.cli.run_etl.create_storage_backend") as mock_storage,
         ):
             mock_config_cls.from_env.return_value = stub_config
             mock_pir_cls.from_file.return_value = MagicMock()
@@ -139,7 +130,7 @@ class TestRunEtlOpenctiGuard:
             mock_storage.return_value = mock_storage_instance
 
             with pytest.raises(SystemExit) as excinfo:
-                run_etl_mod.main()
+                run_etl_main()
 
         exit_val = excinfo.value.code
         # SystemExit raised with a non-empty string message is truthy

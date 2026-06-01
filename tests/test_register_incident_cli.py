@@ -2,23 +2,14 @@
 
 from __future__ import annotations
 
-import importlib
 import json
-import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 from click.testing import CliRunner
 
-# The CLI mutates sys.path inside its module body before importing
-# ``sage.*``; importlib.import_module is used so each test run picks
-# up a clean module instance even after sys.path side-effects.
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-sys.path.insert(0, str(Path(__file__).parent.parent / "cmd"))
-
-register_incident = importlib.import_module("register_incident")
-
+from sage.cli import register_incident
 
 VALID_INCIDENT = "incident--00000000-0000-0000-0000-000000000001"
 NAV_FIXTURE = Path(__file__).parent / "fixtures" / "navigator_layer_sample.json"

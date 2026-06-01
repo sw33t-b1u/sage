@@ -8,12 +8,9 @@ breaking the surrounding CREATE TABLE into two malformed pieces.
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "cmd"))
-
-from init_schema import split_ddl_statements  # noqa: E402
+from sage.cli.init_schema import split_ddl_statements
 
 
 class TestSemicolonInComment:
