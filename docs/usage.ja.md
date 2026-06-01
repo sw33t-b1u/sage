@@ -27,7 +27,7 @@ ETL を手動で実行するには:
 make run-etl
 
 # ローカルの STIX バンドルを使用（OpenCTI 不要）
-uv run sage run-etl --manual-bundle tests/fixtures/sample_bundle_mirrorface.json
+uv run sage run-etl --input tests/fixtures/sample_bundle_mirrorface.json
 ```
 
 ---
@@ -247,7 +247,7 @@ uv run sage incident-register \
 make run-etl
 
 # ローカルの STIX バンドルを使用（OpenCTI 不要）
-uv run sage run-etl --manual-bundle tests/fixtures/sample_bundle_mirrorface.json
+uv run sage run-etl --input tests/fixtures/sample_bundle_mirrorface.json
 
 # StorageBackend の stix/ カテゴリから全バンドルを処理
 uv run sage run-etl

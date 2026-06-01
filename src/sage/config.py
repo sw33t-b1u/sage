@@ -34,7 +34,7 @@ class Config:
     gcs_landing_bucket: str
     pir_file_path: str = "/config/pir.json"
     # OpenCTI — optional; only required for OpenCTI ingestion mode.
-    # Not needed for --manual-bundle ETL or for sage serve-api.
+    # Not needed when running ETL with --input (local bundle) or for sage serve-api.
     opencti_url: str = ""
     opencti_token: str = ""
     # Ingest only data at or below this TLP level (red is always excluded)

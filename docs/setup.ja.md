@@ -208,7 +208,7 @@ cp /path/to/pir_output_<timestamp>.json input/pir.json
 
 ```sh
 # OpenCTI 不要 — ローカルの STIX バンドルを使用
-uv run sage run-etl --manual-bundle tests/fixtures/sample_bundle_mirrorface.json
+uv run sage run-etl --input tests/fixtures/sample_bundle_mirrorface.json
 
 # ライブの OpenCTI に対して実行
 make run-etl
@@ -255,8 +255,8 @@ make init-schema
 # 3. 脅威インテリジェンスを投入（Attack Flow）
 # 注意: 外部バンドルや手動作成バンドルは PIR フィルタがアクターを保持できるよう事前にエンリッチが必要:
 #   cd ../TRACE && uv run trace enrich-bundle --input <bundle.json> --output enriched.json && cd ../SAGE
-uv run sage run-etl --manual-bundle tests/fixtures/sample_bundle_mirrorface.json
-uv run sage run-etl --manual-bundle tests/fixtures/sample_bundle_inc.json
+uv run sage run-etl --input tests/fixtures/sample_bundle_mirrorface.json
+uv run sage run-etl --input tests/fixtures/sample_bundle_inc.json
 
 # 4. 内部資産を投入（Attack Graph）
 make load-assets

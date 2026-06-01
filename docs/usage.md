@@ -24,7 +24,7 @@ To trigger ETL manually:
 make run-etl
 
 # With a local STIX bundle (no OpenCTI required)
-uv run sage run-etl --manual-bundle tests/fixtures/sample_bundle_mirrorface.json
+uv run sage run-etl --input tests/fixtures/sample_bundle_mirrorface.json
 ```
 
 ---
@@ -250,7 +250,7 @@ from `$SAGE_API_AUTH_TOKEN`; the API base URL reads from
 make run-etl
 
 # With a local STIX bundle (no OpenCTI required)
-uv run sage run-etl --manual-bundle tests/fixtures/sample_bundle_mirrorface.json
+uv run sage run-etl --input tests/fixtures/sample_bundle_mirrorface.json
 
 # Process all STIX bundles from StorageBackend stix/ category
 uv run sage run-etl

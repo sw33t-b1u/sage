@@ -206,7 +206,7 @@ cp /path/to/pir_output_<timestamp>.json input/pir.json
 
 ```sh
 # No OpenCTI required — use a local STIX bundle
-uv run sage run-etl --manual-bundle tests/fixtures/sample_bundle_mirrorface.json
+uv run sage run-etl --input tests/fixtures/sample_bundle_mirrorface.json
 
 # Against live OpenCTI
 make run-etl
@@ -252,8 +252,8 @@ make init-schema
 # 3. Load threat intelligence (Attack Flow)
 # NOTE: external or hand-authored bundles must be enriched first so PIR filtering retains actors:
 #   cd ../TRACE && uv run trace enrich-bundle --input <bundle.json> --output enriched.json && cd ../SAGE
-uv run sage run-etl --manual-bundle tests/fixtures/sample_bundle_mirrorface.json
-uv run sage run-etl --manual-bundle tests/fixtures/sample_bundle_inc.json
+uv run sage run-etl --input tests/fixtures/sample_bundle_mirrorface.json
+uv run sage run-etl --input tests/fixtures/sample_bundle_inc.json
 
 # 4. Load internal assets (Attack Graph)
 make load-assets
