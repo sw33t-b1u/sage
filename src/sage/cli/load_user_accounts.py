@@ -58,7 +58,7 @@ structlog.configure(
 )
 logger = structlog.get_logger(__name__)
 
-DEFAULT_FILE = Path(__file__).parent.parent / "input" / "user_accounts.json"
+DEFAULT_FILE = Path(__file__).parents[3] / "input" / "user_accounts.json"
 
 # Same namespace as load_identity_assets — keeps Identity STIX ids
 # stable across the two BEACON-side loaders.

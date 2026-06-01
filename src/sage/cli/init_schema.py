@@ -35,7 +35,7 @@ structlog.configure(
 )
 logger = structlog.get_logger(__name__)
 
-DDL_PATH = Path(__file__).parent.parent / "schema" / "spanner_ddl.sql"
+DDL_PATH = Path(__file__).parents[3] / "schema" / "spanner_ddl.sql"
 
 
 def split_ddl_statements(ddl: str) -> list[str]:

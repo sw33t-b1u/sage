@@ -57,7 +57,7 @@ structlog.configure(
 )
 logger = structlog.get_logger(__name__)
 
-DEFAULT_FILE = Path(__file__).parent.parent / "input" / "identity_assets.json"
+DEFAULT_FILE = Path(__file__).parents[3] / "input" / "identity_assets.json"
 
 # Deterministic UUID v5 namespace for BEACON-supplied identity ids — keeps
 # Identity.stix_id stable across regenerations of identity_assets.json so
