@@ -11,13 +11,9 @@ Covers:
 
 from __future__ import annotations
 
-import sys
 import uuid
 from collections.abc import Iterable
-from pathlib import Path
 from unittest.mock import MagicMock
-
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from sage.cli.load_assets import load_assets
 from sage.stix.mapper import (

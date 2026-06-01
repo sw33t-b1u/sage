@@ -12,14 +12,11 @@ from __future__ import annotations
 
 import os
 import sys
-from pathlib import Path
 
 import structlog
 from google.api_core.exceptions import AlreadyExists
 from google.cloud import spanner
 from google.cloud.spanner_admin_instance_v1.types import spanner_instance_admin
-
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from sage.config import Config
 

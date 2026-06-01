@@ -28,8 +28,6 @@ from pathlib import Path
 import structlog
 from google.cloud import spanner
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
 from sage.config import Config
 from sage.spanner.upsert import upsert_rows
 from sage.stix.mapper import _CVE_ID_PATTERN, deterministic_vuln_stix_id

@@ -23,8 +23,6 @@ import structlog
 from google.api_core.exceptions import AlreadyExists
 from google.cloud import spanner
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
 from sage.config import Config
 
 structlog.configure(

@@ -21,8 +21,6 @@ import structlog
 from google.cloud import spanner
 from pyvis.network import Network
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
 from sage.config import Config
 from sage.spanner.query import load_pir_edges, load_pirs
 

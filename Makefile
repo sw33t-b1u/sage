@@ -4,14 +4,14 @@
 check: vet lint test audit
 
 vet:
-	uv run ruff check src/ cmd/ tests/
+	uv run ruff check src/ tests/
 
 lint:
-	uv run ruff format --check src/ cmd/ tests/
+	uv run ruff format --check src/ tests/
 
 format:
-	uv run ruff format src/ cmd/ tests/
-	uv run ruff check --fix src/ cmd/ tests/
+	uv run ruff format src/ tests/
+	uv run ruff check --fix src/ tests/
 
 test:
 	uv run python -m pytest tests/ -v

@@ -19,12 +19,8 @@ Spanner GQL を用いて、指定した資産に Targets エッジで紐づく T
 from __future__ import annotations
 
 import argparse
-import sys
-from pathlib import Path
 
 import structlog
-
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from sage.config import Config
 from sage.spanner.client import get_database

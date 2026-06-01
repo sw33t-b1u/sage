@@ -12,14 +12,10 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import structlog
-
-# src を Python パスに追加
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from sage.config import Config
 from sage.etl.worker import ETLWorker

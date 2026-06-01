@@ -11,7 +11,6 @@ RUN uv sync --no-install-project --no-dev --frozen
 
 # Copy source code
 COPY src/ ./src/
-COPY cmd/ ./cmd/
 COPY schema/ ./schema/
 RUN uv sync --no-dev --frozen
 

@@ -30,13 +30,10 @@ from pathlib import Path
 import structlog
 from pydantic import ValidationError
 
-# Match sibling CLIs that put src/ on sys.path before importing sage.*
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
-from sage.config import Config  # noqa: E402
-from sage.models.annotation import AnnotationType, validate_payload  # noqa: E402
-from sage.spanner.annotations import write_annotation  # noqa: E402
-from sage.spanner.client import get_database  # noqa: E402
+from sage.config import Config
+from sage.models.annotation import AnnotationType, validate_payload
+from sage.spanner.annotations import write_annotation
+from sage.spanner.client import get_database
 
 structlog.configure(
     processors=[

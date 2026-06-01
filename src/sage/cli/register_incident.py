@@ -55,15 +55,12 @@ import click
 import structlog
 from pydantic import ValidationError
 
-# Match sibling CLIs that put src/ on sys.path before importing sage.*
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
-from sage.cli.navigator_loader import (  # noqa: E402
+from sage.cli.navigator_loader import (
     NavigatorEntry,
     NavigatorLayerError,
     load_navigator_layer,
 )
-from sage.models.incident_request import (  # noqa: E402
+from sage.models.incident_request import (
     DIAMOND_MODEL_KEYS,
     IncidentRequest,
     IncidentSeverity,
