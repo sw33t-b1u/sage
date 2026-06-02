@@ -14,6 +14,7 @@ dependencies = [
     "uvicorn>=0.30.0",
     "idna>=3.15",  # CVE-2026-45409 fix; transitive via anyio/httpx
     "starlette>=1.0.1",  # PYSEC-2026-161 fix; transitive via fastapi
+    "pyjwt>=2.13.0",  # PYSEC-2026-175/177/178/179 fix; transitive via pycti
     "click>=8.1",  # cmd/register_incident.py Diamond Model CLI (Initiative G Phase 3)
 ]
 

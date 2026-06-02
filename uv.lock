@@ -1461,7 +1461,7 @@ wheels = [
 
 [[package]]
 name = "pycti"
-version = "7.260522.0"
+version = "7.260529.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "boto3" },
@@ -1485,9 +1485,9 @@ dependencies = [
     { name = "stix2" },
     { name = "uvicorn", extra = ["standard"] },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/6e/af/395b14aa9b4467da7e0e330095cfa105c9f7afffc89aaefe7a8fb5e53387/pycti-7.260522.0.tar.gz", hash = "sha256:d717b292fe2edf7dd42599e8b0ed7f63b1755e6d17c6d6445e762cb211eabb49", size = 257744, upload-time = "2026-05-22T11:55:14.032Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/27/75/635cf151b74e8e97f97a62603d7c2b8495d16287e9ef62c36b70fe3ab1ae/pycti-7.260529.0.tar.gz", hash = "sha256:974003dd63b53f4360d5c3ff4da377ea44146745cc9a1555b98c3612b65b6ab2", size = 258206, upload-time = "2026-05-29T20:07:58.17Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/42/09/cd5fc78c4afeddefe5ef802d900ed90b0673adae83550457bc91f8ef0e41/pycti-7.260522.0-py3-none-any.whl", hash = "sha256:d2da781146ec2dbd1cae0aecb22a8e55f8b9a03c36f7b78bede4b388fb53ebcc", size = 350125, upload-time = "2026-05-22T11:55:12.169Z" },
+    { url = "https://files.pythonhosted.org/packages/55/76/d74f42382abf6120d81ac0c17be2bdc68d1ca39faf7aecb54b447e5179f2/pycti-7.260529.0-py3-none-any.whl", hash = "sha256:45ec38749951291417dc2ad8b7667e879f7b52cc697e5ab7266d238b92f5e6d7", size = 350595, upload-time = "2026-05-29T20:07:56.353Z" },
 ]
 
 [[package]]
@@ -1587,11 +1587,11 @@ wheels = [
 
 [[package]]
 name = "pyjwt"
-version = "2.12.1"
+version = "2.13.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/c2/27/a3b6e5bf6ff856d2509292e95c8f57f0df7017cf5394921fc4e4ef40308a/pyjwt-2.12.1.tar.gz", hash = "sha256:c74a7a2adf861c04d002db713dd85f84beb242228e671280bf709d765b03672b", size = 102564, upload-time = "2026-03-13T19:27:37.25Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/3b/81/58d0ac84e1ef3a3843791d6954d94c0b33d526c75eeb1efbce9d0a4c4077/pyjwt-2.13.0.tar.gz", hash = "sha256:41571c89ca91598c79e8ef18a2d07367d4810fbbd6f637794879baf1b7703423", size = 107515, upload-time = "2026-05-21T19:54:36.618Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e5/7a/8dd906bd22e79e47397a61742927f6747fe93242ef86645ee9092e610244/pyjwt-2.12.1-py3-none-any.whl", hash = "sha256:28ca37c070cad8ba8cd9790cd940535d40274d22f80ab87f3ac6a713e6e8454c", size = 29726, upload-time = "2026-03-13T19:27:35.677Z" },
+    { url = "https://files.pythonhosted.org/packages/a3/5e/ecf12fdb62546d64385c158514e9b2b671f7832108ef2ecd2020ce0af2d1/pyjwt-2.13.0-py3-none-any.whl", hash = "sha256:66adcc2aff09b3f1bbd95fc1e1577df8ac8723c978552fd43304c8a290ac5728", size = 31274, upload-time = "2026-05-21T19:54:35.362Z" },
 ]
 
 [package.optional-dependencies]
@@ -1920,6 +1920,7 @@ dependencies = [
     { name = "google-cloud-storage" },
     { name = "idna" },
     { name = "pycti" },
+    { name = "pyjwt" },
     { name = "requests" },
     { name = "starlette" },
     { name = "stix2" },
@@ -1950,6 +1951,7 @@ requires-dist = [
     { name = "pip", marker = "extra == 'dev'", specifier = ">=26.1" },
     { name = "pip-audit", marker = "extra == 'dev'", specifier = ">=2.7.0" },
     { name = "pycti", specifier = ">=6.3.0" },
+    { name = "pyjwt", specifier = ">=2.13.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=9.0.3" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=5.0.0" },
     { name = "pyvis", marker = "extra == 'dev'", specifier = ">=0.3.2" },
