@@ -20,7 +20,6 @@ import structlog
 from sage.config import Config
 from sage.etl.worker import ETLWorker
 from sage.notify.slack import notify_etl_complete
-from sage.opencti.client import OpenCTIClient
 from sage.pir.filter import PIRFilter
 from sage.spanner.client import get_database
 from sage.spanner.query import find_choke_points
@@ -125,6 +124,10 @@ def main() -> None:
                     "Either provide them via .env / --set-env-vars, or pass --input <bundle.json> "
                     "to process a local STIX bundle instead."
                 )
+            # Lazy import: pycti pulls libmagic which is only needed when
+            # OpenCTI mode is actually used.
+            from sage.opencti.client import OpenCTIClient  # noqa: PLC0415
+
             client = OpenCTIClient(config.opencti_url, config.opencti_token)
             bundle = client.fetch_stix_bundle(modified_after=modified_after)
             client.save_bundle_to_gcs(bundle, config.gcs_landing_bucket)
