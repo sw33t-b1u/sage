@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [2.0.1] - 2026-06-03
+
+### Fixed
+- `run-etl` no longer crashes at import time on the OpenCTI-skip path
+  (`OPENCTI_TOKEN=skip`). `OpenCTIClient` is now imported lazily inside
+  the OpenCTI branch so `pycti` → `python-magic` → `libmagic` is only
+  loaded when actually needed.
+- `Dockerfile`: install `libmagic1` so the OpenCTI execution path still
+  works in `python:3.12-slim` containers.
+
+### Security
+- Bump `pyjwt` to `>=2.13.0` (PYSEC-2026-175 / 177 / 178 / 179). The
+  vulnerable 2.12.1 was pulled in transitively via `pycti`; the explicit
+  pin forces the upgrade until upstream catches up. `pycti` also rolled
+  forward to 7.260529.0 during resolution.
+
+
 ## [2.0.0] - 2026-06-01
 
 ### Breaking Changes
