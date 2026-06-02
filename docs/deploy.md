@@ -29,12 +29,24 @@ gcloud run jobs create sage-etl \
   --image=${IMAGE} \
   --region=${REGION} \
   --service-account="sage-etl@${PROJECT_ID}.iam.gserviceaccount.com" \
-  --set-env-vars="PROJECT_ID=${PROJECT_ID},SPANNER_INSTANCE=${SPANNER_INSTANCE},SPANNER_DB=${SPANNER_DB},PIR_FILE_PATH=/config/pir.json,OPENCTI_URL=https://example.com,OPENCTI_TOKEN=skip" \
+  --set-env-vars="PROJECT_ID=${PROJECT_ID},SPANNER_INSTANCE=${SPANNER_INSTANCE},SPANNER_DB=${SPANNER_DB},PIR_FILE_PATH=/config/pir.json,OPENCTI_URL=https://example.com,OPENCTI_TOKEN=skip,SAGE_STORAGE=gcs,SAGE_GCS_BUCKET=${TRACE_GCS_BUCKET},SAGE_GCS_PREFIX=trace/" \
   --set-secrets="GCS_BUCKET=sage-bucket:latest" \
-  --add-volume=name=pir,type=cloud-storage,bucket=${PIR_GCS_BUCKET} \
+  --add-volume=name=pir,type=cloud-storage,bucket=${PIR_GCS_BUCKET},mount-options="only-dir=pir" \
   --add-volume-mount=volume=pir,mount-path=/config \
   --project=${PROJECT_ID}
 ```
+
+> **`SAGE_STORAGE=gcs` + `SAGE_GCS_BUCKET` + `SAGE_GCS_PREFIX`:** required so
+> `run-etl` reads STIX bundles produced by TRACE. Set `SAGE_GCS_BUCKET` to the
+> bucket where TRACE writes (typically `${TRACE_GCS_BUCKET}` per the TRACE
+> deploy guide) and `SAGE_GCS_PREFIX` to TRACE's prefix (`trace/`). The ETL
+> looks for objects under `${SAGE_GCS_PREFIX}/stix/`. Without these env vars
+> the job falls back to OpenCTI mode and fails when `OPENCTI_TOKEN=skip`.
+
+> **`mount-options="only-dir=pir"`:** the PIR bucket holds other artifacts
+> (raw STIX landing, etc.); `only-dir=pir` exposes just the `pir/` subdir at
+> `/config/`, so the file resolves to `/config/pir.json`. Omit the option if
+> the bucket is dedicated to PIR.
 
 > **`--set-env-vars` vs `--update-env-vars`:** Subsequent invocations of
 > `gcloud run jobs update --set-env-vars=...` **replace** the
@@ -47,9 +59,9 @@ gcloud run jobs create sage-etl \
 
 > **OpenCTI-skip deployments:** If you are not connecting to an OpenCTI instance, pass `OPENCTI_URL=https://example.com` and `OPENCTI_TOKEN=skip` as shown above. The ETL job will skip OpenCTI ingestion and proceed with STIX bundles from GCS.
 
-> **PIR file supply:** The `pir.json` file is not bundled in the container image. Mount it at runtime via a GCS volume as shown above (`--add-volume` / `--add-volume-mount`). The file must exist at `gs://${PIR_GCS_BUCKET}/pir.json` before the job runs. Alternatively, store it in Secret Manager and mount as a volume secret.
+> **PIR file supply:** The `pir.json` file is not bundled in the container image. Mount it at runtime via a GCS volume as shown above (`--add-volume` / `--add-volume-mount`). With `only-dir=pir` the file must exist at `gs://${PIR_GCS_BUCKET}/pir/pir.json`; without that option it must be at `gs://${PIR_GCS_BUCKET}/pir.json`. Alternatively, store it in Secret Manager and mount as a volume secret.
 
-> **Service account:** Create a dedicated service account and grant `roles/spanner.databaseUser`, `roles/storage.objectViewer`, and `roles/run.invoker` before deploying.
+> **Service account:** Create a dedicated service account and grant `roles/spanner.databaseUser`, `roles/storage.objectViewer`, and `roles/run.invoker` before deploying. **Also bind `roles/storage.objectViewer` on the TRACE output bucket** (`gs://${TRACE_GCS_BUCKET}`) so the ETL can list and read STIX bundles produced by TRACE.
 >
 > ```sh
 > gcloud iam service-accounts create sage-etl \
@@ -61,6 +73,12 @@ gcloud run jobs create sage-etl \
 >     --member="serviceAccount:sage-etl@${PROJECT_ID}.iam.gserviceaccount.com" \
 >     --role="${ROLE}"
 > done
+>
+> # Bucket-level binding for the TRACE output bucket (least-privilege
+> # alternative to a project-wide objectViewer):
+> gcloud storage buckets add-iam-policy-binding gs://${TRACE_GCS_BUCKET} \
+>   --member="serviceAccount:sage-etl@${PROJECT_ID}.iam.gserviceaccount.com" \
+>   --role="roles/storage.objectViewer"
 > ```
 
 ---

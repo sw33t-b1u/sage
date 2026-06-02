@@ -31,12 +31,24 @@ gcloud run jobs create sage-etl \
   --image=${IMAGE} \
   --region=${REGION} \
   --service-account="sage-etl@${PROJECT_ID}.iam.gserviceaccount.com" \
-  --set-env-vars="PROJECT_ID=${PROJECT_ID},SPANNER_INSTANCE=${SPANNER_INSTANCE},SPANNER_DB=${SPANNER_DB},PIR_FILE_PATH=/config/pir.json,OPENCTI_URL=https://example.com,OPENCTI_TOKEN=skip" \
+  --set-env-vars="PROJECT_ID=${PROJECT_ID},SPANNER_INSTANCE=${SPANNER_INSTANCE},SPANNER_DB=${SPANNER_DB},PIR_FILE_PATH=/config/pir.json,OPENCTI_URL=https://example.com,OPENCTI_TOKEN=skip,SAGE_STORAGE=gcs,SAGE_GCS_BUCKET=${TRACE_GCS_BUCKET},SAGE_GCS_PREFIX=trace/" \
   --set-secrets="GCS_BUCKET=sage-bucket:latest" \
-  --add-volume=name=pir,type=cloud-storage,bucket=${PIR_GCS_BUCKET} \
+  --add-volume=name=pir,type=cloud-storage,bucket=${PIR_GCS_BUCKET},mount-options="only-dir=pir" \
   --add-volume-mount=volume=pir,mount-path=/config \
   --project=${PROJECT_ID}
 ```
+
+> **`SAGE_STORAGE=gcs` + `SAGE_GCS_BUCKET` + `SAGE_GCS_PREFIX`:** TRACE が生成
+> した STIX バンドルを `run-etl` が読み込むために必須。`SAGE_GCS_BUCKET` は
+> TRACE が書き込む bucket（典型的には `${TRACE_GCS_BUCKET}`、TRACE デプロイ
+> ガイド参照）、`SAGE_GCS_PREFIX` は TRACE の prefix（`trace/`）を指定する。
+> ETL は `${SAGE_GCS_PREFIX}/stix/` 配下を探す。設定しないと OpenCTI モードに
+> fallback し、`OPENCTI_TOKEN=skip` の構成では失敗する。
+
+> **`mount-options="only-dir=pir"`:** PIR bucket は他の artifact（raw STIX
+> landing 等）も保持しうるため、`only-dir=pir` で `pir/` サブディレクトリのみ
+> を `/config/` に露出させ、ファイルが `/config/pir.json` として解決されるよう
+> にする。bucket が PIR 専用なら省略可。
 
 > **`--set-env-vars` vs `--update-env-vars`:** `gcloud run jobs update --set-env-vars=...` を後から実行すると、env-var セット全体が**置き換え**られ、再指定しなかったキーは無音で削除される。マージするには `--update-env-vars=KEY=VAL` を使うこと。毎回の更新後に
 > `gcloud run jobs describe sage-etl --format="value(spec.template.spec.containers[0].env[].name)"`
@@ -46,9 +58,9 @@ gcloud run jobs create sage-etl \
 
 > **OpenCTI なし構成:** OpenCTI インスタンスに接続しない場合は、上記のように `OPENCTI_URL=https://example.com` と `OPENCTI_TOKEN=skip` を渡す。ETL ジョブは OpenCTI 取り込みをスキップし、GCS 上の STIX バンドルを処理する。
 
-> **PIR ファイルの供給:** `pir.json` はコンテナイメージに含まれない。上記の GCS ボリュームマウント（`--add-volume` / `--add-volume-mount`）を使ってランタイムに供給する。ジョブ実行前に `gs://${PIR_GCS_BUCKET}/pir.json` が存在している必要がある。Secret Manager にボリュームシークレットとして格納することも可能。
+> **PIR ファイルの供給:** `pir.json` はコンテナイメージに含まれない。上記の GCS ボリュームマウント（`--add-volume` / `--add-volume-mount`）を使ってランタイムに供給する。`only-dir=pir` を指定する構成ではジョブ実行前に `gs://${PIR_GCS_BUCKET}/pir/pir.json` が必要。`only-dir` を省略した場合は `gs://${PIR_GCS_BUCKET}/pir.json` に置く。Secret Manager にボリュームシークレットとして格納することも可能。
 
-> **サービスアカウント:** デプロイ前に専用のサービスアカウントを作成し、`roles/spanner.databaseUser`、`roles/storage.objectViewer`、`roles/run.invoker` を付与する。
+> **サービスアカウント:** デプロイ前に専用のサービスアカウントを作成し、`roles/spanner.databaseUser`、`roles/storage.objectViewer`、`roles/run.invoker` を付与する。**さらに TRACE 出力 bucket (`gs://${TRACE_GCS_BUCKET}`) に対して `roles/storage.objectViewer` を bind** し、ETL が TRACE 生成 STIX バンドルを list/read できるようにする。
 >
 > ```sh
 > gcloud iam service-accounts create sage-etl \
@@ -60,6 +72,12 @@ gcloud run jobs create sage-etl \
 >     --member="serviceAccount:sage-etl@${PROJECT_ID}.iam.gserviceaccount.com" \
 >     --role="${ROLE}"
 > done
+>
+> # TRACE 出力 bucket に対する bucket-level binding（project-wide な
+> # objectViewer を避ける least-privilege 代替）:
+> gcloud storage buckets add-iam-policy-binding gs://${TRACE_GCS_BUCKET} \
+>   --member="serviceAccount:sage-etl@${PROJECT_ID}.iam.gserviceaccount.com" \
+>   --role="roles/storage.objectViewer"
 > ```
 
 ---
