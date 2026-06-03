@@ -248,8 +248,15 @@ URL=$(gcloud run services describe sage-api \
   --format='value(status.url)' \
   --project=${GCP_PROJECT_ID})
 
-curl -H "Authorization: Bearer $(gcloud auth print-identity-token)" ${URL}/health
+# /openapi.json is served by FastAPI itself — no auth dependency, no Spanner
+# access — so it confirms the service is up and the OIDC token is accepted.
+# Business routes (/attack-paths etc.) need Spanner data; check those after sage-etl runs.
+curl -sL -H "Authorization: Bearer $(gcloud auth print-identity-token)" \
+  -w "\nHTTP=%{http_code}\n" \
+  ${URL}/openapi.json | head -5
 ```
+
+Expected: `HTTP=200` and JSON containing `"title":"SAGE Analysis API"`.
 
 ### Browser access
 

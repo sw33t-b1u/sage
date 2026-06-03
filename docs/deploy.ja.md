@@ -247,8 +247,15 @@ URL=$(gcloud run services describe sage-api \
   --format='value(status.url)' \
   --project=${GCP_PROJECT_ID})
 
-curl -H "Authorization: Bearer $(gcloud auth print-identity-token)" ${URL}/health
+# /openapi.json は FastAPI が自動提供する（認証 dependency 無し・Spanner 非依存）ため、
+# サービス起動と OIDC トークン受理の疎通確認に使える。
+# ビジネスルート（/attack-paths 等）は Spanner データが必要なので sage-etl 実行後に確認する。
+curl -sL -H "Authorization: Bearer $(gcloud auth print-identity-token)" \
+  -w "\nHTTP=%{http_code}\n" \
+  ${URL}/openapi.json | head -5
 ```
+
+期待値: `HTTP=200`、JSON に `"title":"SAGE Analysis API"` を含む。
 
 ### ブラウザアクセス
 
