@@ -122,8 +122,8 @@ cp tests/fixtures/sample_assets.json input/assets.json
 > ```
 
 ```sh
-uv run sage load-assets                              # デフォルト: input/assets.json
-uv run sage load-assets --file path/to/assets.json  # カスタムパス
+uv run sage load-assets                               # デフォルト: input/assets.json
+uv run sage load-assets --input path/to/assets.json  # カスタムパス
 ```
 
 ---
@@ -145,7 +145,7 @@ cd ../TRACE && uv run trace validate-identity \
   --assets          ../SAGE/input/assets.json
 
 cd ../SAGE && uv run sage load-identity-assets \
-  --file input/identity_assets.json
+  --input input/identity_assets.json
 ```
 
 SAGE は `Identity` 行 + `HasAccess` エッジを upsert し、フラグが立っている
@@ -168,7 +168,7 @@ cd ../TRACE && uv run trace validate-accounts \
   --assets        ../SAGE/input/assets.json
 
 cd ../SAGE && uv run sage load-user-accounts \
-  --file input/user_accounts.json
+  --input input/user_accounts.json
 ```
 
 `UserAccount` 行は任意 FK `identity_id` で `Identity` にリンクし、

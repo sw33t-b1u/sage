@@ -16,7 +16,7 @@ row even when BEACON regenerates the artifact.
 Usage:
     export SPANNER_EMULATOR_HOST=localhost:9010  # for local emulator
     uv run sage load-identity-assets \
-        --file ../BEACON/output/identity_assets.json
+        --input ../BEACON/output/identity_assets.json
 """
 
 from __future__ import annotations

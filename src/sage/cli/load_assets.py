@@ -7,7 +7,7 @@ ConnectedTo / ProtectedBy / Targets テーブルへ upsert する。
 使用方法:
     export SPANNER_EMULATOR_HOST=localhost:9010  # エミュレーター使用時
     uv run sage load-assets
-    uv run sage load-assets --file path/to/assets.json
+    uv run sage load-assets --input path/to/assets.json
 """
 
 from __future__ import annotations

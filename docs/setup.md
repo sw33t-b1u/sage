@@ -121,7 +121,7 @@ cp tests/fixtures/sample_assets.json input/assets.json
 
 ```sh
 uv run sage load-assets            # reads input/assets.json by default
-uv run sage load-assets --file path/to/assets.json   # custom path
+uv run sage load-assets --input path/to/assets.json  # custom path
 ```
 
 ---
@@ -142,7 +142,7 @@ cd ../TRACE && uv run trace validate-identity \
   --assets          ../SAGE/input/assets.json
 
 cd ../SAGE && uv run sage load-identity-assets \
-  --file input/identity_assets.json
+  --input input/identity_assets.json
 ```
 
 SAGE upserts `Identity` rows, `HasAccess` edges, and — when the flag is
@@ -165,7 +165,7 @@ cd ../TRACE && uv run trace validate-accounts \
   --assets        ../SAGE/input/assets.json
 
 cd ../SAGE && uv run sage load-user-accounts \
-  --file input/user_accounts.json
+  --input input/user_accounts.json
 ```
 
 `UserAccount` rows link to `Identity` via optional `identity_id` and to

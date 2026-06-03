@@ -127,8 +127,11 @@ nullability, primary keys, default values.
 - Changing primary key composition.
 
 The `src/sage/spanner/migrations/` directory stores forward-only
-migrations versioned per table change. Operators apply migrations
-through `sage init-schema --apply-migrations`.
+migration SQL files versioned per table change. Applying these
+migration files is currently a manual operator step (executing the
+SQL directly against Spanner); `sage init-schema` takes no
+arguments and applies only the base schema from
+`schema/spanner_ddl.sql`.
 
 ### 3.4 `Incident.source` discriminator
 
@@ -255,8 +258,8 @@ configuration env, GCP_CREDENTIALS_PATH (deployment-specific).
   minors; existing names stay stable.
 - **Migration script naming convention** in
   `src/sage/spanner/migrations/` — migration order + content is
-  Committed (operators apply through `sage init-schema`), but file
-  naming is internal.
+  Committed (operators apply migration SQL manually against Spanner),
+  but file naming is internal.
 - **`/test/` routes** (none currently registered in prod app; if
   added, marked test-only).
 
