@@ -6,6 +6,57 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [3.0.0] - 2026-06-03
+
+### Changed (BREAKING)
+
+- Renamed environment variables for naming-convention alignment across
+  the BEACON / TRACE / SAGE pipeline. No backward compatibility:
+  - `PROJECT_ID` → `GCP_PROJECT_ID` (aligns with BEACON / TRACE)
+  - `GCS_BUCKET` → `SAGE_ETL_INPUT_BUCKET` (disambiguates from storage bucket)
+  - `SAGE_GCS_BUCKET` → `SAGE_STORAGE_BUCKET`
+  - `SAGE_GCS_PREFIX` → `SAGE_STORAGE_PREFIX`
+- Internal `Config` field renames (`src/sage/config.py`):
+  - `gcs_landing_bucket` → `sage_etl_input_bucket`
+  - `sage_gcs_bucket` → `sage_storage_bucket`
+  - `sage_gcs_prefix` → `sage_storage_prefix`
+- `docs/deploy.md` restructured to common Day-0 / Day-1 / Day-N / Access /
+  Out-of-scope sections. Removed `--set-secrets` examples (bucket names
+  are not secrets) and the IAP / Internal Load Balancer / VPC-SC section
+  (L2 IAM binding with `roles/run.invoker` is the production-recommended
+  path for small Workspace user counts).
+
+### Migration
+
+1. Update `.env`:
+   ```diff
+   - PROJECT_ID=your-gcp-project-id
+   + GCP_PROJECT_ID=your-gcp-project-id
+   - GCS_BUCKET=your-landing-bucket
+   + SAGE_ETL_INPUT_BUCKET=your-landing-bucket
+   - SAGE_GCS_BUCKET=your-storage-bucket
+   + SAGE_STORAGE_BUCKET=your-storage-bucket
+   - SAGE_GCS_PREFIX=trace/
+   + SAGE_STORAGE_PREFIX=trace/
+   ```
+2. Cloud Run: update env-vars on existing revision (use
+   `--update-env-vars` + `--remove-env-vars` to avoid the destructive
+   `--set-env-vars` whole-set replacement):
+   ```sh
+   gcloud run jobs update sage-etl \
+     --update-env-vars=GCP_PROJECT_ID=${GCP_PROJECT_ID},SAGE_ETL_INPUT_BUCKET=${SAGE_ETL_INPUT_BUCKET},SAGE_STORAGE_BUCKET=${SAGE_STORAGE_BUCKET},SAGE_STORAGE_PREFIX=${SAGE_STORAGE_PREFIX} \
+     --remove-env-vars=PROJECT_ID,GCS_BUCKET,SAGE_GCS_BUCKET,SAGE_GCS_PREFIX \
+     --region=${REGION} --project=${GCP_PROJECT_ID}
+   ```
+3. Rebuild and redeploy image:
+   ```sh
+   gcloud builds submit --tag $IMAGE --project=${GCP_PROJECT_ID}
+   gcloud run jobs update sage-etl --image=$IMAGE --region=${REGION} --project=${GCP_PROJECT_ID}
+   ```
+
+Shipped together with BEACON 3.0.0 and TRACE 3.0.0 (Initiative M).
+
+
 ## [2.0.1] - 2026-06-03
 
 ### Fixed
