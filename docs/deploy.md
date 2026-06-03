@@ -1,46 +1,101 @@
-# SAGE — Deployment Guide
+# SAGE — Cloud Run Deployment
 
-This guide assumes you have completed [setup.md](setup.md). Ensure `make check` passes before deploying.
+Japanese translation: [`docs/deploy.ja.md`](deploy.ja.md)
+
+Before deploying, complete [docs/setup.md](setup.md). Ensure `make check` passes before deploying.
 
 ---
 
-## Step 8 — Deploy SAGE ETL to Cloud Run (Job)
+## Day-0 Prerequisites
 
-Build the container image and deploy the SAGE ETL pipeline as a Cloud Run Job for batch execution.
+### Enable APIs
 
 ```sh
-# Load .env if not already sourced
 source .env
 export REGION=${REGION:-us-central1}
 
-# Create Artifact Registry repository (first time only)
+gcloud services enable \
+  run.googleapis.com \
+  artifactregistry.googleapis.com \
+  cloudbuild.googleapis.com \
+  spanner.googleapis.com \
+  cloudscheduler.googleapis.com \
+  --project=${GCP_PROJECT_ID}
+```
+
+### Create Artifact Registry repository
+
+```sh
 gcloud artifacts repositories create cloud-run \
   --repository-format=docker \
   --location=${REGION} \
-  --project=${PROJECT_ID}
+  --project=${GCP_PROJECT_ID}
+```
 
-export IMAGE=${REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run/sage-etl
+### Create service account and grant IAM roles
+
+Create the `sage-etl` service account and bind the required project-level roles before running any deploy commands that reference it.
+
+```sh
+gcloud iam service-accounts create sage-etl \
+  --display-name="SAGE ETL Job" \
+  --project=${GCP_PROJECT_ID}
+
+for ROLE in roles/spanner.databaseUser roles/storage.objectViewer roles/run.invoker; do
+  gcloud projects add-iam-policy-binding ${GCP_PROJECT_ID} \
+    --member="serviceAccount:sage-etl@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
+    --role="${ROLE}"
+done
+
+# Bucket-level binding for the TRACE output bucket (least-privilege
+# alternative to a project-wide objectViewer):
+gcloud storage buckets add-iam-policy-binding gs://${TRACE_STORAGE_BUCKET} \
+  --member="serviceAccount:sage-etl@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
+  --role="roles/storage.objectViewer"
+```
+
+### Create GCS buckets (if not already existing)
+
+```sh
+# ETL input bucket — TRACE writes STIX bundles here; SAGE reads from it
+gcloud storage buckets create gs://${SAGE_ETL_INPUT_BUCKET} \
+  --location=${REGION} \
+  --project=${GCP_PROJECT_ID}
+
+# Storage backend bucket (only when SAGE_STORAGE=gcs)
+gcloud storage buckets create gs://${SAGE_STORAGE_BUCKET} \
+  --location=${REGION} \
+  --project=${GCP_PROJECT_ID}
+```
+
+---
+
+## Day-1 Initial Deploy
+
+### sage-etl (Cloud Run Job)
+
+```sh
+export IMAGE=${REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/cloud-run/sage-etl
 
 # Build and push container image via Cloud Build
-gcloud builds submit --tag ${IMAGE} --project=${PROJECT_ID}
+gcloud builds submit --tag ${IMAGE} --project=${GCP_PROJECT_ID}
 
 # Create the Cloud Run Job
 gcloud run jobs create sage-etl \
   --image=${IMAGE} \
   --region=${REGION} \
-  --service-account="sage-etl@${PROJECT_ID}.iam.gserviceaccount.com" \
-  --set-env-vars="PROJECT_ID=${PROJECT_ID},SPANNER_INSTANCE=${SPANNER_INSTANCE},SPANNER_DB=${SPANNER_DB},PIR_FILE_PATH=/config/pir.json,OPENCTI_URL=https://example.com,OPENCTI_TOKEN=skip,SAGE_STORAGE=gcs,SAGE_GCS_BUCKET=${TRACE_GCS_BUCKET},SAGE_GCS_PREFIX=trace/" \
-  --set-secrets="GCS_BUCKET=sage-bucket:latest" \
+  --service-account="sage-etl@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
+  --set-env-vars="GCP_PROJECT_ID=${GCP_PROJECT_ID},SPANNER_INSTANCE=${SPANNER_INSTANCE},SPANNER_DB=${SPANNER_DB},PIR_FILE_PATH=/config/pir.json,OPENCTI_URL=https://example.com,OPENCTI_TOKEN=skip,SAGE_STORAGE=gcs,SAGE_ETL_INPUT_BUCKET=${SAGE_ETL_INPUT_BUCKET},SAGE_STORAGE_BUCKET=${SAGE_STORAGE_BUCKET},SAGE_STORAGE_PREFIX=trace/" \
   --add-volume=name=pir,type=cloud-storage,bucket=${PIR_GCS_BUCKET},mount-options="only-dir=pir" \
   --add-volume-mount=volume=pir,mount-path=/config \
-  --project=${PROJECT_ID}
+  --project=${GCP_PROJECT_ID}
 ```
 
-> **`SAGE_STORAGE=gcs` + `SAGE_GCS_BUCKET` + `SAGE_GCS_PREFIX`:** required so
-> `run-etl` reads STIX bundles produced by TRACE. Set `SAGE_GCS_BUCKET` to the
-> bucket where TRACE writes (typically `${TRACE_GCS_BUCKET}` per the TRACE
-> deploy guide) and `SAGE_GCS_PREFIX` to TRACE's prefix (`trace/`). The ETL
-> looks for objects under `${SAGE_GCS_PREFIX}/stix/`. Without these env vars
+> **`SAGE_STORAGE=gcs` + `SAGE_ETL_INPUT_BUCKET` + `SAGE_STORAGE_PREFIX`:** required so
+> `run-etl` reads STIX bundles produced by TRACE. Set `SAGE_ETL_INPUT_BUCKET` to the
+> bucket where TRACE writes (typically `${TRACE_STORAGE_BUCKET}` per the TRACE
+> deploy guide) and `SAGE_STORAGE_PREFIX` to TRACE's prefix (`trace/`). The ETL
+> looks for objects under `${SAGE_STORAGE_PREFIX}/stix/`. Without these env vars
 > the job falls back to OpenCTI mode and fails when `OPENCTI_TOKEN=skip`.
 
 > **`mount-options="only-dir=pir"`:** the PIR bucket holds other artifacts
@@ -48,72 +103,35 @@ gcloud run jobs create sage-etl \
 > `/config/`, so the file resolves to `/config/pir.json`. Omit the option if
 > the bucket is dedicated to PIR.
 
-> **`--set-env-vars` vs `--update-env-vars`:** Subsequent invocations of
-> `gcloud run jobs update --set-env-vars=...` **replace** the
-> entire env-var set, silently dropping any keys not re-listed. To merge,
-> use `--update-env-vars=KEY=VAL` instead. Verify with
-> `gcloud run jobs describe sage-etl --format="value(spec.template.spec.containers[0].env[].name)"`
-> after every update.
-
-> **Secret Manager:** Store sensitive values with `gcloud secrets create sage-bucket --data-file=- <<< "your-bucket"` and reference with `--set-secrets` instead of `--set-env-vars`.
-
 > **OpenCTI-skip deployments:** If you are not connecting to an OpenCTI instance, pass `OPENCTI_URL=https://example.com` and `OPENCTI_TOKEN=skip` as shown above. The ETL job will skip OpenCTI ingestion and proceed with STIX bundles from GCS.
 
-> **PIR file supply:** The `pir.json` file is not bundled in the container image. Mount it at runtime via a GCS volume as shown above (`--add-volume` / `--add-volume-mount`). With `only-dir=pir` the file must exist at `gs://${PIR_GCS_BUCKET}/pir/pir.json`; without that option it must be at `gs://${PIR_GCS_BUCKET}/pir.json`. Alternatively, store it in Secret Manager and mount as a volume secret.
+> **PIR file supply:** The `pir.json` file is not bundled in the container image. Mount it at runtime via a GCS volume as shown above (`--add-volume` / `--add-volume-mount`). With `only-dir=pir` the file must exist at `gs://${PIR_GCS_BUCKET}/pir/pir.json`; without that option it must be at `gs://${PIR_GCS_BUCKET}/pir.json`.
 
-> **Service account:** Create a dedicated service account and grant `roles/spanner.databaseUser`, `roles/storage.objectViewer`, and `roles/run.invoker` before deploying. **Also bind `roles/storage.objectViewer` on the TRACE output bucket** (`gs://${TRACE_GCS_BUCKET}`) so the ETL can list and read STIX bundles produced by TRACE.
->
-> ```sh
-> gcloud iam service-accounts create sage-etl \
->   --display-name="SAGE ETL Job" \
->   --project=${PROJECT_ID}
->
-> for ROLE in roles/spanner.databaseUser roles/storage.objectViewer roles/run.invoker; do
->   gcloud projects add-iam-policy-binding ${PROJECT_ID} \
->     --member="serviceAccount:sage-etl@${PROJECT_ID}.iam.gserviceaccount.com" \
->     --role="${ROLE}"
-> done
->
-> # Bucket-level binding for the TRACE output bucket (least-privilege
-> # alternative to a project-wide objectViewer):
-> gcloud storage buckets add-iam-policy-binding gs://${TRACE_GCS_BUCKET} \
->   --member="serviceAccount:sage-etl@${PROJECT_ID}.iam.gserviceaccount.com" \
->   --role="roles/storage.objectViewer"
-> ```
-
----
-
-## Step 9 — Set up Cloud Scheduler (daily ETL)
-
-Trigger the SAGE ETL job automatically on a daily schedule.
+### (Optional) Cloud Scheduler for daily ETL trigger
 
 ```sh
-gcloud services enable cloudscheduler.googleapis.com --project=${PROJECT_ID}
-
 # Daily at 03:00 JST (18:00 UTC)
 gcloud scheduler jobs create http sage-daily-etl \
   --location=${REGION} \
   --schedule="0 18 * * *" \
-  --uri="https://${REGION}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${PROJECT_ID}/jobs/sage-etl:run" \
+  --uri="https://${REGION}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${GCP_PROJECT_ID}/jobs/sage-etl:run" \
   --message-body="{}" \
-  --oauth-service-account-email="sage-etl@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --oauth-service-account-email="sage-etl@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
   --time-zone="UTC" \
-  --project=${PROJECT_ID}
+  --project=${GCP_PROJECT_ID}
 ```
 
-> **Manual trigger:** `gcloud run jobs execute sage-etl --region=${REGION} --project=${PROJECT_ID}`
+> **Manual trigger:** `gcloud run jobs execute sage-etl --region=${REGION} --project=${GCP_PROJECT_ID}`
 
----
-
-## Step 10 — Deploy SAGE Analysis API to Cloud Run (Service)
+### sage-api (Cloud Run Service) — if Analysis API is needed
 
 Deploy the SAGE Analysis API as a long-running Cloud Run Service. This is the HTTP endpoint that BEACON queries via `SAGE_API_URL`.
 
 The same container image used by the ETL Job is reused here; the ENTRYPOINT is overridden at deploy time to run `sage serve-api` instead of `sage run-etl`.
 
 ```sh
-# Reuse the IMAGE variable from Step 8 (or re-export it)
-export IMAGE=${REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run/sage-etl
+# Reuse the IMAGE variable from above (or re-export it)
+export IMAGE=${REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/cloud-run/sage-etl
 
 gcloud run deploy sage-api \
   --image=${IMAGE} \
@@ -122,34 +140,126 @@ gcloud run deploy sage-api \
   --command='uv' \
   --args='run,sage,serve-api,--host,0.0.0.0,--port,8080' \
   --port=8080 \
-  --service-account="sage-etl@${PROJECT_ID}.iam.gserviceaccount.com" \
-  --set-env-vars="PROJECT_ID=${PROJECT_ID},SPANNER_INSTANCE=${SPANNER_INSTANCE},SPANNER_DB=${SPANNER_DB}" \
-  --project=${PROJECT_ID}
+  --service-account="sage-etl@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
+  --set-env-vars="GCP_PROJECT_ID=${GCP_PROJECT_ID},SPANNER_INSTANCE=${SPANNER_INSTANCE},SPANNER_DB=${SPANNER_DB}" \
+  --project=${GCP_PROJECT_ID}
 ```
-
-> **`--set-env-vars` vs `--update-env-vars`:** Subsequent invocations of
-> `gcloud run services update --set-env-vars=...` **replace** the
-> entire env-var set, silently dropping any keys not re-listed. To merge,
-> use `--update-env-vars=KEY=VAL` instead. Verify with
-> `gcloud run services describe sage-api --format="value(spec.template.spec.containers[0].env[].name)"`
-> after every update.
-
-> **IAP / Internal Load Balancer:** For BEACON-only access, place the Service behind an Internal Load Balancer or configure Identity-Aware Proxy (IAP) so the endpoint is not reachable from the public internet. `--no-allow-unauthenticated` is a minimum baseline; add IAP or VPC-SC for production deployments.
-
-> **BEACON IAM:** BEACON's service account needs `roles/run.invoker` on the `sage-api` Service. This binding is added during the BEACON deployment phase:
-> ```sh
-> gcloud run services add-iam-policy-binding sage-api \
->   --region=${REGION} \
->   --member="serviceAccount:beacon-sa@${PROJECT_ID}.iam.gserviceaccount.com" \
->   --role="roles/run.invoker" \
->   --project=${PROJECT_ID}
-> ```
 
 > **Service URL:** After deploy, retrieve the URL for use in BEACON:
 > ```sh
 > gcloud run services describe sage-api \
 >   --region=${REGION} \
 >   --format='value(status.url)' \
->   --project=${PROJECT_ID}
+>   --project=${GCP_PROJECT_ID}
 > ```
 > Set this value as `SAGE_API_URL` in BEACON's configuration.
+
+---
+
+## Day-N Redeploy
+
+### Code-only changes
+
+Use this flow when only the container image changes (no env-var additions or removals).
+
+```sh
+export IMAGE=${REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/cloud-run/sage-etl
+
+# Rebuild and push the new image
+gcloud builds submit --tag ${IMAGE} --project=${GCP_PROJECT_ID}
+
+# Update the Cloud Run Job (sage-etl)
+gcloud run jobs update sage-etl \
+  --image=${IMAGE} \
+  --region=${REGION} \
+  --project=${GCP_PROJECT_ID}
+
+# Update the Cloud Run Service (sage-api)
+gcloud run services update sage-api \
+  --image=${IMAGE} \
+  --region=${REGION} \
+  --project=${GCP_PROJECT_ID}
+```
+
+### Env-var changes on an existing revision
+
+Use `--update-env-vars` and `--remove-env-vars` — **not** `--set-env-vars`, which replaces the entire env-var set and silently drops any key not re-listed.
+
+```sh
+# Add or update a single variable without touching others
+gcloud run services update sage-api \
+  --update-env-vars=NEW_VAR=value \
+  --region=${REGION} \
+  --project=${GCP_PROJECT_ID}
+
+# Remove an old variable at the same time
+gcloud run services update sage-api \
+  --update-env-vars=NEW_VAR=value \
+  --remove-env-vars=OLD_VAR \
+  --region=${REGION} \
+  --project=${GCP_PROJECT_ID}
+
+# Same pattern for Cloud Run Jobs
+gcloud run jobs update sage-etl \
+  --update-env-vars=NEW_VAR=value \
+  --remove-env-vars=OLD_VAR \
+  --region=${REGION} \
+  --project=${GCP_PROJECT_ID}
+```
+
+> **Verify:** `gcloud run services describe sage-api --region=${REGION} --format="value(spec.template.spec.containers[0].env[].name)" --project=${GCP_PROJECT_ID}`
+
+---
+
+## Access (Production = L2)
+
+`--no-allow-unauthenticated` is already set during deploy. Grant `roles/run.invoker` to the identities that need access.
+
+### Grant invoke permission
+
+```sh
+# Single user
+gcloud run services add-iam-policy-binding sage-api \
+  --region=${REGION} \
+  --member="user:alice@example.com" \
+  --role=roles/run.invoker \
+  --project=${GCP_PROJECT_ID}
+
+# Google Group (recommended for teams)
+gcloud run services add-iam-policy-binding sage-api \
+  --region=${REGION} \
+  --member="group:sage-users@example.com" \
+  --role=roles/run.invoker \
+  --project=${GCP_PROJECT_ID}
+
+# BEACON's service account (add during BEACON deployment)
+gcloud run services add-iam-policy-binding sage-api \
+  --region=${REGION} \
+  --member="serviceAccount:beacon-sa@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
+  --role=roles/run.invoker \
+  --project=${GCP_PROJECT_ID}
+```
+
+### Verify via curl
+
+```sh
+URL=$(gcloud run services describe sage-api \
+  --region=${REGION} \
+  --format='value(status.url)' \
+  --project=${GCP_PROJECT_ID})
+
+curl -H "Authorization: Bearer $(gcloud auth print-identity-token)" ${URL}/health
+```
+
+### Browser access
+
+```sh
+gcloud run services proxy sage-api --region=${REGION} --project=${GCP_PROJECT_ID}
+# Open http://localhost:8080
+```
+
+---
+
+## Out of scope
+
+IAP / Internal Load Balancer / VPC Service Controls are not configured by this guide. For small Google Workspace user counts (a few users), the L2 IAM binding above is sufficient. If you need custom domain, browser access without gcloud, or context-aware access, see https://cloud.google.com/iap/docs.
