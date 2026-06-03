@@ -130,7 +130,7 @@ def main() -> None:
 
             client = OpenCTIClient(config.opencti_url, config.opencti_token)
             bundle = client.fetch_stix_bundle(modified_after=modified_after)
-            client.save_bundle_to_gcs(bundle, config.gcs_landing_bucket)
+            client.save_bundle_to_gcs(bundle, config.sage_etl_input_bucket)
             objects = parse_bundle(bundle)
 
     # Targets エッジ生成のために事前に資産データを取得する

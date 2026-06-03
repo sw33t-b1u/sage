@@ -33,11 +33,11 @@ make setup
 
 | 変数 | 必須 | デフォルト | 説明 |
 |------|------|-----------|------|
-| `PROJECT_ID` | Yes | — | GCP プロジェクト ID |
+| `GCP_PROJECT_ID` | Yes | — | GCP プロジェクト ID |
 | `REGION` | シェルのみ | `us-central1` | `gcloud` コマンド用リージョン（Python コードでは未使用） |
 | `SPANNER_INSTANCE` | Yes | — | Spanner インスタンス ID |
 | `SPANNER_DB` | Yes | — | Spanner データベース ID |
-| `GCS_BUCKET` | Yes | — | 生 STIX を受け取る GCS バケット |
+| `SAGE_ETL_INPUT_BUCKET` | Yes | — | 生 STIX を受け取る GCS バケット |
 | `OPENCTI_URL` | Yes | — | OpenCTI ベース URL |
 | `OPENCTI_TOKEN` | Yes | — | OpenCTI API トークン |
 | `PIR_FILE_PATH` | No | `/config/pir.json` | PIR JSON ファイルのパス |
@@ -54,8 +54,8 @@ make setup
 | `SAGE_API_AUTH_TOKEN` | API 利用時 | — | Analysis API の Bearer 認証トークン |
 | `SAGE_STORAGE` | No | `local` | ストレージバックエンド: `local` または `gcs` |
 | `SAGE_STORAGE_BASE_DIR` | No | `output` | `local` バックエンドのベースディレクトリ |
-| `SAGE_GCS_BUCKET` | GCS 利用時 | — | GCS バケット名（`SAGE_STORAGE=gcs` 時必須） |
-| `SAGE_GCS_PREFIX` | No | (空文字) | GCS バケット内のキープレフィックス |
+| `SAGE_STORAGE_BUCKET` | GCS 利用時 | — | GCS バケット名（`SAGE_STORAGE=gcs` 時必須） |
+| `SAGE_STORAGE_PREFIX` | No | (空文字) | GCS バケット内のキープレフィックス |
 | `OTEL_SDK_DISABLED` | No | — | `true` に設定すると Spanner クライアントのメトリクスエクスポートエラーを抑制 |
 
 ---
@@ -68,24 +68,24 @@ source .env
 
 # 必要な API を有効化
 gcloud services enable spanner.googleapis.com storage.googleapis.com \
-  --project=${PROJECT_ID}
+  --project=${GCP_PROJECT_ID}
 
 # Spanner インスタンスを作成
 gcloud spanner instances create ${SPANNER_INSTANCE} \
   --config=regional-${REGION} \
   --description="SAGE Threat Intelligence" \
   --nodes=1 \
-  --project=${PROJECT_ID}
+  --project=${GCP_PROJECT_ID}
 
 # Spanner データベースを作成
 gcloud spanner databases create ${SPANNER_DB} \
   --instance=${SPANNER_INSTANCE} \
-  --project=${PROJECT_ID}
+  --project=${GCP_PROJECT_ID}
 
 # GCS ランディングバケットを作成
-gcloud storage buckets create gs://${GCS_BUCKET} \
+gcloud storage buckets create gs://${SAGE_ETL_INPUT_BUCKET} \
   --location=${REGION} \
-  --project=${PROJECT_ID}
+  --project=${GCP_PROJECT_ID}
 ```
 
 > **コスト注記:** 1 ノード Spanner インスタンスは約 $0.90/時間。評価時のコスト最小化には `--nodes=1` の代わりに `--processing-units=100` を使用。

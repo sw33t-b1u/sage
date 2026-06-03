@@ -6,7 +6,7 @@ Usage:
 
 環境変数:
   CALDERA_URL, CALDERA_API_KEY が必要。
-  PROJECT_ID 等は Config.from_env() 経由で読み込む。
+  GCP_PROJECT_ID 等は Config.from_env() 経由で読み込む。
 """
 
 from __future__ import annotations

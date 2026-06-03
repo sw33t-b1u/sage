@@ -9,7 +9,7 @@ Authentication:
   When unset, a warning is logged at startup but no auth is enforced.
 
 Environment variables (loaded via Config.from_env()):
-  PROJECT_ID, SPANNER_INSTANCE, SPANNER_DB, etc.
+  GCP_PROJECT_ID, SPANNER_INSTANCE, SPANNER_DB, etc.
 """
 
 from __future__ import annotations

@@ -56,10 +56,10 @@ def create_storage_backend(config: object) -> StorageBackend:
     if backend_name == "gcs":
         from .gcs import GCSStorage  # deferred — optional dependency
 
-        bucket: str = getattr(config, "sage_gcs_bucket", "")
+        bucket: str = getattr(config, "sage_storage_bucket", "")
         if not bucket:
-            raise ValueError("SAGE_GCS_BUCKET must be set when SAGE_STORAGE=gcs")
-        prefix: str = getattr(config, "sage_gcs_prefix", "")
+            raise ValueError("SAGE_STORAGE_BUCKET must be set when SAGE_STORAGE=gcs")
+        prefix: str = getattr(config, "sage_storage_prefix", "")
         return GCSStorage(bucket=bucket, prefix=prefix)
 
     raise ValueError(f"Unknown storage backend '{backend_name}'. Valid values: 'local', 'gcs'.")

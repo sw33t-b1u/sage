@@ -26,10 +26,10 @@ from sage.stix.mapper import build_followed_by_weights
 @pytest.fixture
 def env_required(monkeypatch):
     """Populate the env vars Config.from_env() validates as mandatory."""
-    monkeypatch.setenv("PROJECT_ID", "test-project")
+    monkeypatch.setenv("GCP_PROJECT_ID", "test-project")
     monkeypatch.setenv("SPANNER_INSTANCE", "test-instance")
     monkeypatch.setenv("SPANNER_DB", "test-db")
-    monkeypatch.setenv("GCS_BUCKET", "test-bucket")
+    monkeypatch.setenv("SAGE_ETL_INPUT_BUCKET", "test-bucket")
     monkeypatch.setenv("OPENCTI_URL", "https://opencti.example/graphql")
     monkeypatch.setenv("OPENCTI_TOKEN", "x")
 

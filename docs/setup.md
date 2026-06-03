@@ -31,11 +31,11 @@ Copy `.env.example` to `.env` and fill in the values.
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `PROJECT_ID` | Yes | — | GCP project ID |
+| `GCP_PROJECT_ID` | Yes | — | GCP project ID |
 | `REGION` | Shell only | `us-central1` | GCP region for `gcloud` commands (not used in Python code) |
 | `SPANNER_INSTANCE` | Yes | — | Spanner instance ID |
 | `SPANNER_DB` | Yes | — | Spanner database ID |
-| `GCS_BUCKET` | Yes | — | GCS bucket for raw STIX landing |
+| `SAGE_ETL_INPUT_BUCKET` | Yes | — | GCS bucket for raw STIX landing |
 | `OPENCTI_URL` | Yes | — | OpenCTI base URL |
 | `OPENCTI_TOKEN` | Yes | — | OpenCTI API token |
 | `PIR_FILE_PATH` | No | `/config/pir.json` | Path to PIR JSON file |
@@ -52,8 +52,8 @@ Copy `.env.example` to `.env` and fill in the values.
 | `SAGE_API_AUTH_TOKEN` | API mode | — | Bearer token for Analysis API authentication |
 | `SAGE_STORAGE` | No | `local` | Storage backend: `local` or `gcs` |
 | `SAGE_STORAGE_BASE_DIR` | No | `output` | Base directory for `local` backend |
-| `SAGE_GCS_BUCKET` | GCS mode | — | GCS bucket name (required when `SAGE_STORAGE=gcs`) |
-| `SAGE_GCS_PREFIX` | No | (empty) | Key prefix within the GCS bucket |
+| `SAGE_STORAGE_BUCKET` | GCS mode | — | GCS bucket name (required when `SAGE_STORAGE=gcs`) |
+| `SAGE_STORAGE_PREFIX` | No | (empty) | Key prefix within the GCS bucket |
 | `OTEL_SDK_DISABLED` | No | — | Set `true` to suppress Spanner client metrics export errors |
 
 ---
@@ -66,24 +66,24 @@ source .env
 
 # Enable required APIs
 gcloud services enable spanner.googleapis.com storage.googleapis.com \
-  --project=${PROJECT_ID}
+  --project=${GCP_PROJECT_ID}
 
 # Create Spanner instance
 gcloud spanner instances create ${SPANNER_INSTANCE} \
   --config=regional-${REGION} \
   --description="SAGE Threat Intelligence" \
   --nodes=1 \
-  --project=${PROJECT_ID}
+  --project=${GCP_PROJECT_ID}
 
 # Create Spanner database
 gcloud spanner databases create ${SPANNER_DB} \
   --instance=${SPANNER_INSTANCE} \
-  --project=${PROJECT_ID}
+  --project=${GCP_PROJECT_ID}
 
 # Create GCS landing bucket
-gcloud storage buckets create gs://${GCS_BUCKET} \
+gcloud storage buckets create gs://${SAGE_ETL_INPUT_BUCKET} \
   --location=${REGION} \
-  --project=${PROJECT_ID}
+  --project=${GCP_PROJECT_ID}
 ```
 
 > **Cost note:** A 1-node Spanner instance costs ~$0.90/hour. Use `--processing-units=100` instead of `--nodes=1` to minimize cost during evaluation.
@@ -337,17 +337,17 @@ There is no dedicated delete CLI. Use `gcloud spanner databases execute-sql` wit
 ```sh
 # Delete a ThreatActor
 gcloud spanner databases execute-sql ${SPANNER_DB} \
-  --instance=${SPANNER_INSTANCE} --project=${PROJECT_ID} \
+  --instance=${SPANNER_INSTANCE} --project=${GCP_PROJECT_ID} \
   --sql="DELETE FROM ThreatActor WHERE stix_id = 'intrusion-set--xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'"
 
 # Delete a TTP (also removes downstream FollowedBy edges referencing it)
 gcloud spanner databases execute-sql ${SPANNER_DB} \
-  --instance=${SPANNER_INSTANCE} --project=${PROJECT_ID} \
+  --instance=${SPANNER_INSTANCE} --project=${GCP_PROJECT_ID} \
   --sql="DELETE FROM TTP WHERE stix_id = 'attack-pattern--xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'"
 
 # Delete an Asset loaded by mistake
 gcloud spanner databases execute-sql ${SPANNER_DB} \
-  --instance=${SPANNER_INSTANCE} --project=${PROJECT_ID} \
+  --instance=${SPANNER_INSTANCE} --project=${GCP_PROJECT_ID} \
   --sql="DELETE FROM Asset WHERE id = 'asset-001-xxxxx-xxxx-xxxxxxxxxxxx'"
 ```
 
@@ -356,12 +356,12 @@ gcloud spanner databases execute-sql ${SPANNER_DB} \
 ```sh
 # Remove all Targets edges for a specific actor
 gcloud spanner databases execute-sql ${SPANNER_DB} \
-  --instance=${SPANNER_INSTANCE} --project=${PROJECT_ID} \
+  --instance=${SPANNER_INSTANCE} --project=${GCP_PROJECT_ID} \
   --sql="DELETE FROM Targets WHERE src_actor_stix_id = 'intrusion-set--xxxx'"
 
 # Remove FollowedBy edges from a specific source
 gcloud spanner databases execute-sql ${SPANNER_DB} \
-  --instance=${SPANNER_INSTANCE} --project=${PROJECT_ID} \
+  --instance=${SPANNER_INSTANCE} --project=${GCP_PROJECT_ID} \
   --sql="DELETE FROM FollowedBy WHERE source = 'manual'"
 ```
 

@@ -362,8 +362,8 @@ class TestCreateStorageBackend:
         class _Cfg:
             sage_storage = "local"
             sage_storage_base_dir = str(tmp_path)
-            sage_gcs_bucket = ""
-            sage_gcs_prefix = ""
+            sage_storage_bucket = ""
+            sage_storage_prefix = ""
 
         backend = create_storage_backend(_Cfg())
         from sage.storage.local import LocalStorage
@@ -376,8 +376,8 @@ class TestCreateStorageBackend:
         class _Cfg:
             sage_storage = "local"
             sage_storage_base_dir = str(tmp_path)
-            sage_gcs_bucket = ""
-            sage_gcs_prefix = ""
+            sage_storage_bucket = ""
+            sage_storage_prefix = ""
 
         backend = create_storage_backend(_Cfg())
         backend.save("stix", "test.json", "{}")
@@ -396,8 +396,8 @@ class TestCreateStorageBackend:
             class _Cfg:
                 sage_storage = "gcs"
                 sage_storage_base_dir = "input"
-                sage_gcs_bucket = "my-bucket"
-                sage_gcs_prefix = "sage"
+                sage_storage_bucket = "my-bucket"
+                sage_storage_prefix = "sage"
 
             backend = storage_pkg.create_storage_backend(_Cfg())
             assert isinstance(backend, gcs_mod.GCSStorage)
@@ -408,10 +408,10 @@ class TestCreateStorageBackend:
         class _Cfg:
             sage_storage = "gcs"
             sage_storage_base_dir = "input"
-            sage_gcs_bucket = ""
-            sage_gcs_prefix = ""
+            sage_storage_bucket = ""
+            sage_storage_prefix = ""
 
-        with pytest.raises(ValueError, match="SAGE_GCS_BUCKET"):
+        with pytest.raises(ValueError, match="SAGE_STORAGE_BUCKET"):
             create_storage_backend(_Cfg())
 
     def test_unknown_backend_raises_value_error(self):
@@ -420,8 +420,8 @@ class TestCreateStorageBackend:
         class _Cfg:
             sage_storage = "s3"
             sage_storage_base_dir = "input"
-            sage_gcs_bucket = ""
-            sage_gcs_prefix = ""
+            sage_storage_bucket = ""
+            sage_storage_prefix = ""
 
         with pytest.raises(ValueError, match="s3"):
             create_storage_backend(_Cfg())
@@ -442,10 +442,10 @@ class TestConfigStorageFields:
         reload(cfg_mod)
         # Config.from_env() requires several mandatory env vars; patch them first.
         # Patch required env vars
-        monkeypatch.setenv("PROJECT_ID", "test-project")
+        monkeypatch.setenv("GCP_PROJECT_ID", "test-project")
         monkeypatch.setenv("SPANNER_INSTANCE", "test-instance")
         monkeypatch.setenv("SPANNER_DB", "test-db")
-        monkeypatch.setenv("GCS_BUCKET", "test-bucket")
+        monkeypatch.setenv("SAGE_ETL_INPUT_BUCKET", "test-bucket")
         monkeypatch.setenv("OPENCTI_URL", "http://localhost")
         monkeypatch.setenv("OPENCTI_TOKEN", "test-token")
         reload(cfg_mod)
@@ -454,10 +454,10 @@ class TestConfigStorageFields:
 
     def test_default_base_dir_is_output(self, monkeypatch):
         monkeypatch.delenv("SAGE_STORAGE_BASE_DIR", raising=False)
-        monkeypatch.setenv("PROJECT_ID", "test-project")
+        monkeypatch.setenv("GCP_PROJECT_ID", "test-project")
         monkeypatch.setenv("SPANNER_INSTANCE", "test-instance")
         monkeypatch.setenv("SPANNER_DB", "test-db")
-        monkeypatch.setenv("GCS_BUCKET", "test-bucket")
+        monkeypatch.setenv("SAGE_ETL_INPUT_BUCKET", "test-bucket")
         monkeypatch.setenv("OPENCTI_URL", "http://localhost")
         monkeypatch.setenv("OPENCTI_TOKEN", "test-token")
         from importlib import reload
@@ -470,10 +470,10 @@ class TestConfigStorageFields:
 
     def test_env_overrides_backend(self, monkeypatch):
         monkeypatch.setenv("SAGE_STORAGE", "gcs")
-        monkeypatch.setenv("PROJECT_ID", "test-project")
+        monkeypatch.setenv("GCP_PROJECT_ID", "test-project")
         monkeypatch.setenv("SPANNER_INSTANCE", "test-instance")
         monkeypatch.setenv("SPANNER_DB", "test-db")
-        monkeypatch.setenv("GCS_BUCKET", "test-bucket")
+        monkeypatch.setenv("SAGE_ETL_INPUT_BUCKET", "test-bucket")
         monkeypatch.setenv("OPENCTI_URL", "http://localhost")
         monkeypatch.setenv("OPENCTI_TOKEN", "test-token")
         from importlib import reload
@@ -486,10 +486,10 @@ class TestConfigStorageFields:
 
     def test_env_overrides_base_dir(self, monkeypatch):
         monkeypatch.setenv("SAGE_STORAGE_BASE_DIR", "/tmp/sage_in")
-        monkeypatch.setenv("PROJECT_ID", "test-project")
+        monkeypatch.setenv("GCP_PROJECT_ID", "test-project")
         monkeypatch.setenv("SPANNER_INSTANCE", "test-instance")
         monkeypatch.setenv("SPANNER_DB", "test-db")
-        monkeypatch.setenv("GCS_BUCKET", "test-bucket")
+        monkeypatch.setenv("SAGE_ETL_INPUT_BUCKET", "test-bucket")
         monkeypatch.setenv("OPENCTI_URL", "http://localhost")
         monkeypatch.setenv("OPENCTI_TOKEN", "test-token")
         from importlib import reload
@@ -501,11 +501,11 @@ class TestConfigStorageFields:
         assert cfg.sage_storage_base_dir == "/tmp/sage_in"
 
     def test_env_overrides_gcs_bucket(self, monkeypatch):
-        monkeypatch.setenv("SAGE_GCS_BUCKET", "my-sage-bucket")
-        monkeypatch.setenv("PROJECT_ID", "test-project")
+        monkeypatch.setenv("SAGE_STORAGE_BUCKET", "my-sage-bucket")
+        monkeypatch.setenv("GCP_PROJECT_ID", "test-project")
         monkeypatch.setenv("SPANNER_INSTANCE", "test-instance")
         monkeypatch.setenv("SPANNER_DB", "test-db")
-        monkeypatch.setenv("GCS_BUCKET", "test-bucket")
+        monkeypatch.setenv("SAGE_ETL_INPUT_BUCKET", "test-bucket")
         monkeypatch.setenv("OPENCTI_URL", "http://localhost")
         monkeypatch.setenv("OPENCTI_TOKEN", "test-token")
         from importlib import reload
@@ -514,14 +514,14 @@ class TestConfigStorageFields:
 
         reload(cfg_mod)
         cfg = cfg_mod.Config.from_env()
-        assert cfg.sage_gcs_bucket == "my-sage-bucket"
+        assert cfg.sage_storage_bucket == "my-sage-bucket"
 
     def test_env_overrides_gcs_prefix(self, monkeypatch):
-        monkeypatch.setenv("SAGE_GCS_PREFIX", "prod/sage")
-        monkeypatch.setenv("PROJECT_ID", "test-project")
+        monkeypatch.setenv("SAGE_STORAGE_PREFIX", "prod/sage")
+        monkeypatch.setenv("GCP_PROJECT_ID", "test-project")
         monkeypatch.setenv("SPANNER_INSTANCE", "test-instance")
         monkeypatch.setenv("SPANNER_DB", "test-db")
-        monkeypatch.setenv("GCS_BUCKET", "test-bucket")
+        monkeypatch.setenv("SAGE_ETL_INPUT_BUCKET", "test-bucket")
         monkeypatch.setenv("OPENCTI_URL", "http://localhost")
         monkeypatch.setenv("OPENCTI_TOKEN", "test-token")
         from importlib import reload
@@ -530,4 +530,4 @@ class TestConfigStorageFields:
 
         reload(cfg_mod)
         cfg = cfg_mod.Config.from_env()
-        assert cfg.sage_gcs_prefix == "prod/sage"
+        assert cfg.sage_storage_prefix == "prod/sage"

@@ -164,7 +164,7 @@ uv run sage run-etl
 ```
 
 StorageBackend is configured via `SAGE_STORAGE` (`local` or `gcs`),
-`SAGE_STORAGE_BASE_DIR` (default: `output`), `SAGE_GCS_BUCKET`, and `SAGE_GCS_PREFIX`.
+`SAGE_STORAGE_BASE_DIR` (default: `output`), `SAGE_STORAGE_BUCKET`, and `SAGE_STORAGE_PREFIX`.
 
 ---
 
@@ -263,13 +263,13 @@ ETL runs automatically at 03:00 JST (18:00 UTC) via Cloud Scheduler. The job is 
 To check scheduler status:
 
 ```sh
-gcloud scheduler jobs describe sage-daily-etl --location=${REGION} --project=${PROJECT_ID}
+gcloud scheduler jobs describe sage-daily-etl --location=${REGION} --project=${GCP_PROJECT_ID}
 ```
 
 To trigger the scheduled job immediately:
 
 ```sh
-gcloud scheduler jobs run sage-daily-etl --location=${REGION} --project=${PROJECT_ID}
+gcloud scheduler jobs run sage-daily-etl --location=${REGION} --project=${GCP_PROJECT_ID}
 ```
 
 ### ETL monitoring (Slack notifications)
@@ -321,17 +321,17 @@ curl -H "Authorization: Bearer ${SAGE_API_AUTH_TOKEN}" \
 ```sh
 # Delete a ThreatActor
 gcloud spanner databases execute-sql ${SPANNER_DB} \
-  --instance=${SPANNER_INSTANCE} --project=${PROJECT_ID} \
+  --instance=${SPANNER_INSTANCE} --project=${GCP_PROJECT_ID} \
   --sql="DELETE FROM ThreatActor WHERE stix_id = 'intrusion-set--xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'"
 
 # Delete a TTP (also removes downstream FollowedBy edges referencing it)
 gcloud spanner databases execute-sql ${SPANNER_DB} \
-  --instance=${SPANNER_INSTANCE} --project=${PROJECT_ID} \
+  --instance=${SPANNER_INSTANCE} --project=${GCP_PROJECT_ID} \
   --sql="DELETE FROM TTP WHERE stix_id = 'attack-pattern--xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'"
 
 # Delete an Asset loaded by mistake
 gcloud spanner databases execute-sql ${SPANNER_DB} \
-  --instance=${SPANNER_INSTANCE} --project=${PROJECT_ID} \
+  --instance=${SPANNER_INSTANCE} --project=${GCP_PROJECT_ID} \
   --sql="DELETE FROM Asset WHERE id = 'asset-001-xxxxx-xxxx-xxxxxxxxxxxx'"
 ```
 
@@ -340,12 +340,12 @@ gcloud spanner databases execute-sql ${SPANNER_DB} \
 ```sh
 # Remove all Targets edges for a specific actor
 gcloud spanner databases execute-sql ${SPANNER_DB} \
-  --instance=${SPANNER_INSTANCE} --project=${PROJECT_ID} \
+  --instance=${SPANNER_INSTANCE} --project=${GCP_PROJECT_ID} \
   --sql="DELETE FROM Targets WHERE src_actor_stix_id = 'intrusion-set--xxxx'"
 
 # Remove FollowedBy edges from a specific source
 gcloud spanner databases execute-sql ${SPANNER_DB} \
-  --instance=${SPANNER_INSTANCE} --project=${PROJECT_ID} \
+  --instance=${SPANNER_INSTANCE} --project=${GCP_PROJECT_ID} \
   --sql="DELETE FROM FollowedBy WHERE source = 'manual'"
 ```
 
@@ -366,8 +366,8 @@ SAGE uses the `StorageBackend` abstraction (Decision I-12). Configure via enviro
 |----------|---------|---------|
 | `SAGE_STORAGE` | `local` | Backend type: `local` or `gcs` |
 | `SAGE_STORAGE_BASE_DIR` | `output` | Base directory for local storage (shared with TRACE/BEACON) |
-| `SAGE_GCS_BUCKET` | (none) | GCS bucket name (required when `SAGE_STORAGE=gcs`) |
-| `SAGE_GCS_PREFIX` | (none) | GCS object key prefix (optional) |
+| `SAGE_STORAGE_BUCKET` | (none) | GCS bucket name (required when `SAGE_STORAGE=gcs`) |
+| `SAGE_STORAGE_PREFIX` | (none) | GCS object key prefix (optional) |
 
 Auto-load commands (omit `--input` to pull from StorageBackend):
 

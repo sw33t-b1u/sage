@@ -31,7 +31,7 @@ class Config:
     gcp_project_id: str
     spanner_instance_id: str
     spanner_database_id: str
-    gcs_landing_bucket: str
+    sage_etl_input_bucket: str
     pir_file_path: str = "/config/pir.json"
     # OpenCTI — optional; only required for OpenCTI ingestion mode.
     # Not needed when running ETL with --input (local bundle) or for sage serve-api.
@@ -58,9 +58,9 @@ class Config:
     # Base directory for local storage (shared output directory with TRACE/BEACON)
     sage_storage_base_dir: str = "output"
     # GCS bucket name (required when sage_storage="gcs")
-    sage_gcs_bucket: str = ""
+    sage_storage_bucket: str = ""
     # GCS object key prefix (optional)
-    sage_gcs_prefix: str = ""
+    sage_storage_prefix: str = ""
 
     @classmethod
     def from_env(cls, dotenv_path: str = ".env") -> "Config":
@@ -68,10 +68,10 @@ class Config:
         missing = [
             k
             for k in (
-                "PROJECT_ID",
+                "GCP_PROJECT_ID",
                 "SPANNER_INSTANCE",
                 "SPANNER_DB",
-                "GCS_BUCKET",
+                "SAGE_ETL_INPUT_BUCKET",
             )
             if not os.environ.get(k)
         ]
@@ -83,10 +83,10 @@ class Config:
             )
 
         return cls(
-            gcp_project_id=os.environ["PROJECT_ID"],
+            gcp_project_id=os.environ["GCP_PROJECT_ID"],
             spanner_instance_id=os.environ["SPANNER_INSTANCE"],
             spanner_database_id=os.environ["SPANNER_DB"],
-            gcs_landing_bucket=os.environ["GCS_BUCKET"],
+            sage_etl_input_bucket=os.environ["SAGE_ETL_INPUT_BUCKET"],
             opencti_url=os.environ.get("OPENCTI_URL", ""),
             opencti_token=os.environ.get("OPENCTI_TOKEN", ""),
             pir_file_path=os.environ.get("PIR_FILE_PATH", "/config/pir.json"),
@@ -109,6 +109,6 @@ class Config:
             api_auth_token=os.environ.get("SAGE_API_AUTH_TOKEN", ""),
             sage_storage=os.environ.get("SAGE_STORAGE", "local"),
             sage_storage_base_dir=os.environ.get("SAGE_STORAGE_BASE_DIR", "output"),
-            sage_gcs_bucket=os.environ.get("SAGE_GCS_BUCKET", ""),
-            sage_gcs_prefix=os.environ.get("SAGE_GCS_PREFIX", ""),
+            sage_storage_bucket=os.environ.get("SAGE_STORAGE_BUCKET", ""),
+            sage_storage_prefix=os.environ.get("SAGE_STORAGE_PREFIX", ""),
         )

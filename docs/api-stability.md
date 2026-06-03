@@ -223,10 +223,10 @@ derivation namespace, sequence preservation.
 
 | Env | Default | Purpose |
 |---|---|---|
-| `PROJECT_ID` | (required) | GCP project ID |
+| `GCP_PROJECT_ID` | (required) | GCP project ID |
 | `SPANNER_INSTANCE` | (required) | Spanner instance ID |
 | `SPANNER_DB` | (required) | Spanner database ID |
-| `GCS_BUCKET` | (required) | GCS landing zone bucket |
+| `SAGE_ETL_INPUT_BUCKET` | (required) | GCS landing zone bucket |
 | `OPENCTI_URL` | (required for legacy) | OpenCTI server URL (only required if using OpenCTI relay) |
 | `OPENCTI_TOKEN` | (required for legacy) | OpenCTI API token |
 | `PIR_FILE_PATH` | `/config/pir.json` | Path to BEACON-emitted pir_output.json |
