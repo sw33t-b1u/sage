@@ -63,10 +63,13 @@
         │
         ▼
 [Analysis API — Cloud Run、VPC 内]
-  GET /attack-paths  GET /choke-points
-  GET /actor-ttps    GET /asset-exposure
-  GET /actors        GET /similar-incidents
+  GET /attack-paths   GET /choke-points
+  GET /actor-ttps     GET /asset-exposure
+  GET /actors         GET /similar-incidents
+  GET /threat-summary
   POST /caldera/adversary
+  POST /api/incidents GET /api/incidents
+  POST /api/annotate
 
         │
         ▼

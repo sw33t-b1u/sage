@@ -63,10 +63,13 @@ real-time SIEM detection, endpoint protection, vulnerability scanning automation
         │
         ▼
 [Analysis API — Cloud Run, VPC-internal]
-  GET /attack-paths  GET /choke-points
-  GET /actor-ttps    GET /asset-exposure
-  GET /actors        GET /similar-incidents
+  GET /attack-paths   GET /choke-points
+  GET /actor-ttps     GET /asset-exposure
+  GET /actors         GET /similar-incidents
+  GET /threat-summary
   POST /caldera/adversary
+  POST /api/incidents GET /api/incidents
+  POST /api/annotate
 
         │
         ▼
