@@ -18,6 +18,12 @@ DB file synchronization (Decision D-4):
   * ``publish_db(config, path)`` uploads the file back.
     - local backend: no-op (the file is already in place).
     - gcs backend: uploads the bytes to category ``db`` / ``sage.db``.
+
+Read-layer wrappers: every public function of the backend ``query`` /
+``incidents`` / ``annotations`` modules has a same-named wrapper here
+that dispatches on the handle type (``is_sqlite``). Signatures and
+return shapes are identical across backends, so callers in cli/etl/api
+only change their import to ``sage.db``.
 """
 
 from __future__ import annotations
@@ -25,7 +31,15 @@ from __future__ import annotations
 import sqlite3
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from datetime import date
+
+    from pydantic import BaseModel
+
+    from sage.models.annotation import AnnotationType
+    from sage.models.incident_request import IncidentRequest
 
 # StorageBackend category and filename for the materialized SQLite database.
 _DB_CATEGORY = "db"
@@ -55,7 +69,7 @@ def get_database(config: Any) -> Any:
 
         path = materialize_db(config)
         return get_connection(path)
-    raise ValueError(f"Unknown SAGE_DB backend '{backend}'. Valid values: 'sqlite', 'spanner'.")
+    raise RuntimeError(f"Unknown SAGE_DB backend '{backend}'. Valid values: 'sqlite', 'spanner'.")
 
 
 def materialize_db(config: Any) -> Path:
@@ -115,3 +129,188 @@ def publish_db(config: Any, path: str | Path) -> None:
 def is_sqlite(handle: Any) -> bool:
     """Return True if *handle* is a SQLite connection (used to branch in wrappers)."""
     return isinstance(handle, sqlite3.Connection)
+
+
+def _query_module(database: Any) -> Any:
+    """Return the backend-appropriate query module for *database*."""
+    if is_sqlite(database):
+        from sage.sqlite import query as impl
+    else:
+        from sage.spanner import query as impl
+    return impl
+
+
+def _incidents_module(database: Any) -> Any:
+    """Return the backend-appropriate incidents module for *database*."""
+    if is_sqlite(database):
+        from sage.sqlite import incidents as impl
+    else:
+        from sage.spanner import incidents as impl
+    return impl
+
+
+def _annotations_module(database: Any) -> Any:
+    """Return the backend-appropriate annotations module for *database*."""
+    if is_sqlite(database):
+        from sage.sqlite import annotations as impl
+    else:
+        from sage.spanner import annotations as impl
+    return impl
+
+
+# ---------------------------------------------------------------------------
+# Query wrappers (mirror sage.spanner.query / sage.sqlite.query)
+# ---------------------------------------------------------------------------
+
+
+def find_attack_paths(database: Any, asset_id: str, limit: int = 10) -> list[dict[str, Any]]:
+    """Dispatching wrapper for the backend ``find_attack_paths``."""
+    return _query_module(database).find_attack_paths(database, asset_id, limit)
+
+
+def find_actor_ttps(
+    database: Any,
+    actor_stix_id: str,
+    *,
+    since: date | None = None,
+    until: date | None = None,
+) -> list[dict[str, Any]]:
+    """Dispatching wrapper for the backend ``find_actor_ttps``."""
+    return _query_module(database).find_actor_ttps(
+        database, actor_stix_id, since=since, until=until
+    )
+
+
+def find_choke_points(database: Any, top_n: int = 20) -> list[dict[str, Any]]:
+    """Dispatching wrapper for the backend ``find_choke_points``."""
+    return _query_module(database).find_choke_points(database, top_n)
+
+
+def find_asset_exposure(
+    database: Any,
+    *,
+    since: date | None = None,
+    until: date | None = None,
+) -> list[dict[str, Any]]:
+    """Dispatching wrapper for the backend ``find_asset_exposure``."""
+    return _query_module(database).find_asset_exposure(database, since=since, until=until)
+
+
+def find_incident_ttps(database: Any, incident_id: str) -> list[str]:
+    """Dispatching wrapper for the backend ``find_incident_ttps``."""
+    return _query_module(database).find_incident_ttps(database, incident_id)
+
+
+def find_followedby_edges(database: Any) -> list[dict[str, Any]]:
+    """Dispatching wrapper for the backend ``find_followedby_edges``."""
+    return _query_module(database).find_followedby_edges(database)
+
+
+def find_all_incident_ttps(database: Any) -> dict[str, list[str]]:
+    """Dispatching wrapper for the backend ``find_all_incident_ttps``."""
+    return _query_module(database).find_all_incident_ttps(database)
+
+
+def load_pirs(database: Any) -> list[dict[str, Any]]:
+    """Dispatching wrapper for the backend ``load_pirs``."""
+    return _query_module(database).load_pirs(database)
+
+
+def load_pir_edges(database: Any) -> dict[str, list[dict[str, Any]]]:
+    """Dispatching wrapper for the backend ``load_pir_edges``."""
+    return _query_module(database).load_pir_edges(database)
+
+
+def find_actors_by_name(database: Any, name_query: str, limit: int = 20) -> list[dict[str, Any]]:
+    """Dispatching wrapper for the backend ``find_actors_by_name``."""
+    return _query_module(database).find_actors_by_name(database, name_query, limit)
+
+
+def find_prioritized_actors_for_asset(
+    database: Any,
+    asset_id: str,
+    *,
+    since: date,
+    until: date,
+    limit: int,
+) -> list[dict[str, Any]]:
+    """Dispatching wrapper for the backend ``find_prioritized_actors_for_asset``."""
+    return _query_module(database).find_prioritized_actors_for_asset(
+        database, asset_id, since=since, until=until, limit=limit
+    )
+
+
+def find_vulnerabilities_for_asset(
+    database: Any,
+    asset_id: str,
+    *,
+    since: date,
+    until: date,
+    limit: int,
+) -> list[dict[str, Any]]:
+    """Dispatching wrapper for the backend ``find_vulnerabilities_for_asset``."""
+    return _query_module(database).find_vulnerabilities_for_asset(
+        database, asset_id, since=since, until=until, limit=limit
+    )
+
+
+def find_incidents_for_asset(
+    database: Any,
+    asset_id: str,
+    *,
+    since: date,
+    until: date,
+    limit: int,
+) -> list[dict[str, Any]]:
+    """Dispatching wrapper for the backend ``find_incidents_for_asset``."""
+    return _query_module(database).find_incidents_for_asset(
+        database, asset_id, since=since, until=until, limit=limit
+    )
+
+
+# ---------------------------------------------------------------------------
+# Incident wrappers (mirror sage.spanner.incidents / sage.sqlite.incidents)
+# ---------------------------------------------------------------------------
+
+
+def upsert_incident(
+    database: Any,
+    req: IncidentRequest,
+    *,
+    now: Any = None,
+) -> dict[str, Any]:
+    """Dispatching wrapper for the backend ``upsert_incident``."""
+    return _incidents_module(database).upsert_incident(database, req, now=now)
+
+
+def read_incidents(
+    database: Any,
+    *,
+    since: date,
+    until: date,
+    actor_stix_id: str | None,
+    limit: int,
+) -> list[dict[str, Any]]:
+    """Dispatching wrapper for the backend ``read_incidents``."""
+    return _incidents_module(database).read_incidents(
+        database, since=since, until=until, actor_stix_id=actor_stix_id, limit=limit
+    )
+
+
+# ---------------------------------------------------------------------------
+# Annotation wrappers (mirror sage.spanner.annotations / sage.sqlite.annotations)
+# ---------------------------------------------------------------------------
+
+
+def write_annotation(
+    database: Any,
+    annotator_id: str,
+    actor_stix_id: str,
+    annotation_type: AnnotationType,
+    payload: BaseModel,
+    evidence_url: str | None = None,
+) -> dict:
+    """Dispatching wrapper for the backend ``write_annotation``."""
+    return _annotations_module(database).write_annotation(
+        database, annotator_id, actor_stix_id, annotation_type, payload, evidence_url
+    )

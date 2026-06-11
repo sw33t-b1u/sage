@@ -58,8 +58,9 @@ def test_get_database_spanner_dispatches_to_spanner_client(tmp_path):
 
 
 def test_get_database_unknown_backend_raises(tmp_path):
+    # RuntimeError unifies with Config.from_env's invalid-SAGE_DB error.
     config = SimpleNamespace(sage_db="postgres")
-    with pytest.raises(ValueError, match="Unknown SAGE_DB backend"):
+    with pytest.raises(RuntimeError, match="Unknown SAGE_DB backend"):
         db.get_database(config)
 
 

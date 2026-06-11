@@ -338,7 +338,7 @@ _PRIMARY_KEYS: dict[str, list[str]] = {
 }
 
 # ARRAY<...> columns (Spanner) -> JSON-encoded TEXT (SQLite). Read-side
-# decoding (json.loads) lives in the query layer (Phase 2).
+# decoding (json.loads) lives in the query layer.
 _JSON_ARRAY_COLUMNS: dict[str, set[str]] = {
     "ThreatActor": {"aliases", "tags"},
     "TTP": {"platforms"},
