@@ -53,6 +53,10 @@ class Config:
     caldera_api_key: str = ""
     # Analysis API: bearer token for authentication (omit to disable auth — NOT recommended)
     api_auth_token: str = ""
+    # Database backend: "sqlite" (default) or "spanner".
+    # Spanner requires GCP_PROJECT_ID / SPANNER_INSTANCE / SPANNER_DB /
+    # SAGE_ETL_INPUT_BUCKET; sqlite requires none of them.
+    sage_db: str = "sqlite"
     # Storage backend: "local" (default) or "gcs"
     sage_storage: str = "local"
     # Base directory for local storage (shared output directory with TRACE/BEACON)
@@ -65,28 +69,39 @@ class Config:
     @classmethod
     def from_env(cls, dotenv_path: str = ".env") -> "Config":
         _load_dotenv(dotenv_path)
-        missing = [
-            k
-            for k in (
-                "GCP_PROJECT_ID",
-                "SPANNER_INSTANCE",
-                "SPANNER_DB",
-                "SAGE_ETL_INPUT_BUCKET",
-            )
-            if not os.environ.get(k)
-        ]
-        if missing:
+        sage_db = os.environ.get("SAGE_DB", "sqlite").strip().lower()
+        if sage_db not in ("sqlite", "spanner"):
             raise RuntimeError(
-                f"Required environment variables not set: {', '.join(missing)}. "
-                "Hint: populate them in `.env` (local) or `--set-env-vars` (Cloud Run). "
-                "See docs/setup.md Step 2 for the full env-var matrix."
+                f"Invalid SAGE_DB value '{sage_db}'. Valid values: 'sqlite' (default), "
+                "'spanner'. Hint: set it in `.env` (local) or `--set-env-vars` (Cloud Run)."
             )
+        # The four GCP/Spanner vars are only hard-required for the Spanner
+        # backend. The SQLite backend (default) needs none of them, so a
+        # local sqlite deployment can run without any GCP configuration.
+        if sage_db == "spanner":
+            missing = [
+                k
+                for k in (
+                    "GCP_PROJECT_ID",
+                    "SPANNER_INSTANCE",
+                    "SPANNER_DB",
+                    "SAGE_ETL_INPUT_BUCKET",
+                )
+                if not os.environ.get(k)
+            ]
+            if missing:
+                raise RuntimeError(
+                    f"Required environment variables not set: {', '.join(missing)}. "
+                    "Hint: populate them in `.env` (local) or `--set-env-vars` (Cloud Run). "
+                    "See docs/setup.md Step 2 for the full env-var matrix."
+                )
 
         return cls(
-            gcp_project_id=os.environ["GCP_PROJECT_ID"],
-            spanner_instance_id=os.environ["SPANNER_INSTANCE"],
-            spanner_database_id=os.environ["SPANNER_DB"],
-            sage_etl_input_bucket=os.environ["SAGE_ETL_INPUT_BUCKET"],
+            sage_db=sage_db,
+            gcp_project_id=os.environ.get("GCP_PROJECT_ID", ""),
+            spanner_instance_id=os.environ.get("SPANNER_INSTANCE", ""),
+            spanner_database_id=os.environ.get("SPANNER_DB", ""),
+            sage_etl_input_bucket=os.environ.get("SAGE_ETL_INPUT_BUCKET", ""),
             opencti_url=os.environ.get("OPENCTI_URL", ""),
             opencti_token=os.environ.get("OPENCTI_TOKEN", ""),
             pir_file_path=os.environ.get("PIR_FILE_PATH", "/config/pir.json"),

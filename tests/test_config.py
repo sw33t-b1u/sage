@@ -7,6 +7,7 @@ import pytest
 def _isolate_env(monkeypatch):
     """Strip all SAGE-relevant env vars so each test sets only what it needs."""
     for key in (
+        "SAGE_DB",
         "GCP_PROJECT_ID",
         "SPANNER_INSTANCE",
         "SPANNER_DB",
@@ -50,7 +51,13 @@ class TestFromEnvRequiredMinimum:
         assert cfg.gcp_project_id == "test-proj"
 
     def test_missing_required_var_includes_hint_in_message(self, monkeypatch):
-        """Error message must mention the missing var, .env, and --set-env-vars."""
+        """Error message must mention the missing var, .env, and --set-env-vars.
+
+        The 4 GCP/Spanner vars are only required for the Spanner backend, so
+        this test selects it explicitly via SAGE_DB=spanner. With the default
+        sqlite backend none of the four are required.
+        """
+        monkeypatch.setenv("SAGE_DB", "spanner")
         for k, v in {
             "GCP_PROJECT_ID": "test-proj",
             "SPANNER_INSTANCE": "test-inst",
