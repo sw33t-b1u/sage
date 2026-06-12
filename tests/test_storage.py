@@ -50,6 +50,12 @@ def _make_fake_gcs_module() -> ModuleType:
                 raise FileNotFoundError(self.name)
             return raw.decode(encoding)
 
+        def download_as_bytes(self) -> bytes:
+            raw = self._bucket._objects.get(self.name)
+            if raw is None:
+                raise FileNotFoundError(self.name)
+            return raw
+
     class FakeBlobListIterator:
         """Iterable returned by list_blobs."""
 
@@ -197,6 +203,30 @@ class TestLocalStorage:
         with pytest.raises(FileNotFoundError):
             storage.load("stix", "does_not_exist.json")
 
+    def test_load_bytes_binary_roundtrip(self, tmp_path):
+        """Non-UTF-8 binary content (e.g. a SQLite file) round-trips exactly."""
+        from sage.storage.local import LocalStorage
+
+        storage = LocalStorage(base_dir=tmp_path)
+        payload = b"\x00\xff\x10"
+        storage.save("db", "sage.db", payload)
+        assert storage.load_bytes("db", "sage.db") == payload
+
+    def test_load_bytes_of_str_payload_returns_utf8_bytes(self, tmp_path):
+        from sage.storage.local import LocalStorage
+
+        storage = LocalStorage(base_dir=tmp_path)
+        storage.save("stix", "bundle.json", '{"type":"bundle"}')
+        assert storage.load_bytes("stix", "bundle.json") == b'{"type":"bundle"}'
+
+    def test_load_bytes_missing_raises_file_not_found(self, tmp_path):
+        """Missing-file behaviour matches load()."""
+        from sage.storage.local import LocalStorage
+
+        storage = LocalStorage(base_dir=tmp_path)
+        with pytest.raises(FileNotFoundError):
+            storage.load_bytes("db", "does_not_exist.db")
+
     def test_overwrite_existing_file(self, tmp_path):
         from sage.storage.local import LocalStorage
 
@@ -306,6 +336,33 @@ class TestGCSStorage:
             storage = gcs_mod.GCSStorage(bucket="test-bucket", prefix="")
             with pytest.raises(FileNotFoundError):
                 storage.load("stix", "does_not_exist.json")
+
+    def test_load_bytes_binary_roundtrip(self):
+        """Non-UTF-8 binary content (e.g. a SQLite file) round-trips exactly."""
+        with _patch_gcs_import():
+            import importlib
+
+            import sage.storage.gcs as gcs_mod
+
+            importlib.reload(gcs_mod)
+
+            storage = gcs_mod.GCSStorage(bucket="test-bucket", prefix="sage")
+            payload = b"\x00\xff\x10"
+            storage.save("db", "sage.db", payload)
+            assert storage.load_bytes("db", "sage.db") == payload
+
+    def test_load_bytes_missing_raises_file_not_found(self):
+        """Missing-blob behaviour matches load()."""
+        with _patch_gcs_import():
+            import importlib
+
+            import sage.storage.gcs as gcs_mod
+
+            importlib.reload(gcs_mod)
+
+            storage = gcs_mod.GCSStorage(bucket="test-bucket", prefix="")
+            with pytest.raises(FileNotFoundError):
+                storage.load_bytes("db", "does_not_exist.db")
 
     def test_list_files_empty(self):
         with _patch_gcs_import():

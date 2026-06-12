@@ -9,6 +9,8 @@ FollowedBy エッジの weight をエッジ幅・色グラデーションで表�
   - エッジ色 = weight に応じた赤→黄→緑グラデーション
   - source="ir_feedback" のエッジは破線で表示
 
+DB バックエンドは ``SAGE_DB``（sqlite 既定 / spanner）で切り替わる。
+
 使用方法:
     uv run sage visualize-attack-flow
     uv run sage visualize-attack-flow --actor-id intrusion-set--apt99
@@ -21,13 +23,13 @@ import argparse
 import sys
 import webbrowser
 from pathlib import Path
+from typing import Any
 
 import structlog
-from google.cloud import spanner
 from pyvis.network import Network
 
 from sage.config import Config
-from sage.spanner.query import load_pir_edges, load_pirs
+from sage.db import get_database, load_pir_edges, load_pirs, run_sql
 
 structlog.configure(
     processors=[
@@ -63,7 +65,7 @@ def _weight_to_color(weight: float) -> str:
 
 
 def fetch_ttp_nodes(
-    database: spanner.Database,
+    database: Any,
     actor_stix_id: str | None,
     limit: int,
 ) -> dict[str, dict]:
@@ -77,31 +79,25 @@ def fetch_ttp_nodes(
         LIMIT @limit
         """
         params = {"actor_id": actor_stix_id, "limit": limit}
-        param_types = {
-            "actor_id": spanner.param_types.STRING,
-            "limit": spanner.param_types.INT64,
-        }
     else:
         sql = "SELECT stix_id, name, tactic FROM TTP LIMIT @limit"
         params = {"limit": limit}
-        param_types = {"limit": spanner.param_types.INT64}
 
     nodes: dict[str, dict] = {}
-    with database.snapshot() as snap:
-        for row in snap.execute_sql(sql, params=params, param_types=param_types):
-            stix_id, name, tactic = row[0], row[1], row[2]
-            label = (name or stix_id)[:35]
-            nodes[stix_id] = {
-                "label": label,
-                "title": f"[TTP] {name}\ntactic: {tactic or '—'}",
-                "color": _TTP_COLOR,
-                "node_type": "TTP",
-            }
+    for row in run_sql(database, sql, params):
+        stix_id, name, tactic = row[0], row[1], row[2]
+        label = (name or stix_id)[:35]
+        nodes[stix_id] = {
+            "label": label,
+            "title": f"[TTP] {name}\ntactic: {tactic or '—'}",
+            "color": _TTP_COLOR,
+            "node_type": "TTP",
+        }
     return nodes
 
 
 def fetch_actor_nodes(
-    database: spanner.Database,
+    database: Any,
     actor_stix_id: str | None,
     ttp_ids: set[str],
     limit: int,
@@ -117,7 +113,6 @@ def fetch_actor_nodes(
         LIMIT 1
         """
         params: dict = {"actor_id": actor_stix_id}
-        param_types = {"actor_id": spanner.param_types.STRING}
     else:
         sql = """
         SELECT DISTINCT a.stix_id, a.name
@@ -126,23 +121,21 @@ def fetch_actor_nodes(
         LIMIT @limit
         """
         params = {"limit": limit}
-        param_types = {"limit": spanner.param_types.INT64}
 
     nodes: dict[str, dict] = {}
-    with database.snapshot() as snap:
-        for row in snap.execute_sql(sql, params=params, param_types=param_types):
-            stix_id, name = row[0], row[1]
-            nodes[stix_id] = {
-                "label": (name or stix_id)[:35],
-                "title": f"[ThreatActor] {name}",
-                "color": _ACTOR_COLOR,
-                "node_type": "ThreatActor",
-            }
+    for row in run_sql(database, sql, params):
+        stix_id, name = row[0], row[1]
+        nodes[stix_id] = {
+            "label": (name or stix_id)[:35],
+            "title": f"[ThreatActor] {name}",
+            "color": _ACTOR_COLOR,
+            "node_type": "ThreatActor",
+        }
     return nodes
 
 
 def fetch_malware_nodes(
-    database: spanner.Database,
+    database: Any,
     ttp_ids: set[str],
     limit: int,
 ) -> dict[str, dict]:
@@ -157,26 +150,24 @@ def fetch_malware_nodes(
     LIMIT @limit
     """
     params = {"limit": limit}
-    param_types = {"limit": spanner.param_types.INT64}
 
     nodes: dict[str, dict] = {}
-    with database.snapshot() as snap:
-        try:
-            for row in snap.execute_sql(sql, params=params, param_types=param_types):
-                stix_id, name, stix_type = row[0], row[1], row[2]
-                nodes[stix_id] = {
-                    "label": (name or stix_id)[:35],
-                    "title": f"[{stix_type}] {name}",
-                    "color": _MALWARE_COLOR,
-                    "node_type": "MalwareTool",
-                }
-        except Exception as exc:
-            logger.warning("malware_nodes_skip", error=str(exc))
+    try:
+        for row in run_sql(database, sql, params):
+            stix_id, name, stix_type = row[0], row[1], row[2]
+            nodes[stix_id] = {
+                "label": (name or stix_id)[:35],
+                "title": f"[{stix_type}] {name}",
+                "color": _MALWARE_COLOR,
+                "node_type": "MalwareTool",
+            }
+    except Exception as exc:
+        logger.warning("malware_nodes_skip", error=str(exc))
     return nodes
 
 
 def fetch_followed_by_edges(
-    database: spanner.Database,
+    database: Any,
     ttp_ids: set[str],
     limit: int,
 ) -> list[dict]:
@@ -190,19 +181,17 @@ def fetch_followed_by_edges(
     LIMIT @limit
     """
     params = {"limit": limit}
-    param_types = {"limit": spanner.param_types.INT64}
 
     edges = []
-    with database.snapshot() as snap:
-        for row in snap.execute_sql(sql, params=params, param_types=param_types):
-            src, dst, weight, source = row[0], row[1], row[2] or 0.0, row[3] or "threat_intel"
-            if src in ttp_ids and dst in ttp_ids:
-                edges.append({"src": src, "dst": dst, "weight": weight, "source": source})
+    for row in run_sql(database, sql, params):
+        src, dst, weight, source = row[0], row[1], row[2] or 0.0, row[3] or "threat_intel"
+        if src in ttp_ids and dst in ttp_ids:
+            edges.append({"src": src, "dst": dst, "weight": weight, "source": source})
     return edges
 
 
 def fetch_uses_edges(
-    database: spanner.Database,
+    database: Any,
     actor_ids: set[str],
     ttp_ids: set[str],
     limit: int,
@@ -212,26 +201,20 @@ def fetch_uses_edges(
 
     if actor_ids and ttp_ids:
         sql = "SELECT actor_stix_id, ttp_stix_id FROM Uses LIMIT @limit"
-        params = {"limit": limit}
-        param_types = {"limit": spanner.param_types.INT64}
-        with database.snapshot() as snap:
-            for row in snap.execute_sql(sql, params=params, param_types=param_types):
-                src, dst = row[0], row[1]
-                if src in actor_ids and dst in ttp_ids:
-                    edges.append({"src": src, "dst": dst, "weight": None, "source": "uses"})
+        for row in run_sql(database, sql, {"limit": limit}):
+            src, dst = row[0], row[1]
+            if src in actor_ids and dst in ttp_ids:
+                edges.append({"src": src, "dst": dst, "weight": None, "source": "uses"})
 
     if ttp_ids:
         sql = "SELECT malware_stix_id, ttp_stix_id FROM MalwareUsesTTP LIMIT @limit"
-        params = {"limit": limit}
-        param_types = {"limit": spanner.param_types.INT64}
-        with database.snapshot() as snap:
-            try:
-                for row in snap.execute_sql(sql, params=params, param_types=param_types):
-                    src, dst = row[0], row[1]
-                    if dst in ttp_ids:
-                        edges.append({"src": src, "dst": dst, "weight": None, "source": "uses"})
-            except Exception as exc:
-                logger.warning("malware_uses_ttp_skip", error=str(exc))
+        try:
+            for row in run_sql(database, sql, {"limit": limit}):
+                src, dst = row[0], row[1]
+                if dst in ttp_ids:
+                    edges.append({"src": src, "dst": dst, "weight": None, "source": "uses"})
+        except Exception as exc:
+            logger.warning("malware_uses_ttp_skip", error=str(exc))
 
     return edges
 
@@ -385,9 +368,7 @@ def main() -> None:
     args = parser.parse_args()
 
     config = Config.from_env()
-    spanner_client = spanner.Client(project=config.gcp_project_id)
-    instance = spanner_client.instance(config.spanner_instance_id)
-    database = instance.database(config.spanner_database_id)
+    database = get_database(config)
 
     try:
         pirs = load_pirs(database)

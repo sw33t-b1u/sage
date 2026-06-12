@@ -1,5 +1,6 @@
-"""Load BEACON's identity_assets.json into the SAGE Spanner Graph.
+"""Load BEACON's identity_assets.json into the SAGE graph database.
 
+The DB backend is selected by ``SAGE_DB`` (sqlite default / spanner).
 Initiative A — SAGE 0.6.0. Reads the artifact emitted by
 ``BEACON/cmd/generate_identity_assets.py`` and validated by
 ``TRACE/cmd/validate_identity_assets.py``, then upserts:
@@ -14,7 +15,6 @@ Identity STIX ids are deterministic from the BEACON-supplied id —
 row even when BEACON regenerates the artifact.
 
 Usage:
-    export SPANNER_EMULATOR_HOST=localhost:9010  # for local emulator
     uv run sage load-identity-assets \
         --input ../BEACON/output/identity_assets.json
 """
@@ -27,12 +27,13 @@ import sys
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import structlog
-from google.cloud import spanner
 
 from sage.config import Config
-from sage.spanner.upsert import (
+from sage.db import (
+    database_session,
     derive_pir_prioritizes_impersonation_target_for_identity,
     recompute_effective_priority_for_identity,
     upsert_has_access,
@@ -89,7 +90,7 @@ def _normalize_asset_id(value: str) -> str:
     return value if value.startswith("asset-") else f"asset-{value}"
 
 
-def load_identity_assets(database: spanner.Database, data: dict) -> dict[str, int]:
+def load_identity_assets(database: Any, data: dict) -> dict[str, int]:
     """Upsert identities + has_access rows from a parsed
     ``identity_assets.json`` payload. Returns ingestion counts.
     """
@@ -178,7 +179,7 @@ def load_identity_assets(database: spanner.Database, data: dict) -> dict[str, in
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Load identity_assets.json into Spanner")
+    parser = argparse.ArgumentParser(description="Load identity_assets.json into the graph DB")
     parser.add_argument(
         "--input",
         "-i",
@@ -229,8 +230,5 @@ def main() -> None:
             )
             sys.exit(1)
 
-    spanner_client = spanner.Client(project=config.gcp_project_id)
-    instance = spanner_client.instance(config.spanner_instance_id)
-    database = instance.database(config.spanner_database_id)
-
-    load_identity_assets(database, data)
+    with database_session(config, publish=True) as database:
+        load_identity_assets(database, data)

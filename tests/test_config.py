@@ -97,8 +97,8 @@ class TestRunEtlOpenctiGuard:
         """run_etl guard: OpenCTI mode + no credentials → SystemExit with --input hint.
 
         Approach: Import sage.cli.run_etl directly. Monkeypatch Config.from_env,
-        get_database, PIRFilter, ETLWorker, and create_storage_backend so no network
-        calls are made. Then call main() directly and assert SystemExit.
+        database_session, PIRFilter, ETLWorker, and create_storage_backend so no
+        network calls are made. Then call main() directly and assert SystemExit.
         This is more reliable than subprocess (avoids Spanner client init race).
         """
         import sys
@@ -124,7 +124,7 @@ class TestRunEtlOpenctiGuard:
 
         with (
             patch("sage.cli.run_etl.Config") as mock_config_cls,
-            patch("sage.cli.run_etl.get_database", return_value=MagicMock()),
+            patch("sage.cli.run_etl.database_session"),
             patch("sage.cli.run_etl.PIRFilter") as mock_pir_cls,
             patch("sage.cli.run_etl.ETLWorker", return_value=MagicMock()),
             patch("sage.cli.run_etl.create_storage_backend") as mock_storage,

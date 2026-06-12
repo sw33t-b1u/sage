@@ -1,6 +1,7 @@
 """Response builder for ``GET /threat-summary`` (Initiative F Phase 8).
 
-Stitches five per-asset sections from Spanner into one verbose response:
+Stitches five per-asset sections from the graph database into one
+verbose response (queries dispatch through ``sage.db``):
 
 - ``prioritized_actors`` — ``PirPrioritizesActor`` rows for PIRs whose
   validity covers the requested window, restricted to actors that
@@ -28,7 +29,6 @@ from datetime import date
 from typing import Any
 
 import structlog
-from google.cloud.spanner_v1.database import Database
 
 from sage.api.models import (
     AttackPathEntry,
@@ -39,7 +39,7 @@ from sage.api.models import (
     ThreatSummaryWindow,
     VulnerabilityEntry,
 )
-from sage.spanner.query import (
+from sage.db import (
     find_attack_paths,
     find_choke_points,
     find_incidents_for_asset,
@@ -51,7 +51,7 @@ logger = structlog.get_logger(__name__)
 
 
 def build_threat_summary(
-    database: Database,
+    database: Any,
     *,
     asset_id: str,
     since: date,

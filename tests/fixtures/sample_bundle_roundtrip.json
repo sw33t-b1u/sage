@@ -1,0 +1,153 @@
+{
+  "type": "bundle",
+  "id": "bundle--0a8f9d12-3c4b-4e5f-8a6b-7c8d9e0f1a2b",
+  "objects": [
+    {
+      "type": "intrusion-set",
+      "id": "intrusion-set--4a5c1f00-89aa-4b9e-9f04-1c2d3e4f5a01",
+      "spec_version": "2.1",
+      "name": "APT99",
+      "aliases": ["FakeGroup"],
+      "primary_motivation": "espionage",
+      "labels": ["apt", "targets-japan"],
+      "first_seen": "2023-01-01T00:00:00Z",
+      "modified": "2025-01-01T00:00:00Z",
+      "created": "2023-01-01T00:00:00Z"
+    },
+    {
+      "type": "attack-pattern",
+      "id": "attack-pattern--b1078a00-1111-4aaa-9bbb-0c0d0e0f1078",
+      "spec_version": "2.1",
+      "name": "Valid Accounts",
+      "description": "Initial access by abusing legitimate credentials",
+      "x_mitre_platforms": ["Windows", "Linux", "Cloud"],
+      "kill_chain_phases": [
+        {"kill_chain_name": "mitre-attack", "phase_name": "initial-access"}
+      ],
+      "external_references": [
+        {"source_name": "mitre-attack", "external_id": "T1078"}
+      ],
+      "modified": "2025-01-01T00:00:00Z",
+      "created": "2020-01-01T00:00:00Z"
+    },
+    {
+      "type": "attack-pattern",
+      "id": "attack-pattern--c1068b00-2222-4bbb-8ccc-0c0d0e0f1068",
+      "spec_version": "2.1",
+      "name": "Exploitation for Privilege Escalation",
+      "description": "Privilege escalation via CVE exploitation",
+      "x_mitre_platforms": ["Windows", "Linux"],
+      "kill_chain_phases": [
+        {"kill_chain_name": "mitre-attack", "phase_name": "privilege-escalation"}
+      ],
+      "external_references": [
+        {"source_name": "mitre-attack", "external_id": "T1068"}
+      ],
+      "modified": "2025-01-01T00:00:00Z",
+      "created": "2020-01-01T00:00:00Z"
+    },
+    {
+      "type": "vulnerability",
+      "id": "vulnerability--d5518200-3333-4ccc-9ddd-0c0d0e0f5182",
+      "spec_version": "2.1",
+      "name": "CVE-2025-55182",
+      "description": "Kernel vulnerability enabling privilege escalation",
+      "modified": "2025-03-01T00:00:00Z",
+      "created": "2025-02-01T00:00:00Z"
+    },
+    {
+      "type": "indicator",
+      "id": "indicator--e0c20100-4444-4ddd-8eee-0c0d0e0f0c01",
+      "spec_version": "2.1",
+      "name": "APT99 C2 IP",
+      "pattern": "[ipv4-addr:value = '198.51.100.1']",
+      "pattern_type": "stix",
+      "valid_from": "2025-01-01T00:00:00Z",
+      "confidence": 80,
+      "object_marking_refs": ["marking-definition--f88d31f6-dbf5-11e7-a02f-b8e7c0c9ea3c"],
+      "modified": "2025-01-01T00:00:00Z",
+      "created": "2025-01-01T00:00:00Z"
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--f0000001-5555-4eee-9fff-0c0d0e0f0001",
+      "spec_version": "2.1",
+      "relationship_type": "uses",
+      "source_ref": "intrusion-set--4a5c1f00-89aa-4b9e-9f04-1c2d3e4f5a01",
+      "target_ref": "attack-pattern--b1078a00-1111-4aaa-9bbb-0c0d0e0f1078",
+      "confidence": 90,
+      "modified": "2025-01-01T00:00:00Z",
+      "created": "2025-01-01T00:00:00Z"
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--f0000002-5555-4eee-8fff-0c0d0e0f0002",
+      "spec_version": "2.1",
+      "relationship_type": "uses",
+      "source_ref": "intrusion-set--4a5c1f00-89aa-4b9e-9f04-1c2d3e4f5a01",
+      "target_ref": "attack-pattern--c1068b00-2222-4bbb-8ccc-0c0d0e0f1068",
+      "confidence": 85,
+      "modified": "2025-01-01T00:00:00Z",
+      "created": "2025-01-01T00:00:00Z"
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--f0000003-5555-4eee-9aff-0c0d0e0f0003",
+      "spec_version": "2.1",
+      "relationship_type": "exploits",
+      "source_ref": "attack-pattern--c1068b00-2222-4bbb-8ccc-0c0d0e0f1068",
+      "target_ref": "vulnerability--d5518200-3333-4ccc-9ddd-0c0d0e0f5182",
+      "modified": "2025-01-01T00:00:00Z",
+      "created": "2025-01-01T00:00:00Z"
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--f0000004-5555-4eee-8aff-0c0d0e0f0004",
+      "spec_version": "2.1",
+      "relationship_type": "indicates",
+      "source_ref": "indicator--e0c20100-4444-4ddd-8eee-0c0d0e0f0c01",
+      "target_ref": "intrusion-set--4a5c1f00-89aa-4b9e-9f04-1c2d3e4f5a01",
+      "confidence": 80,
+      "modified": "2025-01-01T00:00:00Z",
+      "created": "2025-01-01T00:00:00Z"
+    },
+    {
+      "type": "malware",
+      "id": "malware--a7e10500-6666-4fff-9abb-0c0d0e0fe001",
+      "spec_version": "2.1",
+      "name": "Emotet",
+      "description": "Banking trojan and malware dropper",
+      "malware_types": ["trojan", "dropper"],
+      "is_family": true,
+      "modified": "2025-01-01T00:00:00Z",
+      "created": "2020-01-01T00:00:00Z"
+    },
+    {
+      "type": "attack-pattern",
+      "id": "attack-pattern--b1059c00-7777-4abc-8def-0c0d0e0f1059",
+      "spec_version": "2.1",
+      "name": "Command and Scripting Interpreter",
+      "description": "Code execution via scripting interpreters",
+      "x_mitre_platforms": ["Windows", "Linux", "macOS"],
+      "kill_chain_phases": [
+        {"kill_chain_name": "mitre-attack", "phase_name": "execution"}
+      ],
+      "external_references": [
+        {"source_name": "mitre-attack", "external_id": "T1059"}
+      ],
+      "modified": "2025-01-01T00:00:00Z",
+      "created": "2020-01-01T00:00:00Z"
+    },
+    {
+      "type": "relationship",
+      "id": "relationship--f0000005-5555-4eee-9bff-0c0d0e0f0005",
+      "spec_version": "2.1",
+      "relationship_type": "uses",
+      "source_ref": "malware--a7e10500-6666-4fff-9abb-0c0d0e0fe001",
+      "target_ref": "attack-pattern--b1059c00-7777-4abc-8def-0c0d0e0f1059",
+      "confidence": 95,
+      "modified": "2025-01-01T00:00:00Z",
+      "created": "2025-01-01T00:00:00Z"
+    }
+  ]
+}

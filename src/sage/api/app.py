@@ -1,8 +1,11 @@
 """FastAPI Analysis API — Cloud Run entry point.
 
-Exposes Spanner query results as a REST API.
-The Spanner Database instance is initialised at startup and stored in
-app.state so that all endpoints can share a single connection.
+Exposes graph database query results as a REST API.
+The database handle is initialised at startup and stored in app.state so
+that all endpoints can share a single connection. ``SAGE_DB`` selects the
+backend: sqlite (default — the DB file is materialized via StorageBackend
+and served over a READ-ONLY connection; the ETL job is the single writer)
+or spanner (a Spanner ``Database`` handle, unchanged behaviour).
 
 Authentication:
   Set SAGE_API_AUTH_TOKEN to require a Bearer token on every request.
@@ -31,13 +34,15 @@ from sage.api.threat_summary import build_threat_summary
 from sage.api.windows import resolve_window
 from sage.caldera.client import sync_actor_ttps
 from sage.config import Config
-from sage.spanner.query import (
+from sage.db import (
     find_actor_ttps,
     find_actors_by_name,
     find_asset_exposure,
     find_attack_paths,
     find_choke_points,
+    materialize_db,
 )
+from sage.sqlite.client import get_connection, init_schema
 
 logger = structlog.get_logger(__name__)
 
@@ -45,14 +50,35 @@ logger = structlog.get_logger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):  # type: ignore[type-arg]
     config = Config.from_env()
-    spanner_client = spanner.Client(project=config.gcp_project_id)
-    instance = spanner_client.instance(config.spanner_instance_id)
-    app.state.database = instance.database(config.spanner_database_id)
+    sqlite_backend = config.sage_db == "sqlite"
+    if sqlite_backend:
+        # Materialize the DB file (gcs: download into a temp dir; local:
+        # in place) and serve every query over a READ-ONLY connection —
+        # the ETL job is the single writer (publishes a new file).
+        path = materialize_db(config)
+        if not path.exists():
+            # Fresh deployment with no published DB yet: create a
+            # schema-complete empty file so read endpoints return empty
+            # results instead of "no such table" errors.
+            bootstrap = get_connection(path)
+            init_schema(bootstrap)
+            bootstrap.close()
+        # Shared across FastAPI's threadpool; safe: read-only handle and
+        # Python's sqlite3 serializes access.
+        app.state.database = get_connection(path, read_only=True, check_same_thread=False)
+        db_label = f"sqlite:{path}"
+    else:
+        spanner_client = spanner.Client(project=config.gcp_project_id)
+        instance = spanner_client.instance(config.spanner_instance_id)
+        app.state.database = instance.database(config.spanner_database_id)
+        db_label = config.spanner_database_id
     app.state.config = config
     if not config.api_auth_token:
         logger.warning("api_auth_disabled", reason="SAGE_API_AUTH_TOKEN not set")
-    logger.info("api_started", database=config.spanner_database_id)
+    logger.info("api_started", database=db_label)
     yield
+    if sqlite_backend:
+        app.state.database.close()
     logger.info("api_stopped")
 
 

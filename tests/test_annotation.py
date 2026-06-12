@@ -311,9 +311,10 @@ class TestCLI:
 
         with (
             patch.object(cli_mod, "Config") as config_mock,
-            patch.object(cli_mod, "get_database", return_value=fake_db) as gd_mock,
+            patch.object(cli_mod, "database_session") as ds_mock,
             patch.object(cli_mod, "write_annotation") as write_mock,
         ):
+            ds_mock.return_value.__enter__.return_value = fake_db
             config_mock.from_env.return_value = fake_config
             write_mock.return_value = {
                 "annotator_id": "alice@example.com",
@@ -335,9 +336,10 @@ class TestCLI:
             )
 
         assert rc == 0
-        gd_mock.assert_called_once_with("p", "i", "d")
+        ds_mock.assert_called_once_with(fake_config, publish=True)
         write_mock.assert_called_once()
         kwargs = write_mock.call_args.kwargs
+        assert kwargs["database"] is fake_db
         assert kwargs["annotator_id"] == "alice@example.com"
         assert kwargs["actor_stix_id"] == "intrusion-set--abc"
         assert kwargs["annotation_type"] == AnnotationType.ANALYST_NOTE
@@ -351,7 +353,7 @@ class TestCLI:
 
         with (
             patch.object(cli_mod, "Config") as config_mock,
-            patch.object(cli_mod, "get_database", return_value=MagicMock()),
+            patch.object(cli_mod, "database_session"),
             patch.object(cli_mod, "write_annotation") as write_mock,
         ):
             config_mock.from_env.return_value = MagicMock(
@@ -398,7 +400,7 @@ class TestCLI:
 
         with (
             patch.object(cli_mod, "Config") as config_mock,
-            patch.object(cli_mod, "get_database") as gd_mock,
+            patch.object(cli_mod, "database_session") as ds_mock,
             patch.object(cli_mod, "write_annotation") as write_mock,
         ):
             rc = cli_mod.main(
@@ -414,9 +416,9 @@ class TestCLI:
                 ]
             )
             assert rc == 2
-            # Confirms validation aborted before any Spanner work.
+            # Confirms validation aborted before any database work.
             config_mock.from_env.assert_not_called()
-            gd_mock.assert_not_called()
+            ds_mock.assert_not_called()
             write_mock.assert_not_called()
 
         captured = capsys.readouterr()
@@ -433,7 +435,7 @@ class TestCLI:
 
         with (
             patch.object(cli_mod, "Config") as config_mock,
-            patch.object(cli_mod, "get_database") as gd_mock,
+            patch.object(cli_mod, "database_session") as ds_mock,
             patch.object(cli_mod, "write_annotation") as write_mock,
         ):
             rc = cli_mod.main(
@@ -451,7 +453,7 @@ class TestCLI:
 
         assert rc == 2
         config_mock.from_env.assert_not_called()
-        gd_mock.assert_not_called()
+        ds_mock.assert_not_called()
         write_mock.assert_not_called()
 
     def test_cli_unreadable_payload_file_exits_with_code_two(self, tmp_path):

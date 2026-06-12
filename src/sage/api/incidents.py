@@ -42,8 +42,8 @@ from sage.api.models import (
 )
 from sage.api.windows import resolve_window
 from sage.config import Config
+from sage.db import database_session, is_sqlite, read_incidents, upsert_incident
 from sage.models.incident_request import IncidentRequest
-from sage.spanner.incidents import read_incidents, upsert_incident
 
 # Accept the two STIX object types that map to ThreatActor rows
 # (mirror of the pattern used by ``/api/annotate``).
@@ -81,13 +81,22 @@ def post_incident(req: IncidentRequest, request: Request) -> IncidentResponse:
 
     PUT-like semantics — re-POST with the same ``incident_stix_id``
     fully replaces both the parent row and its TTP children inside one
-    Spanner transaction (plan §2.1, Decision 1, last bullet).
+    database transaction (plan §2.1, Decision 1, last bullet).
+
+    On the sqlite backend the shared ``app.state.database`` handle is
+    READ-ONLY, so this write endpoint opens its own short-lived
+    read-write session and publishes the updated file back to storage
+    (gcs only; local writes land in place).
     """
+    database = request.app.state.database
     try:
-        result: dict[str, Any] = upsert_incident(
-            database=request.app.state.database,
-            req=req,
-        )
+        result: dict[str, Any]
+        if is_sqlite(database):
+            config: Config = request.app.state.config
+            with database_session(config, publish=True) as wdb:
+                result = upsert_incident(database=wdb, req=req)
+        else:
+            result = upsert_incident(database=database, req=req)
     except Exception as exc:
         logger.error(
             "incident_upsert_failed",

@@ -20,7 +20,12 @@ from pathlib import Path
 DDL_PATH = Path(__file__).parents[3] / "schema" / "sqlite_ddl.sql"
 
 
-def get_connection(path: str | Path, *, read_only: bool = False) -> sqlite3.Connection:
+def get_connection(
+    path: str | Path,
+    *,
+    read_only: bool = False,
+    check_same_thread: bool = True,
+) -> sqlite3.Connection:
     """Return a configured SQLite connection.
 
     Args:
@@ -29,6 +34,10 @@ def get_connection(path: str | Path, *, read_only: bool = False) -> sqlite3.Conn
             connection cannot mutate the database (used by the Analysis
             API). When False, open read-write and enable WAL journaling
             for the single ETL writer.
+        check_same_thread: Passed through to ``sqlite3.connect``. The
+            Analysis API sets this to False so its single read-only
+            handle can serve requests from FastAPI's threadpool (safe:
+            read-only + Python's sqlite3 serializes access by default).
 
     The connection uses ``sqlite3.Row`` as ``row_factory`` (column access
     by name) and turns foreign-key enforcement on. ``detect_types`` is
@@ -37,9 +46,9 @@ def get_connection(path: str | Path, *, read_only: bool = False) -> sqlite3.Conn
     """
     if read_only:
         uri = f"file:{Path(path)}?mode=ro"
-        conn = sqlite3.connect(uri, uri=True, detect_types=0)
+        conn = sqlite3.connect(uri, uri=True, detect_types=0, check_same_thread=check_same_thread)
     else:
-        conn = sqlite3.connect(str(path), detect_types=0)
+        conn = sqlite3.connect(str(path), detect_types=0, check_same_thread=check_same_thread)
 
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")

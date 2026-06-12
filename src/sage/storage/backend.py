@@ -37,6 +37,16 @@ class StorageBackend(ABC):
         """
 
     @abstractmethod
+    def load_bytes(self, category: str, filename: str) -> bytes:
+        """Return the raw bytes of <category>/<filename>.
+
+        Binary-safe counterpart of :meth:`load` for artifacts that are not
+        UTF-8 text (e.g. the ``db/sage.db`` SQLite file).
+
+        Raises FileNotFoundError if the file does not exist.
+        """
+
+    @abstractmethod
     def list_files(self, category: str) -> list[str]:
         """Return filenames (not full paths) present under *category*.
 

@@ -91,17 +91,18 @@ def test_materialize_db_gcs_downloads_when_present():
     storage.load.assert_not_called()
 
 
-def test_materialize_db_gcs_text_fallback_without_load_bytes():
+def test_materialize_db_gcs_requires_load_bytes():
+    """The text (latin-1) fallback is gone — a backend without load_bytes
+    fails loudly instead of risking a corrupted binary database file.
+    """
     config = SimpleNamespace(sage_storage="gcs", sage_storage_bucket="b")
-    # Restrict the mock surface to the current StorageBackend interface
-    # (no load_bytes) so materialize_db takes the text fallback.
+    # Restrict the mock surface to the pre-load_bytes interface.
     storage = MagicMock(spec=["save", "load", "list_files", "exists"])
     storage.exists.return_value = True
-    # latin-1 round-trips arbitrary bytes losslessly.
-    storage.load.return_value = b"sqlite-bytes".decode("latin-1")
     with patch("sage.storage.create_storage_backend", return_value=storage):
-        path = db.materialize_db(config)
-    assert path.read_bytes() == b"sqlite-bytes"
+        with pytest.raises(AttributeError, match="load_bytes"):
+            db.materialize_db(config)
+    storage.load.assert_not_called()
 
 
 def test_materialize_db_gcs_absent_returns_fresh_path():

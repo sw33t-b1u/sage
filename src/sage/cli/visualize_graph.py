@@ -1,10 +1,10 @@
-"""Spanner グラフデータをpyvisでインタラクティブHTMLとして可視化するスクリプト。
+"""グラフ DB のデータをpyvisでインタラクティブHTMLとして可視化するスクリプト。
 
+DB バックエンドは ``SAGE_DB``（sqlite 既定 / spanner）で切り替わる。
 各ノードテーブルとエッジテーブルを直接クエリしてグラフを構築する。
 出力ファイルをブラウザで自動的に開く。
 
 使用方法:
-    export SPANNER_EMULATOR_HOST=localhost:9010  # エミュレーター使用時
     uv run sage visualize-graph
     uv run sage visualize-graph --output /tmp/graph.html
     uv run sage visualize-graph --limit 200
@@ -16,13 +16,13 @@ import argparse
 import sys
 import webbrowser
 from pathlib import Path
+from typing import Any
 
 import structlog
-from google.cloud import spanner
 from pyvis.network import Network
 
 from sage.config import Config
-from sage.spanner.query import load_pir_edges, load_pirs
+from sage.db import get_database, load_pir_edges, load_pirs, run_sql
 
 structlog.configure(
     processors=[
@@ -75,7 +75,7 @@ _NODE_TABLES = [
 
 
 def fetch_nodes(
-    database: spanner.Database,
+    database: Any,
     limit: int,
 ) -> dict[str, dict]:
     """全ノードテーブルを読み込み {node_id: {label, title, color}} を返す。"""
@@ -88,26 +88,24 @@ def fetch_nodes(
             if name_col != id_col
             else f"SELECT {id_col}, {id_col} FROM {table} LIMIT {limit}"
         )
-        with database.snapshot() as snap:
-            rows = snap.execute_sql(sql)
-            for row in rows:
-                node_id, display = row[0], row[1]
-                if node_id is None:
-                    continue
-                label = str(display or node_id)[:40]  # 長すぎるラベルを切り詰め
-                nodes[node_id] = {
-                    "label": label,
-                    "title": f"[{table}] {label}",
-                    "color": _NODE_COLORS[table],
-                    "node_type": table,
-                }
+        for row in run_sql(database, sql):
+            node_id, display = row[0], row[1]
+            if node_id is None:
+                continue
+            label = str(display or node_id)[:40]  # 長すぎるラベルを切り詰め
+            nodes[node_id] = {
+                "label": label,
+                "title": f"[{table}] {label}",
+                "color": _NODE_COLORS[table],
+                "node_type": table,
+            }
 
     logger.info("nodes_fetched", count=len(nodes))
     return nodes
 
 
 def fetch_edges(
-    database: spanner.Database,
+    database: Any,
     node_ids: set[str],
     limit: int,
 ) -> list[tuple[str, str, str]]:
@@ -116,16 +114,14 @@ def fetch_edges(
 
     for table, src_col, dst_col, edge_label in _EDGE_TABLES:
         sql = f"SELECT {src_col}, {dst_col} FROM {table} LIMIT {limit}"
-        with database.snapshot() as snap:
-            try:
-                rows = snap.execute_sql(sql)
-                for row in rows:
-                    src, dst = row[0], row[1]
-                    # 両端ノードが存在する場合のみ追加
-                    if src in node_ids and dst in node_ids:
-                        edges.append((src, dst, edge_label))
-            except Exception as exc:
-                logger.warning("edge_table_skip", table=table, error=str(exc))
+        try:
+            for row in run_sql(database, sql):
+                src, dst = row[0], row[1]
+                # 両端ノードが存在する場合のみ追加
+                if src in node_ids and dst in node_ids:
+                    edges.append((src, dst, edge_label))
+        except Exception as exc:
+            logger.warning("edge_table_skip", table=table, error=str(exc))
 
     logger.info("edges_fetched", count=len(edges))
     return edges
@@ -243,9 +239,7 @@ def main() -> None:
     args = parser.parse_args()
 
     config = Config.from_env()
-    spanner_client = spanner.Client(project=config.gcp_project_id)
-    instance = spanner_client.instance(config.spanner_instance_id)
-    database = instance.database(config.spanner_database_id)
+    database = get_database(config)
 
     try:
         pirs = load_pirs(database)

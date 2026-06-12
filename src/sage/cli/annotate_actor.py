@@ -8,8 +8,10 @@ Usage:
         --payload-file payload.json \
         [--evidence-url https://example.com/evidence]
 
+The DB backend is selected by ``SAGE_DB`` (sqlite default / spanner).
+
 Exit codes:
-    0 — annotation accepted and Spanner mutation buffered.
+    0 — annotation accepted and the database write submitted.
     2 — payload validation failed (Pydantic) or argparse rejected args.
 """
 
@@ -24,9 +26,8 @@ import structlog
 from pydantic import ValidationError
 
 from sage.config import Config
+from sage.db import database_session, write_annotation
 from sage.models.annotation import AnnotationType, validate_payload
-from sage.spanner.annotations import write_annotation
-from sage.spanner.client import get_database
 
 structlog.configure(
     processors=[
@@ -92,20 +93,15 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     config = Config.from_env()
-    database = get_database(
-        config.gcp_project_id,
-        config.spanner_instance_id,
-        config.spanner_database_id,
-    )
-
-    result = write_annotation(
-        database=database,
-        annotator_id=args.annotator,
-        actor_stix_id=args.actor_stix_id,
-        annotation_type=annotation_type,
-        payload=payload,
-        evidence_url=args.evidence_url,
-    )
+    with database_session(config, publish=True) as database:
+        result = write_annotation(
+            database=database,
+            annotator_id=args.annotator,
+            actor_stix_id=args.actor_stix_id,
+            annotation_type=annotation_type,
+            payload=payload,
+            evidence_url=args.evidence_url,
+        )
     print(
         "annotation written: "
         f"annotator_id={result['annotator_id']} "

@@ -352,7 +352,7 @@ def find_followedby_edges(
         [{"src_stix_id": "...", "dst_stix_id": "...", "weight": 0.72}, ...]
     """
     sql = """
-    SELECT src_stix_id, dst_stix_id, weight
+    SELECT src_ttp_stix_id AS src_stix_id, dst_ttp_stix_id AS dst_stix_id, weight
     FROM FollowedBy
     """
 

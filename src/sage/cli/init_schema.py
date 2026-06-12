@@ -1,7 +1,12 @@
-"""Spanner Graph スキーマ初期化スクリプト。
+"""DB スキーマ初期化スクリプト。
 
-schema/spanner_ddl.sql の DDL を実行して Spanner データベースにスキーマを作成する。
-既存テーブルはスキップされる（Spanner は IF NOT EXISTS 未対応のため、エラーを個別処理）。
+``SAGE_DB`` バックエンドに応じて DDL を適用する:
+
+* sqlite（既定） — DB ファイルを materialize し、schema/sqlite_ddl.sql を
+  適用する（``CREATE TABLE IF NOT EXISTS`` で冪等）。gcs ストレージ時は
+  適用後にファイルを publish する。
+* spanner — schema/spanner_ddl.sql を実行する。既存テーブルはスキップ
+  される（Spanner は IF NOT EXISTS 未対応のため、エラーを個別処理）。
 
 使用方法:
     uv run sage init-schema
@@ -13,10 +18,9 @@ import sys
 from pathlib import Path
 
 import structlog
-from google.api_core.exceptions import AlreadyExists
-from google.cloud import spanner
 
 from sage.config import Config
+from sage.db import database_session
 
 structlog.configure(
     processors=[
@@ -54,6 +58,26 @@ def split_ddl_statements(ddl: str) -> list[str]:
 
 def main() -> None:
     config = Config.from_env()
+
+    if config.sage_db == "sqlite":
+        # database_session materializes the file (creating + applying the
+        # DDL when fresh); re-applying init_schema on an existing database
+        # is a no-op thanks to CREATE TABLE IF NOT EXISTS. publish=True
+        # uploads the initialized file when storage is gcs.
+        from sage.sqlite.client import init_schema as sqlite_init_schema  # noqa: PLC0415
+
+        with database_session(config, publish=True) as conn:
+            sqlite_init_schema(conn)
+            count = conn.execute(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table'"
+            ).fetchone()[0]
+        logger.info("sqlite_schema_applied", tables=count)
+        return
+
+    # Spanner backend — lazy imports so the sqlite path stays GCP-free.
+    from google.api_core.exceptions import AlreadyExists  # noqa: PLC0415
+    from google.cloud import spanner  # noqa: PLC0415
+
     ddl_text = DDL_PATH.read_text()
     statements = split_ddl_statements(ddl_text)
 

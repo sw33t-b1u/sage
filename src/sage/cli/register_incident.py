@@ -17,9 +17,9 @@ Transports:
 * Default — HTTP POST to ``--api-url`` (``$SAGE_API_URL`` then
   ``http://localhost:8000``). Bearer token from ``--token`` or
   ``$SAGE_API_AUTH_TOKEN``.
-* **--no-api** — bypass the API and call
-  ``sage.spanner.incidents.upsert_incident`` directly. Used for
-  air-gapped / token-less environments.
+* **--no-api** — bypass the API and write through the ``sage.db``
+  dispatch layer directly (``SAGE_DB`` selects sqlite or Spanner).
+  Used for air-gapped / token-less environments.
 
 Diamond Model methodology — Caltagirone, Pendergast & Betz (2013),
 *"The Diamond Model of Intrusion Analysis"*. The paper is "Approved
@@ -32,7 +32,7 @@ Exit codes:
 
 * ``0`` — incident accepted (response logged).
 * ``2`` — argument / Pydantic / Navigator validation error.
-* ``3`` — transport error (HTTP failure or Spanner write exception).
+* ``3`` — transport error (HTTP failure or database write exception).
 
 """
 
@@ -238,26 +238,21 @@ def _submit_via_api(
         ) from exc
 
 
-def _submit_via_spanner(payload: dict[str, Any]) -> dict[str, Any]:
-    """Bypass the API and call the Spanner upsert helper directly.
+def _submit_via_db(payload: dict[str, Any]) -> dict[str, Any]:
+    """Bypass the API and write the incident through ``sage.db`` directly.
 
-    The Spanner client is constructed via :func:`sage.spanner.client.get_database`
-    using the standard ``Config.from_env()`` env vars. Imports are lazy
-    so the test suite can monkey-patch ``upsert_incident`` without
-    needing real GCP credentials at import time.
+    The backend handle comes from ``sage.db.database_session`` using the
+    standard ``Config.from_env()`` env vars (``SAGE_DB`` selects sqlite
+    or Spanner). Imports are lazy so the test suite can monkey-patch the
+    backend modules without needing real GCP credentials at import time.
     """
     from sage.config import Config  # noqa: PLC0415
-    from sage.spanner.client import get_database  # noqa: PLC0415
-    from sage.spanner.incidents import upsert_incident  # noqa: PLC0415
+    from sage.db import database_session, upsert_incident  # noqa: PLC0415
 
     req = IncidentRequest.model_validate(payload)
     config = Config.from_env()
-    database = get_database(
-        config.gcp_project_id,
-        config.spanner_instance_id,
-        config.spanner_database_id,
-    )
-    return upsert_incident(database=database, req=req)
+    with database_session(config, publish=True) as database:
+        return upsert_incident(database, req)
 
 
 def _default_incident_stix_id() -> str:
@@ -323,7 +318,7 @@ def _default_incident_stix_id() -> str:
     "no_api",
     is_flag=True,
     default=False,
-    help="Bypass POST /api/incidents and call the Spanner upsert helper directly.",
+    help="Bypass POST /api/incidents and write through the sage.db layer directly.",
 )
 @click.option(
     "--api-url",
@@ -460,7 +455,7 @@ def main(
 
     # ----- Transport -----
     if no_api:
-        result = _submit_via_spanner(payload)
+        result = _submit_via_db(payload)
     else:
         result = _submit_via_api(api_url=api_url, token=token or None, payload=payload)
 

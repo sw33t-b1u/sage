@@ -1,7 +1,11 @@
 """ETL エントリポイント。
 
 Cloud Run Job として実行される。
-環境変数から設定を読み込み、OpenCTI → Spanner Graph の ETL を実行する。
+環境変数から設定を読み込み、OpenCTI → グラフ DB の ETL を実行する。
+
+DB バックエンドは ``SAGE_DB`` で切り替わる。sqlite（既定）の場合は
+``sage.db.database_session`` が DB ファイルを materialize → 書き込み →
+publish（gcs のみ）する。spanner の場合は従来どおり直接書き込む。
 
 使用方法:
     uv run sage run-etl
@@ -18,12 +22,10 @@ from pathlib import Path
 import structlog
 
 from sage.config import Config
+from sage.db import database_session, fetch_asset_rows, find_choke_points
 from sage.etl.worker import ETLWorker
 from sage.notify.slack import notify_etl_complete
 from sage.pir.filter import PIRFilter
-from sage.spanner.client import get_database
-from sage.spanner.query import find_choke_points
-from sage.spanner.upsert import fetch_asset_rows
 from sage.stix.parser import parse_bundle
 from sage.storage import create_storage_backend
 
@@ -54,11 +56,17 @@ def main() -> None:
 
     config = Config.from_env()
     pir_filter = PIRFilter.from_file(Path(config.pir_file_path))
-    database = get_database(
-        config.gcp_project_id,
-        config.spanner_instance_id,
-        config.spanner_database_id,
-    )
+
+    with database_session(config, publish=True) as database:
+        _run(args, config, pir_filter, database)
+
+
+def _run(
+    args: argparse.Namespace,
+    config: Config,
+    pir_filter: PIRFilter,
+    database: object,
+) -> None:
     worker = ETLWorker(
         database,
         pir_filter,

@@ -1,5 +1,6 @@
-"""Load BEACON's user_accounts.json into the SAGE Spanner Graph.
+"""Load BEACON's user_accounts.json into the SAGE graph database.
 
+The DB backend is selected by ``SAGE_DB`` (sqlite default / spanner).
 Initiative B — SAGE 0.7.0. Reads the artifact emitted by
 ``BEACON/cmd/generate_user_accounts.py`` and validated by
 ``TRACE/cmd/validate_user_accounts.py``, then upserts:
@@ -16,7 +17,6 @@ the same rows. The Identity namespace is shared with
 ``load_identity_assets.py`` (same namespace UUID).
 
 Usage:
-    export SPANNER_EMULATOR_HOST=localhost:9010  # for local emulator
     uv run sage load-user-accounts \
         --input ../BEACON/output/user_accounts.json
 """
@@ -29,12 +29,13 @@ import sys
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import structlog
-from google.cloud import spanner
 
 from sage.config import Config
-from sage.spanner.upsert import (
+from sage.db import (
+    database_session,
     upsert_account_on_asset,
     upsert_user_account,
     upsert_user_account_belongs_to,
@@ -83,7 +84,7 @@ def _normalize_asset_id(value: str) -> str:
     return value if value.startswith("asset-") else f"asset-{value}"
 
 
-def load_user_accounts(database: spanner.Database, data: dict) -> dict[str, int]:
+def load_user_accounts(database: Any, data: dict) -> dict[str, int]:
     """Upsert user-accounts + edges from a parsed user_accounts.json
     payload. Returns ingestion counts.
     """
@@ -160,7 +161,7 @@ def load_user_accounts(database: spanner.Database, data: dict) -> dict[str, int]
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Load user_accounts.json into Spanner")
+    parser = argparse.ArgumentParser(description="Load user_accounts.json into the graph DB")
     parser.add_argument(
         "--input",
         "-i",
@@ -211,8 +212,5 @@ def main() -> None:
             )
             sys.exit(1)
 
-    spanner_client = spanner.Client(project=config.gcp_project_id)
-    instance = spanner_client.instance(config.spanner_instance_id)
-    database = instance.database(config.spanner_database_id)
-
-    load_user_accounts(database, data)
+    with database_session(config, publish=True) as database:
+        load_user_accounts(database, data)

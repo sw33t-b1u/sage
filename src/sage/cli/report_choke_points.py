@@ -1,6 +1,7 @@
 """チョークポイント資産レポートを Markdown で出力するスクリプト。
 
-Spanner の Targets エッジと pir_adjusted_criticality を元に
+グラフ DB（``SAGE_DB`` で sqlite / spanner を切替）の Targets エッジと
+pir_adjusted_criticality を元に
 choke_score（= pir_adjusted_criticality × 攻撃元アクター数）でランキングし、
 Blue Team 向けの Markdown レポートを stdout / ファイル / GHE Issue へ出力する。
 
@@ -19,9 +20,8 @@ from pathlib import Path
 import structlog
 
 from sage.config import Config
+from sage.db import database_session, find_choke_points
 from sage.notify.github import post_choke_point_issue
-from sage.spanner.client import get_database
-from sage.spanner.query import find_choke_points
 
 structlog.configure(
     processors=[
@@ -86,14 +86,10 @@ def main() -> None:
     args = parser.parse_args()
 
     config = Config.from_env()
-    database = get_database(
-        config.gcp_project_id,
-        config.spanner_instance_id,
-        config.spanner_database_id,
-    )
 
     logger.info("querying_choke_points", top_n=args.top)
-    rows = find_choke_points(database, top_n=args.top)
+    with database_session(config) as database:
+        rows = find_choke_points(database, args.top)
 
     if not rows:
         logger.warning("no_choke_points_found")

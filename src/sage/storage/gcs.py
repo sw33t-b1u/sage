@@ -73,6 +73,14 @@ class GCSStorage(StorageBackend):
             )
         return blob.download_as_text(encoding="utf-8")
 
+    def load_bytes(self, category: str, filename: str) -> bytes:
+        blob = self._bucket.blob(self._blob_name(category, filename))
+        if not blob.exists():
+            raise FileNotFoundError(
+                f"Not found in GCS: gs://{self._bucket_name}/{self._blob_name(category, filename)}"
+            )
+        return blob.download_as_bytes()
+
     def list_files(self, category: str) -> list[str]:
         parts = [p for p in (self._prefix, category) if p]
         prefix_path = "/".join(parts) + "/"

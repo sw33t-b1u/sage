@@ -16,11 +16,10 @@ import json
 import sys
 
 import structlog
-from google.cloud import spanner
 
 from sage.caldera.client import get_adversaries, sync_actor_ttps
 from sage.config import Config
-from sage.spanner.query import find_actor_ttps
+from sage.db import database_session, find_actor_ttps
 
 logger = structlog.get_logger(__name__)
 
@@ -48,11 +47,8 @@ def main() -> None:
         print(json.dumps(adversaries, ensure_ascii=False, indent=2))
         return
 
-    spanner_client = spanner.Client(project=config.gcp_project_id)
-    instance = spanner_client.instance(config.spanner_instance_id)
-    database = instance.database(config.spanner_database_id)
-
-    ttp_rows = find_actor_ttps(database, args.actor_id)
+    with database_session(config) as database:
+        ttp_rows = find_actor_ttps(database, args.actor_id)
     if not ttp_rows:
         print(f"No TTP found for actor: {args.actor_id}", file=sys.stderr)
         sys.exit(1)

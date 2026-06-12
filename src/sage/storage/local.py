@@ -48,6 +48,12 @@ class LocalStorage(StorageBackend):
             raise FileNotFoundError(f"Not found in local storage: {target}")
         return target.read_text(encoding="utf-8")
 
+    def load_bytes(self, category: str, filename: str) -> bytes:
+        target = self._path(category, filename)
+        if not target.exists():
+            raise FileNotFoundError(f"Not found in local storage: {target}")
+        return target.read_bytes()
+
     def list_files(self, category: str) -> list[str]:
         cat_dir = self._base / category
         if not cat_dir.is_dir():

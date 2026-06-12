@@ -28,10 +28,15 @@ only change their import to ``sage.db``.
 
 from __future__ import annotations
 
+import re
 import sqlite3
 import tempfile
+from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 if TYPE_CHECKING:
     from datetime import date
@@ -65,11 +70,57 @@ def get_database(config: Any) -> Any:
             config.spanner_database_id,
         )
     if backend == "sqlite":
-        from sage.sqlite.client import get_connection
-
-        path = materialize_db(config)
-        return get_connection(path)
+        return _open_sqlite(materialize_db(config))
     raise RuntimeError(f"Unknown SAGE_DB backend '{backend}'. Valid values: 'sqlite', 'spanner'.")
+
+
+def _open_sqlite(path: Path) -> sqlite3.Connection:
+    """Open a read-write SQLite connection, applying the DDL on a fresh file.
+
+    Every entry point (CLI / ETL) funnels through here, so a first run
+    against an empty deployment yields a schema-complete database instead
+    of "no such table" errors. ``init_schema`` is idempotent
+    (``CREATE TABLE IF NOT EXISTS``), but it is only invoked when the file
+    does not exist yet to keep the hot path free of DDL parsing.
+    """
+    from sage.sqlite.client import get_connection, init_schema
+
+    fresh = not path.exists()
+    conn = get_connection(path)
+    if fresh:
+        init_schema(conn)
+    return conn
+
+
+@contextmanager
+def database_session(config: Any, *, publish: bool = False) -> Iterator[Any]:
+    """Yield a backend-appropriate database handle, with lifecycle handling.
+
+    SQLite backend: materialize the DB file, open a read-write connection
+    (schema applied when the file is fresh), and close it on exit. When
+    ``publish=True`` and the block exits without an exception, the file is
+    uploaded back to storage (gcs only; local is a no-op) AFTER the
+    connection is closed, so the published bytes are a checkpointed,
+    self-contained database file.
+
+    Spanner backend: yields the Spanner ``Database`` handle; ``publish`` is
+    a no-op because Spanner persists writes directly.
+    """
+    backend = getattr(config, "sage_db", "sqlite")
+    if backend != "sqlite":
+        yield get_database(config)
+        return
+
+    path = materialize_db(config)
+    conn = _open_sqlite(path)
+    try:
+        yield conn
+    except BaseException:
+        conn.close()
+        raise
+    conn.close()
+    if publish:
+        publish_db(config, path)
 
 
 def materialize_db(config: Any) -> Path:
@@ -96,20 +147,9 @@ def materialize_db(config: Any) -> Path:
     tmp_dir = Path(tempfile.mkdtemp(prefix="sage-db-"))
     local_path = tmp_dir / _DB_FILENAME
     if storage.exists(_DB_CATEGORY, _DB_FILENAME):
-        load_bytes = getattr(storage, "load_bytes", None)
-        if load_bytes is not None:
-            # Binary-safe path (preferred once StorageBackend grows it).
-            local_path.write_bytes(load_bytes(_DB_CATEGORY, _DB_FILENAME))
-        else:
-            # StorageBackend.load() is text-only (UTF-8 decode). A SQLite
-            # file is binary, so this fallback round-trips through latin-1
-            # (a lossless byte<->str codec) and only works if load() itself
-            # returned latin-1-decoded text. The current GCS/Local backends
-            # decode UTF-8 and would fail on real binary data — a binary
-            # ``load_bytes`` must land on StorageBackend before gcs mode
-            # carries a real database file (tracked for the wiring phase).
-            data = storage.load(_DB_CATEGORY, _DB_FILENAME)
-            local_path.write_bytes(data.encode("latin-1"))
+        # Binary-safe path: StorageBackend.load_bytes (load() is UTF-8
+        # text-only and cannot carry a SQLite file).
+        local_path.write_bytes(storage.load_bytes(_DB_CATEGORY, _DB_FILENAME))
     return local_path
 
 
@@ -131,12 +171,59 @@ def is_sqlite(handle: Any) -> bool:
     return isinstance(handle, sqlite3.Connection)
 
 
+_PARAM_RE = re.compile(r"@(\w+)")
+
+
+def run_sql(
+    database: Any,
+    sql: str,
+    params: dict[str, Any] | None = None,
+) -> list[tuple]:
+    """Execute a plain SELECT against either backend and return row tuples.
+
+    Used by callers that issue ad-hoc SQL (visualization CLIs, name/CVE
+    resolution in the loaders) instead of a named query-layer function.
+
+    * SQL is written in the Spanner flavour with ``@param`` placeholders;
+      the SQLite branch rewrites them to ``:param`` (Decision D-3).
+    * The Spanner branch derives ``param_types`` from the Python value
+      types (str/int/float/bool), matching what the call sites previously
+      declared by hand.
+    """
+    if is_sqlite(database):
+        cur = database.execute(_PARAM_RE.sub(r":\1", sql), params or {})
+        return [tuple(row) for row in cur.fetchall()]
+
+    with database.snapshot() as snap:
+        if not params:
+            return list(snap.execute_sql(sql))
+        from google.cloud.spanner_v1 import param_types as _pt
+
+        _type_map: dict[type, Any] = {
+            str: _pt.STRING,
+            int: _pt.INT64,
+            float: _pt.FLOAT64,
+            bool: _pt.BOOL,
+        }
+        ptypes = {k: _type_map[type(v)] for k, v in params.items() if type(v) in _type_map}
+        return list(snap.execute_sql(sql, params=params, param_types=ptypes))
+
+
 def _query_module(database: Any) -> Any:
     """Return the backend-appropriate query module for *database*."""
     if is_sqlite(database):
         from sage.sqlite import query as impl
     else:
         from sage.spanner import query as impl
+    return impl
+
+
+def _upsert_module(database: Any) -> Any:
+    """Return the backend-appropriate upsert module for *database*."""
+    if is_sqlite(database):
+        from sage.sqlite import upsert as impl
+    else:
+        from sage.spanner import upsert as impl
     return impl
 
 
@@ -156,6 +243,94 @@ def _annotations_module(database: Any) -> Any:
     else:
         from sage.spanner import annotations as impl
     return impl
+
+
+# ---------------------------------------------------------------------------
+# Upsert wrappers (mirror sage.spanner.upsert / sage.sqlite.upsert)
+# ---------------------------------------------------------------------------
+
+
+def upsert_rows(database: Any, table: str, rows: list[dict[str, Any]]) -> int:
+    """Dispatching wrapper for the backend ``upsert_rows``."""
+    return _upsert_module(database).upsert_rows(database, table, rows)
+
+
+def upsert_followed_by(database: Any, rows: list[dict[str, Any]]) -> int:
+    """Dispatching wrapper for the backend ``upsert_followed_by``."""
+    return _upsert_module(database).upsert_followed_by(database, rows)
+
+
+def update_pir_criticality(database: Any, asset_rows: list[dict]) -> int:
+    """Dispatching wrapper for the backend ``update_pir_criticality``."""
+    return _upsert_module(database).update_pir_criticality(database, asset_rows)
+
+
+def upsert_has_access(database: Any, rows: list[dict]) -> int:
+    """Dispatching wrapper for the backend ``upsert_has_access``."""
+    return _upsert_module(database).upsert_has_access(database, rows)
+
+
+def upsert_user_account(database: Any, rows: list[dict]) -> int:
+    """Dispatching wrapper for the backend ``upsert_user_account``."""
+    return _upsert_module(database).upsert_user_account(database, rows)
+
+
+def upsert_account_on_asset(database: Any, rows: list[dict]) -> int:
+    """Dispatching wrapper for the backend ``upsert_account_on_asset``."""
+    return _upsert_module(database).upsert_account_on_asset(database, rows)
+
+
+def upsert_user_account_belongs_to(database: Any, rows: list[dict]) -> int:
+    """Dispatching wrapper for the backend ``upsert_user_account_belongs_to``."""
+    return _upsert_module(database).upsert_user_account_belongs_to(database, rows)
+
+
+def upsert_attributed_to_actor(database: Any, rows: list[dict]) -> int:
+    """Dispatching wrapper for the backend ``upsert_attributed_to_actor``."""
+    return _upsert_module(database).upsert_attributed_to_actor(database, rows)
+
+
+def upsert_attributed_to_identity(database: Any, rows: list[dict]) -> int:
+    """Dispatching wrapper for the backend ``upsert_attributed_to_identity``."""
+    return _upsert_module(database).upsert_attributed_to_identity(database, rows)
+
+
+def upsert_impersonates_identity(database: Any, rows: list[dict]) -> int:
+    """Dispatching wrapper for the backend ``upsert_impersonates_identity``."""
+    return _upsert_module(database).upsert_impersonates_identity(database, rows)
+
+
+def upsert_pir_prioritizes_impersonation_target(database: Any, rows: list[dict]) -> int:
+    """Dispatching wrapper for the backend ``upsert_pir_prioritizes_impersonation_target``."""
+    return _upsert_module(database).upsert_pir_prioritizes_impersonation_target(database, rows)
+
+
+def recompute_effective_priority_for_identity(
+    database: Any,
+    identity_stix_id: str,
+    is_high_value_impersonation_target: bool,
+) -> int:
+    """Dispatching wrapper for the backend ``recompute_effective_priority_for_identity``."""
+    return _upsert_module(database).recompute_effective_priority_for_identity(
+        database, identity_stix_id, is_high_value_impersonation_target
+    )
+
+
+def derive_pir_prioritizes_impersonation_target_for_identity(
+    database: Any,
+    identity_stix_id: str,
+) -> int:
+    """Dispatching wrapper for the backend
+    ``derive_pir_prioritizes_impersonation_target_for_identity``.
+    """
+    return _upsert_module(database).derive_pir_prioritizes_impersonation_target_for_identity(
+        database, identity_stix_id
+    )
+
+
+def fetch_asset_rows(database: Any) -> list[dict]:
+    """Dispatching wrapper for the backend ``fetch_asset_rows``."""
+    return _upsert_module(database).fetch_asset_rows(database)
 
 
 # ---------------------------------------------------------------------------

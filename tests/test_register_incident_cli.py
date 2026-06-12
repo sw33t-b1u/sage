@@ -257,6 +257,9 @@ class TestNoApiMode:
         fake_config.gcp_project_id = "proj"
         fake_config.spanner_instance_id = "inst"
         fake_config.spanner_database_id = "db"
+        # --no-api now routes through sage.db; pin the backend so the
+        # dispatch layer takes the Spanner branch this test mocks.
+        fake_config.sage_db = "spanner"
 
         with (
             patch(
@@ -290,7 +293,8 @@ class TestNoApiMode:
             )
         assert result.exit_code == 0, result.output + result.stderr
         upsert_mock.assert_called_once()
-        assert upsert_mock.call_args.kwargs["database"] is fake_db
+        # The sage.db dispatch wrapper passes the handle positionally.
+        assert upsert_mock.call_args.args[0] is fake_db
 
 
 # ---------------------------------------------------------------------------

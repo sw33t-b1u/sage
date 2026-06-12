@@ -1,4 +1,7 @@
-"""ETL worker — transforms STIX bundles and writes them to Spanner Graph.
+"""ETL worker — transforms STIX bundles and writes them to the graph database.
+
+Writes go through the ``sage.db`` dispatch wrappers, so the handle type
+(``sqlite3.Connection`` vs Spanner ``Database``) decides the backend.
 
 Processing flow:
   1. Classify STIX objects by type
@@ -18,13 +21,10 @@ from collections import defaultdict
 from typing import Any
 
 import structlog
-from google.cloud.spanner_v1.database import Database
 
 from sage.analysis.ttp_asset_matcher import build_ttp_asset_edges
 from sage.config import TLP_LEVELS
-from sage.pir.filter import PIRFilter
-from sage.pir.ingest import ingest_prioritized_actors
-from sage.spanner.upsert import (
+from sage.db import (
     update_pir_criticality,
     upsert_account_on_asset,
     upsert_attributed_to_actor,
@@ -37,6 +37,8 @@ from sage.spanner.upsert import (
     upsert_user_account,
     upsert_user_account_belongs_to,
 )
+from sage.pir.filter import PIRFilter
+from sage.pir.ingest import ingest_prioritized_actors
 from sage.stix.mapper import (
     StixMapper,
     build_followed_by_weights,
@@ -47,11 +49,11 @@ logger = structlog.get_logger(__name__)
 
 
 class ETLWorker:
-    """Processes a STIX bundle and writes the results to Spanner Graph."""
+    """Processes a STIX bundle and writes the results to the graph database."""
 
     def __init__(
         self,
-        database: Database,
+        database: Any,
         pir_filter: PIRFilter,
         tlp_max_level: str = "amber",
         activity_window_days: int = 90,

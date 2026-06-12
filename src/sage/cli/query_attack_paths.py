@@ -1,7 +1,7 @@
 """指定資産への攻撃経路を表示するスクリプト。
 
-Spanner GQL を用いて、指定した資産に Targets エッジで紐づく ThreatActor と
-その TTP（Uses エッジ）を信頼度順に表示する。
+グラフ DB（``SAGE_DB`` で sqlite / spanner を切替）から、指定した資産に
+Targets エッジで紐づく ThreatActor とその TTP（Uses エッジ）を信頼度順に表示する。
 
 使用方法:
     uv run sage query-attack-paths --asset-id asset-001
@@ -16,8 +16,7 @@ import argparse
 import structlog
 
 from sage.config import Config
-from sage.spanner.client import get_database
-from sage.spanner.query import find_actor_ttps, find_attack_paths
+from sage.db import database_session, find_actor_ttps, find_attack_paths
 
 structlog.configure(
     processors=[
@@ -77,15 +76,11 @@ def main() -> None:
     args = parser.parse_args()
 
     config = Config.from_env()
-    database = get_database(
-        config.gcp_project_id,
-        config.spanner_instance_id,
-        config.spanner_database_id,
-    )
 
-    if args.asset_id:
-        rows = find_attack_paths(database, asset_id=args.asset_id, limit=args.limit)
-        _print_attack_paths(rows, args.asset_id)
-    else:
-        rows = find_actor_ttps(database, actor_stix_id=args.actor_id)
-        _print_actor_ttps(rows, args.actor_id)
+    with database_session(config) as database:
+        if args.asset_id:
+            rows = find_attack_paths(database, asset_id=args.asset_id, limit=args.limit)
+            _print_attack_paths(rows, args.asset_id)
+        else:
+            rows = find_actor_ttps(database, actor_stix_id=args.actor_id)
+            _print_actor_ttps(rows, args.actor_id)

@@ -11,6 +11,14 @@ Dialect translation (Decision D-3):
   * ARRAY<...> columns are JSON-encoded with ``json.dumps`` on write.
   * ALLOW_COMMIT_TIMESTAMP columns receive ``datetime.now(UTC).isoformat()``
     when the row provides no explicit value.
+  * Timestamp canonicalization: every value that is a ``datetime`` or a
+    full ISO 8601 timestamp string (including STIX's ``Z`` suffix) is
+    rewritten to the canonical ``+00:00`` UTC form before storage. The
+    query layer compares TIMESTAMP TEXT lexicographically against
+    ``+00:00``-format window bounds, so a stored ``...Z`` value would
+    silently fall out of every window (``'Z' > '+'``). Normalizing once
+    at this single write boundary keeps every writer (ETL mapper rows,
+    loader CLIs, derived edges) consistent without per-caller fixes.
 
 The ``_TABLE_COLUMNS`` registry and the precedence rules are kept in lock
 step with sage.spanner.upsert so reviewers can diff the two side by side.
@@ -19,6 +27,7 @@ step with sage.spanner.upsert so reviewers can diff the two side by side.
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from datetime import UTC, datetime
 from typing import Any
@@ -379,6 +388,33 @@ _NOT_NULL_DEFAULTS: dict[str, dict[str, Any]] = {
 
 # Batch size for executemany chunking (kept for parity with the Spanner path).
 _BATCH_SIZE = 500
+
+# Full-string ISO 8601 timestamp (date + time, optional fraction, optional
+# ``Z`` / numeric offset). Date-only strings (e.g. PIR.valid_from) do not
+# match and are stored verbatim.
+_ISO_TIMESTAMP_RE = re.compile(
+    r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?"
+)
+
+
+def _canonical_timestamp(value: Any) -> Any:
+    """Normalize datetime-ish values to canonical ``+00:00`` ISO 8601 TEXT.
+
+    * ``datetime`` -> UTC-converted ``isoformat()`` (naive values are
+      assumed UTC, matching the Spanner backend's storage semantics).
+    * ISO timestamp strings (``Z`` suffix, other offsets, or naive) ->
+      reparsed and re-emitted in the same canonical form.
+    * Everything else passes through untouched.
+    """
+    if isinstance(value, datetime):
+        dt = value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+        return dt.astimezone(UTC).isoformat()
+    if isinstance(value, str) and _ISO_TIMESTAMP_RE.fullmatch(value):
+        dt = datetime.fromisoformat(value)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=UTC)
+        return dt.astimezone(UTC).isoformat()
+    return value
 
 
 def upsert_rows(
@@ -747,7 +783,9 @@ def _row_to_values(
     Encodes ARRAY columns as JSON, fills commit-timestamp columns and
     NOT NULL DEFAULT columns when the row omits them (Spanner applies DDL
     defaults server-side on its upsert mutation; SQLite needs the substitution
-    here because every column is listed explicitly in the INSERT).
+    here because every column is listed explicitly in the INSERT), and
+    canonicalizes timestamp values via ``_canonical_timestamp`` so window
+    queries compare against a single UTC offset notation.
     """
     now: str | None = None
     values: list = []
@@ -761,6 +799,8 @@ def _row_to_values(
             val = now
         elif val is None and col in defaults:
             val = defaults[col]
+        else:
+            val = _canonical_timestamp(val)
         values.append(val)
     return values
 

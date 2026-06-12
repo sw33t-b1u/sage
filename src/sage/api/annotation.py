@@ -11,8 +11,11 @@ Request handling steps:
   2. The endpoint re-validates ``payload`` against the type-specific
      Pydantic model from :mod:`sage.models.annotation` and returns 422
      on field-level failures.
-  3. On success, ``write_annotation`` buffers one Spanner mutation and
-     the endpoint returns 200 with the row metadata.
+  3. On success, ``write_annotation`` submits one database write and
+     the endpoint returns 200 with the row metadata. The write goes
+     through the ``sage.db`` dispatch layer (``SAGE_DB`` selects the
+     backend); on sqlite the shared API handle is READ-ONLY, so the
+     endpoint opens its own short-lived read-write session.
 """
 
 from __future__ import annotations
@@ -23,8 +26,8 @@ import structlog
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field, HttpUrl, ValidationError
 
+from sage.db import database_session, is_sqlite, write_annotation
 from sage.models.annotation import AnnotationType, validate_payload
-from sage.spanner.annotations import write_annotation
 
 logger = structlog.get_logger(__name__)
 
@@ -64,15 +67,30 @@ def post_annotate(req: AnnotateRequest, request: Request) -> AnnotateResponse:
 
     evidence_url_str = str(req.evidence_url) if req.evidence_url else None
 
+    database = request.app.state.database
     try:
-        result = write_annotation(
-            database=request.app.state.database,
-            annotator_id=req.annotator_id,
-            actor_stix_id=req.actor_stix_id,
-            annotation_type=req.annotation_type,
-            payload=payload_model,
-            evidence_url=evidence_url_str,
-        )
+        if is_sqlite(database):
+            # Shared API handle is READ-ONLY on sqlite — write through a
+            # short-lived read-write session (published back on gcs).
+            config = request.app.state.config
+            with database_session(config, publish=True) as wdb:
+                result = write_annotation(
+                    database=wdb,
+                    annotator_id=req.annotator_id,
+                    actor_stix_id=req.actor_stix_id,
+                    annotation_type=req.annotation_type,
+                    payload=payload_model,
+                    evidence_url=evidence_url_str,
+                )
+        else:
+            result = write_annotation(
+                database=database,
+                annotator_id=req.annotator_id,
+                actor_stix_id=req.actor_stix_id,
+                annotation_type=req.annotation_type,
+                payload=payload_model,
+                evidence_url=evidence_url_str,
+            )
     except Exception as exc:
         # The PK is (annotator_id, actor_stix_id, created_at) where
         # created_at is the server-assigned COMMIT_TIMESTAMP. Collisions

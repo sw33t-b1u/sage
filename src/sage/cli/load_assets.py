@@ -1,11 +1,11 @@
-"""社内資産データを Spanner に投入するスクリプト。
+"""社内資産データをグラフ DB に投入するスクリプト。
 
 tests/fixtures/sample_assets.json または指定ファイルを読み込み、
 SecurityControl / Asset / HasVulnerability /
 ConnectedTo / ProtectedBy / Targets テーブルへ upsert する。
+DB バックエンドは ``SAGE_DB``（sqlite 既定 / spanner）で切り替わる。
 
 使用方法:
-    export SPANNER_EMULATOR_HOST=localhost:9010  # エミュレーター使用時
     uv run sage load-assets
     uv run sage load-assets --input path/to/assets.json
 """
@@ -17,12 +17,12 @@ import json
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import structlog
-from google.cloud import spanner
 
 from sage.config import Config
-from sage.spanner.upsert import upsert_rows
+from sage.db import database_session, is_sqlite, run_sql, upsert_rows
 from sage.stix.mapper import _CVE_ID_PATTERN, deterministic_vuln_stix_id
 from sage.storage import create_storage_backend
 
@@ -41,8 +41,17 @@ def _now() -> datetime:
     return datetime.now(tz=UTC)
 
 
-def load_assets(database: spanner.Database, data: dict) -> None:
+def load_assets(database: Any, data: dict) -> None:
     stats: dict[str, int] = {}
+
+    # Asset.last_updated uses ALLOW_COMMIT_TIMESTAMP on Spanner; the SQLite
+    # upsert boundary canonicalizes the datetime to ISO 8601 UTC TEXT.
+    if is_sqlite(database):
+        last_updated: Any = _now()
+    else:
+        from google.cloud import spanner  # noqa: PLC0415
+
+        last_updated = spanner.COMMIT_TIMESTAMP
 
     # セグメント情報を id→dict で引けるようにしておく
     seg_map = {s["id"]: s for s in data.get("network_segments", [])}
@@ -77,7 +86,7 @@ def load_assets(database: spanner.Database, data: dict) -> None:
                 "network_zone": seg.get("zone"),
                 "exposed_to_internet": a.get("exposed_to_internet", False),
                 "tags": a.get("tags", []),
-                "last_updated": spanner.COMMIT_TIMESTAMP,
+                "last_updated": last_updated,
             }
         )
     stats["assets"] = upsert_rows(database, "Asset", asset_rows)
@@ -165,25 +174,15 @@ def load_assets(database: spanner.Database, data: dict) -> None:
     logger.info("load_assets_complete", **stats)
 
 
-def _resolve_cve_ids(database: spanner.Database) -> dict[str, str]:
+def _resolve_cve_ids(database: Any) -> dict[str, str]:
     """Vulnerabilityテーブルから cve_id → stix_id のマップを返す。"""
-    result = {}
-    with database.snapshot() as snap:
-        sql = "SELECT stix_id, cve_id FROM Vulnerability WHERE cve_id IS NOT NULL"
-        rows = snap.execute_sql(sql)
-        for row in rows:
-            result[row[1]] = row[0]
-    return result
+    sql = "SELECT stix_id, cve_id FROM Vulnerability WHERE cve_id IS NOT NULL"
+    return {row[1]: row[0] for row in run_sql(database, sql)}
 
 
-def _resolve_actor_names(database: spanner.Database) -> dict[str, str]:
+def _resolve_actor_names(database: Any) -> dict[str, str]:
     """ThreatActorテーブルから name → stix_id のマップを返す。"""
-    result = {}
-    with database.snapshot() as snap:
-        rows = snap.execute_sql("SELECT stix_id, name FROM ThreatActor")
-        for row in rows:
-            result[row[1]] = row[0]
-    return result
+    return {row[1]: row[0] for row in run_sql(database, "SELECT stix_id, name FROM ThreatActor")}
 
 
 def main() -> None:
@@ -225,8 +224,5 @@ def main() -> None:
             logger.error("no_assets_file_found", hint="Specify --input or configure StorageBackend")
             sys.exit(1)
 
-    spanner_client = spanner.Client(project=config.gcp_project_id)
-    instance = spanner_client.instance(config.spanner_instance_id)
-    database = instance.database(config.spanner_database_id)
-
-    load_assets(database, data)
+    with database_session(config, publish=True) as database:
+        load_assets(database, data)
