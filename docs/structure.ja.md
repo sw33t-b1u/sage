@@ -14,11 +14,16 @@ SAGE/
 │   │   ├── parser.py           # STIX 2.1 バンドルの解析とバリデーション
 │   │   └── mapper.py           # STIX オブジェクト → Spanner ノード/エッジ行
 │   ├── pir/
-│   │   └── filter.py           # PIR 関連度フィルタリングと資産クリティカリティ重み付け
+│   │   ├── filter.py           # PIR 関連度フィルタリングと資産クリティカリティ重み付け
+│   │   └── ingest.py           # PIR actor-triage エントリーを PirPrioritizesActor に取り込み
 │   ├── spanner/
 │   │   ├── client.py           # Spanner Database クライアントのセットアップ
 │   │   ├── upsert.py           # 一括 upsert ヘルパー（INSERT OR UPDATE）
-│   │   └── query.py            # 分析クエリ関数（GQL + SQL）
+│   │   ├── query.py            # 分析クエリ関数（GQL + SQL）
+│   │   ├── incidents.py        # インシデント upsert/read ヘルパー
+│   │   ├── annotations.py      # アクターアノテーション書き込みヘルパー
+│   │   ├── constants.py        # Spanner 層で共有する定数
+│   │   └── migrations/         # 増分 DDL マイグレーションスクリプト
 │   ├── sqlite/
 │   │   ├── client.py           # SQLite 接続セットアップ（読み取り専用 / 読み書き）
 │   │   ├── upsert.py           # 一括 upsert ヘルパー（INSERT ... ON CONFLICT）
@@ -31,13 +36,37 @@ SAGE/
 │   │   ├── slack.py            # Slack Webhook 通知
 │   │   └── github.py           # GitHub / GHE Issue の作成・更新
 │   ├── api/
-│   │   └── app.py              # FastAPI Analysis API（内部 REST エンドポイント）
+│   │   ├── app.py              # FastAPI Analysis API アプリケーション（内部 REST エンドポイント）
+│   │   ├── annotation.py       # POST /api/annotate — アクターアノテーションエンドポイント
+│   │   ├── auth.py             # Bearer トークン認証の共有 dependency
+│   │   ├── incidents.py        # POST / GET /api/incidents — IR 直接登録と読み取り
+│   │   ├── models.py           # Analysis API レスポンスの Pydantic モデル
+│   │   ├── threat_summary.py   # GET /threat-summary レスポンスビルダー
+│   │   └── windows.py          # API クエリで共有する時間窓ヘルパー
 │   ├── caldera/
 │   │   └── client.py           # MITRE Caldera REST API クライアント
 │   ├── analysis/
-│   │   └── similarity.py       # ハイブリッドインシデント類似度スコアリング
+│   │   ├── similarity.py       # ハイブリッドインシデント類似度スコアリング
+│   │   └── ttp_asset_matcher.py # テクニック / 資産タグ照合による TTP → Asset エッジ導出
 │   ├── cli/
-│   │   └── __init__.py         # 統合 ``sage`` CLI エントリポイント（click Group）
+│   │   ├── __init__.py              # 統合 ``sage`` CLI エントリポイント（click Group）
+│   │   ├── analysis_api.py          # Analysis API サーバーの起動
+│   │   ├── annotate_actor.py        # オペレーターアノテーションの書き込み（AnnotatesActor 行）
+│   │   ├── create_ir_template.py    # IR インシデントテンプレートを GHE Issue として作成
+│   │   ├── init_schema.py           # データベース DDL の初期化（SQLite または Spanner）
+│   │   ├── load_assets.py           # 内部資産データをグラフ DB にロード
+│   │   ├── load_identity_assets.py  # BEACON identity_assets.json をロード
+│   │   ├── load_user_accounts.py    # BEACON user_accounts.json をロード
+│   │   ├── navigator_loader.py      # インシデント入力用 ATT&CK Navigator layer JSON の解析
+│   │   ├── query_attack_paths.py    # 攻撃経路または脅威アクター TTP のクエリ
+│   │   ├── register_incident.py     # direct-API 経由でインシデントを登録
+│   │   ├── report_choke_points.py   # チョークポイントレポートの出力/エクスポート/投稿
+│   │   ├── run_etl.py               # ETL パイプラインの実行
+│   │   ├── setup_emulator.py        # ローカルテスト用 Spanner エミュレーターの設定
+│   │   ├── sync_caldera.py          # 脅威アクター TTP を Caldera アドバーサリプロファイルに同期
+│   │   ├── visualize_attack_flow.py # インタラクティブな攻撃フロー HTML を生成
+│   │   ├── visualize_combined.py    # グラフ＋フロー統合可視化
+│   │   └── visualize_graph.py       # インタラクティブな攻撃グラフ HTML を生成
 │   ├── models/
 │   │   ├── annotation.py       # アクターアノテーション リクエスト/レスポンスモデル
 │   │   └── incident_request.py # インシデント登録リクエストモデル
@@ -47,22 +76,6 @@ SAGE/
 │   │   └── gcs.py              # GCSStorage 実装（オプション依存）
 │   └── opencti/
 │       └── client.py           # OpenCTI STIX 2.1 エクスポートクライアント
-│
-├── cmd/                        # CLI エントリポイント（コマンドごとに1スクリプト）
-│   ├── init_schema.py          # Spanner Graph DDL の初期化
-│   ├── run_etl.py              # ETL パイプラインの実行
-│   ├── load_assets.py          # 内部資産データを Spanner にロード
-│   ├── load_identity_assets.py # BEACON identity_assets.json をロード
-│   ├── load_user_accounts.py   # BEACON user_accounts.json をロード
-│   ├── report_choke_points.py  # チョークポイントレポートの出力/エクスポート/投稿
-│   ├── query_attack_paths.py   # 攻撃経路または脅威アクター TTP のクエリ
-│   ├── visualize_graph.py      # インタラクティブな攻撃グラフ HTML を生成
-│   ├── visualize_attack_flow.py# インタラクティブな攻撃フロー HTML を生成
-│   ├── visualize_combined.py   # グラフ＋フロー統合可視化
-│   ├── analysis_api.py         # Analysis API サーバーの起動
-│   ├── sync_caldera.py         # 脅威アクター TTP を Caldera アドバーサリプロファイルに同期
-│   ├── create_ir_template.py   # IR インシデントテンプレートを GHE Issue として作成
-│   └── setup_emulator.py       # ローカルテスト用 Spanner エミュレーターの設定
 │
 ├── schema/
 │   ├── sqlite_ddl.sql          # SQLite DDL（既定バックエンド; 同一テーブルを方言変換）
@@ -99,7 +112,6 @@ SAGE/
 ## 設計方針
 
 - **`src/sage/`** はすべての再利用可能なライブラリコードを含みます。各サブパッケージは単一の責務を持ちます。
-- **`cmd/`** には引数解析と `src/sage/` モジュールへの委譲のみを行う薄い CLI スクリプトを置きます。ビジネスロジックはここに書きません。
 - **`schema/`** はデータベース DDL の唯一の情報源です: 既定の SQLite バックエンド用 `sqlite_ddl.sql` と、任意の Spanner バックエンド用 `spanner_ddl.sql` を置きます。
 - **`docs/`** は利用者向けドキュメントを保持します。英語版はベース名（例 `setup.md`）、日本語翻訳は `.ja.md` サフィックス（例 `setup.ja.md`）で同じディレクトリに並べて維持します。
 - **`docs/high-level-design.md`** はアーキテクチャ変更を実装する前に更新しなければなりません（Rule 27）。本ファイルは maintainer 方針で gitignored です。

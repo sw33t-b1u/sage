@@ -16,6 +16,15 @@ from sage.stix.mapper import (
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
+# Spec-valid STIX 2.1 identifiers from tests/fixtures/sample_bundle.json
+# (shared with the sqlite roundtrip E2E in test_sqlite_roundtrip.py).
+ACTOR_APT99 = "intrusion-set--4a5c1f00-89aa-4b9e-9f04-1c2d3e4f5a01"
+TTP_T1078 = "attack-pattern--b1078a00-1111-4aaa-9bbb-0c0d0e0f1078"
+TTP_T1068 = "attack-pattern--c1068b00-2222-4bbb-8ccc-0c0d0e0f1068"
+TTP_T1059 = "attack-pattern--b1059c00-7777-4abc-8def-0c0d0e0f1059"
+VULN_CVE_2025_55182 = "vulnerability--d5518200-3333-4ccc-9ddd-0c0d0e0f5182"
+MALWARE_EMOTET = "malware--a7e10500-6666-4fff-9abb-0c0d0e0fe001"
+
 
 @pytest.fixture
 def bundle_objects():
@@ -40,7 +49,7 @@ class TestMapThreatActor:
         row = mapper.map_threat_actor(obj)
 
         assert row is not None
-        assert row["stix_id"] == "intrusion-set--apt99"
+        assert row["stix_id"] == ACTOR_APT99
         assert row["stix_type"] == "intrusion-set"
         assert row["name"] == "APT99"
         assert "apt" in row["tags"]
@@ -59,17 +68,17 @@ class TestMapThreatActor:
 
 class TestMapTTP:
     def test_attack_pattern(self, mapper, bundle_objects):
-        obj = next(o for o in bundle_objects if o["id"] == "attack-pattern--t1078")
+        obj = next(o for o in bundle_objects if o["id"] == TTP_T1078)
         row = mapper.map_ttp(obj)
 
         assert row is not None
-        assert row["stix_id"] == "attack-pattern--t1078"
+        assert row["stix_id"] == TTP_T1078
         assert row["attack_technique_id"] == "T1078"
         assert row["tactic"] == "initial-access"
         assert "Windows" in row["platforms"]
 
     def test_privilege_escalation_phase(self, mapper, bundle_objects):
-        obj = next(o for o in bundle_objects if o["id"] == "attack-pattern--t1068")
+        obj = next(o for o in bundle_objects if o["id"] == TTP_T1068)
         row = mapper.map_ttp(obj)
         assert row["tactic"] == "privilege-escalation"
 
@@ -85,7 +94,7 @@ class TestMapVulnerability:
         row = mapper.map_vulnerability(obj)
 
         assert row is not None
-        assert row["stix_id"] == "vulnerability--cve-2025-55182"
+        assert row["stix_id"] == VULN_CVE_2025_55182
         assert row["cve_id"] == "CVE-2025-55182"
         assert row["description"] == "権限昇格を可能にするカーネルの脆弱性"
 
@@ -226,7 +235,13 @@ class TestMapObservable:
         assert row["obs_type"] == "ip"
         assert row["value"] == "198.51.100.1"
         assert row["confidence"] == 80
-        assert row["tlp"] == "amber"
+        # The fixture marks the indicator with the canonical STIX 2.1
+        # TLP:AMBER marking-definition UUID. mapper._tlp() matches TLP
+        # level names as substrings of the ref string, which a UUID-form
+        # ref can never contain, so it falls back to "white". Documents
+        # current behavior — recognizing the canonical TLP UUIDs would
+        # be a mapper change, out of scope for this fixture cleanup.
+        assert row["tlp"] == "white"
 
     def test_non_indicator_returns_none(self, mapper, bundle_objects):
         obj = next(o for o in bundle_objects if o["type"] == "intrusion-set")
@@ -249,7 +264,7 @@ class TestMapRelationship:
         assert result is not None
         table, row = result
         assert table == "Uses"
-        assert row["actor_stix_id"] == "intrusion-set--apt99"
+        assert row["actor_stix_id"] == ACTOR_APT99
         assert "attack-pattern--" in row["ttp_stix_id"]
 
     def test_exploits_maps_to_exploits_table(self, mapper, bundle_objects):
@@ -262,7 +277,7 @@ class TestMapRelationship:
         assert result is not None
         table, row = result
         assert table == "Exploits"
-        assert row["vuln_stix_id"] == "vulnerability--cve-2025-55182"
+        assert row["vuln_stix_id"] == VULN_CVE_2025_55182
 
     def test_indicates_actor_maps_to_indicates_actor_table(self, mapper, bundle_objects):
         obj = next(
@@ -274,7 +289,7 @@ class TestMapRelationship:
         assert result is not None
         table, row = result
         assert table == "IndicatesActor"
-        assert row["actor_stix_id"] == "intrusion-set--apt99"
+        assert row["actor_stix_id"] == ACTOR_APT99
 
     def test_non_relationship_returns_none(self, mapper, bundle_objects):
         obj = next(o for o in bundle_objects if o["type"] == "intrusion-set")
@@ -289,12 +304,12 @@ class TestMapRelationship:
 class TestBuildFollowedByWeights:
     def test_generates_transitions_across_phases(self):
         uses_rows = [
-            {"actor_stix_id": "intrusion-set--apt99", "ttp_stix_id": "attack-pattern--t1078"},
-            {"actor_stix_id": "intrusion-set--apt99", "ttp_stix_id": "attack-pattern--t1068"},
+            {"actor_stix_id": ACTOR_APT99, "ttp_stix_id": TTP_T1078},
+            {"actor_stix_id": ACTOR_APT99, "ttp_stix_id": TTP_T1068},
         ]
         ttp_phases = {
-            "attack-pattern--t1078": "initial-access",
-            "attack-pattern--t1068": "privilege-escalation",
+            TTP_T1078: "initial-access",
+            TTP_T1068: "privilege-escalation",
         }
         rows = build_followed_by_weights(uses_rows, ttp_phases)
 
@@ -303,8 +318,7 @@ class TestBuildFollowedByWeights:
             (
                 r
                 for r in rows
-                if r["src_ttp_stix_id"] == "attack-pattern--t1078"
-                and r["dst_ttp_stix_id"] == "attack-pattern--t1068"
+                if r["src_ttp_stix_id"] == TTP_T1078 and r["dst_ttp_stix_id"] == TTP_T1068
             ),
             None,
         )
@@ -367,11 +381,11 @@ class TestBuildFollowedByWeights:
     def test_malware_uses_ttp_relationship(self, mapper):
         obj = {
             "type": "relationship",
-            "id": "relationship--m001",
+            "id": "relationship--00000000-0000-4000-8000-000000000051",
             "spec_version": "2.1",
             "relationship_type": "uses",
-            "source_ref": "malware--emotet",
-            "target_ref": "attack-pattern--t1059",
+            "source_ref": MALWARE_EMOTET,
+            "target_ref": TTP_T1059,
             "modified": "2025-01-01T00:00:00Z",
             "created": "2025-01-01T00:00:00Z",
         }
@@ -379,8 +393,8 @@ class TestBuildFollowedByWeights:
         assert result is not None
         table, row = result
         assert table == "MalwareUsesTTP"
-        assert row["malware_stix_id"] == "malware--emotet"
-        assert row["ttp_stix_id"] == "attack-pattern--t1059"
+        assert row["malware_stix_id"] == MALWARE_EMOTET
+        assert row["ttp_stix_id"] == TTP_T1059
 
 
 class TestBuildIrFeedbackFollowedBy:

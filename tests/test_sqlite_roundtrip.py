@@ -39,15 +39,15 @@ from fastapi.testclient import TestClient
 
 FIXTURES = Path(__file__).parent / "fixtures"
 ASSETS_FILE = FIXTURES / "sample_assets.json"
-BUNDLE_FILE = FIXTURES / "sample_bundle_roundtrip.json"
+BUNDLE_FILE = FIXTURES / "sample_bundle.json"
 PIR_FILE = FIXTURES / "sample_pir_actors.json"
 
 # Known fixture contents: APT99 (tags apt / targets-japan) matches the
 # sample PIR's threat_actor_tags; asset-001 carries the "external-facing"
 # tag matched by the PIR's asset_weight_rules, so the ETL generates
-# Targets edges between them. The bundle fixture mirrors
-# sample_bundle.json (mapper unit-test data) but uses spec-valid STIX
-# 2.1 UUID identifiers so the real parser accepts every object.
+# Targets edges between them. The bundle fixture is shared with the
+# mapper unit tests and uses spec-valid STIX 2.1 UUID identifiers so
+# the real parser accepts every object.
 ASSET_VPN = "asset-001-vpn00-0000-000000000001"
 ACTOR_APT99 = "intrusion-set--4a5c1f00-89aa-4b9e-9f04-1c2d3e4f5a01"
 

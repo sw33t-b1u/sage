@@ -39,6 +39,6 @@ per [project Rule 18](../../docs/RULES.md).
 
 | Package | Reason not adopted |
 |---------|-------------------|
-| `neo4j` | Spanner Graph (GQL) covers traversal needs within the existing GCP stack. Switching to Neo4j would add infrastructure complexity and cost. Revisit if Spanner GQL performance proves insufficient at scale (see `TODO.md`). |
+| `neo4j` | Graph traversal in SAGE is implemented as a Python BFS over in-memory edges (`src/sage/analysis/similarity.py`); at CTI-graph scale (tens to hundreds of thousands of rows) no dedicated graph database is needed. Adopting Neo4j would add infrastructure complexity and cost. Revisit if the BFS approach proves insufficient at scale. |
 | `httpx` (runtime) | ETL and notify layers are synchronous; adding async complexity is unwarranted. `httpx` is included only as a dev dependency for testing. |
 | `pydantic` (standalone) | FastAPI bundles Pydantic v2 internally. No additional install needed. |

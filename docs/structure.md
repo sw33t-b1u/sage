@@ -12,11 +12,16 @@ SAGE/
 │   │   ├── parser.py           # STIX 2.1 bundle parsing and validation
 │   │   └── mapper.py           # STIX objects → Spanner node/edge rows
 │   ├── pir/
-│   │   └── filter.py           # PIR relevance filtering and asset criticality weighting
+│   │   ├── filter.py           # PIR relevance filtering and asset criticality weighting
+│   │   └── ingest.py           # Ingest PIR actor-triage entries into PirPrioritizesActor
 │   ├── spanner/
 │   │   ├── client.py           # Spanner Database client setup
 │   │   ├── upsert.py           # Bulk upsert helpers (INSERT OR UPDATE)
-│   │   └── query.py            # Analytical query functions (GQL + SQL)
+│   │   ├── query.py            # Analytical query functions (GQL + SQL)
+│   │   ├── incidents.py        # Incident upsert/read helpers
+│   │   ├── annotations.py      # Actor annotation write helpers
+│   │   ├── constants.py        # Spanner-layer shared constants
+│   │   └── migrations/         # Incremental DDL migration scripts
 │   ├── sqlite/
 │   │   ├── client.py           # SQLite connection setup (read-only / read-write)
 │   │   ├── upsert.py           # Bulk upsert helpers (INSERT ... ON CONFLICT)
@@ -29,13 +34,37 @@ SAGE/
 │   │   ├── slack.py            # Slack webhook notification
 │   │   └── github.py           # GitHub / GHE Issue creation and update
 │   ├── api/
-│   │   └── app.py              # FastAPI Analysis API (internal REST endpoints)
+│   │   ├── app.py              # FastAPI Analysis API application (internal REST endpoints)
+│   │   ├── annotation.py       # POST /api/annotate — actor annotation endpoint
+│   │   ├── auth.py             # Shared Bearer-token auth dependency
+│   │   ├── incidents.py        # POST / GET /api/incidents — direct IR intake and reads
+│   │   ├── models.py           # Pydantic response models for the Analysis API
+│   │   ├── threat_summary.py   # GET /threat-summary response builder
+│   │   └── windows.py          # Shared time-window helpers for API queries
 │   ├── caldera/
 │   │   └── client.py           # MITRE Caldera REST API client
 │   ├── analysis/
-│   │   └── similarity.py       # Hybrid incident similarity scoring
+│   │   ├── similarity.py       # Hybrid incident similarity scoring
+│   │   └── ttp_asset_matcher.py # TTP → Asset edge derivation via technique / asset-tag matching
 │   ├── cli/
-│   │   └── __init__.py         # Unified ``sage`` CLI entry point (click Group)
+│   │   ├── __init__.py              # Unified ``sage`` CLI entry point (click Group)
+│   │   ├── analysis_api.py          # Start the Analysis API server
+│   │   ├── annotate_actor.py        # Write operator annotations (AnnotatesActor rows)
+│   │   ├── create_ir_template.py    # Create IR incident template as GHE Issue
+│   │   ├── init_schema.py           # Initialize the database DDL (SQLite or Spanner)
+│   │   ├── load_assets.py           # Load internal asset data into the graph database
+│   │   ├── load_identity_assets.py  # Load BEACON identity_assets.json
+│   │   ├── load_user_accounts.py    # Load BEACON user_accounts.json
+│   │   ├── navigator_loader.py      # Parse ATT&CK Navigator layer JSON for incident input
+│   │   ├── query_attack_paths.py    # Query attack paths or actor TTPs
+│   │   ├── register_incident.py     # Register an incident via the direct-API path
+│   │   ├── report_choke_points.py   # Print / export / post choke-point report
+│   │   ├── run_etl.py               # Run the ETL pipeline
+│   │   ├── setup_emulator.py        # Configure Spanner emulator for local testing
+│   │   ├── sync_caldera.py          # Sync actor TTPs to Caldera adversary profile
+│   │   ├── visualize_attack_flow.py # Generate interactive attack flow HTML
+│   │   ├── visualize_combined.py    # Combined graph + flow visualization
+│   │   └── visualize_graph.py       # Generate interactive attack graph HTML
 │   ├── models/
 │   │   ├── annotation.py       # Actor annotation request/response models
 │   │   └── incident_request.py # Incident registration request model
@@ -45,22 +74,6 @@ SAGE/
 │   │   └── gcs.py              # GCSStorage implementation (optional dep)
 │   └── opencti/
 │       └── client.py           # OpenCTI STIX 2.1 export client
-│
-├── cmd/                        # CLI entry points (one script per command)
-│   ├── init_schema.py          # Initialize Spanner Graph DDL
-│   ├── run_etl.py              # Run the ETL pipeline
-│   ├── load_assets.py          # Load internal asset data into Spanner
-│   ├── load_identity_assets.py # Load BEACON identity_assets.json
-│   ├── load_user_accounts.py   # Load BEACON user_accounts.json
-│   ├── report_choke_points.py  # Print / export / post choke-point report
-│   ├── query_attack_paths.py   # Query attack paths or actor TTPs
-│   ├── visualize_graph.py      # Generate interactive attack graph HTML
-│   ├── visualize_attack_flow.py# Generate interactive attack flow HTML
-│   ├── visualize_combined.py   # Combined graph + flow visualization
-│   ├── analysis_api.py         # Start the Analysis API server
-│   ├── sync_caldera.py         # Sync actor TTPs to Caldera adversary profile
-│   ├── create_ir_template.py   # Create IR incident template as GHE Issue
-│   └── setup_emulator.py       # Configure Spanner emulator for local testing
 │
 ├── schema/
 │   ├── sqlite_ddl.sql          # SQLite DDL (default backend; same tables, dialect-mapped)
@@ -97,7 +110,6 @@ SAGE/
 ## Design criteria
 
 - **`src/sage/`** contains all reusable library code. Each sub-package has a single responsibility.
-- **`cmd/`** contains thin CLI scripts that parse arguments, load configuration, and delegate to `src/sage/` modules. No business logic lives here.
 - **`schema/`** is the single source of truth for the database DDL: `sqlite_ddl.sql` for the default SQLite backend and `spanner_ddl.sql` for the optional Spanner backend.
 - **`docs/`** holds user-facing documentation. English files use the base name (e.g. `setup.md`); Japanese translations are siblings with the `.ja.md` suffix (e.g. `setup.ja.md`).
 - **`docs/high-level-design.md`** must be updated before any architectural change is implemented (Rule 27). The file is gitignored per maintainer policy.
