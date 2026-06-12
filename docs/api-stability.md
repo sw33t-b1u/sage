@@ -3,6 +3,15 @@
 **Status**: Draft for Initiative H — 1.0 Stabilization (sign-off pending).
 Effective from SAGE 1.0.0.
 
+**4.0.0 breaking-change record (2026-06-12)**: the default database
+backend changed from Spanner to SQLite (`SAGE_DB` env var, default
+`sqlite`; Spanner preserved as an optional backend via
+`SAGE_DB=spanner`). `GCP_PROJECT_ID`, `SPANNER_INSTANCE`, `SPANNER_DB`,
+and `SAGE_ETL_INPUT_BUCKET` are required only when `SAGE_DB=spanner`.
+The REST API surface and the input file contracts (STIX bundle /
+`assets.json` / PIR JSON) are unchanged. See CHANGELOG 4.0.0 for the
+migration path back to Spanner.
+
 This document enumerates SAGE's committed public surface and the
 backward-compatibility (BC) guarantee that applies to it. Anything not
 listed as **Committed** is **Evolving** and may change in any minor
@@ -35,7 +44,9 @@ the full policy text.
 | Surface | Committed? | First version | Notes |
 |---|---|---|---|
 | REST API (10 endpoints) | ✓ | 1.0.0 | See §3.1 for endpoint list |
-| Spanner Graph DDL (`schema/spanner_ddl.sql`) | ✓ | 1.0.0 | 36 tables; additive only (type widening OK; rename/drop = 2.0.0) |
+| Database backend selector (`SAGE_DB`) | ✓ | 4.0.0 | Values: `sqlite` (default) / `spanner` (optional, preserved) |
+| Spanner Graph DDL (`schema/spanner_ddl.sql`) | ✓ | 1.0.0 | 36 tables; additive only (type widening OK; rename/drop = major); Spanner-backend-only since 4.0.0 |
+| SQLite DDL (`schema/sqlite_ddl.sql`) | ✓ | 4.0.0 | Mirrors all 36 Spanner tables under the documented type mapping; same additive-only rule |
 | `Incident.source` discriminator | ✓ | 1.0.0 | Values: `ir_feedback` (OpenCTI relay) / `direct_api` (POST /api/incidents) |
 | Auth gate semantics (POST = 503 when `SAGE_API_AUTH_TOKEN` unset; GET = permissive) | ✓ | 1.0.0 | See §3.2 |
 | `sage` CLI entry + subcommands (Phase 6 of H) | ✓ | 1.0.0 | Subcommand names + main flags frozen |
@@ -130,8 +141,17 @@ The `src/sage/spanner/migrations/` directory stores forward-only
 migration SQL files versioned per table change. Applying these
 migration files is currently a manual operator step (executing the
 SQL directly against Spanner); `sage init-schema` takes no
-arguments and applies only the base schema from
-`schema/spanner_ddl.sql`.
+arguments and applies the base schema for the configured backend
+(`schema/spanner_ddl.sql` when `SAGE_DB=spanner`,
+`schema/sqlite_ddl.sql` otherwise).
+
+Since 4.0.0 the same Committed surface (table presence, column names,
+column nullability, primary keys, default values) applies to
+`schema/sqlite_ddl.sql`, which mirrors all 36 tables under the
+documented type mapping (`TIMESTAMP` → TEXT ISO 8601 UTC,
+`ARRAY<STRING>` → TEXT JSON array, `INT64` → INTEGER, `FLOAT64` →
+REAL, `STRING(n)` → TEXT). The additive / breaking rules above apply
+to both DDL files.
 
 ### 3.4 `Incident.source` discriminator
 
@@ -183,8 +203,8 @@ point. Operator-visible surface from 1.0.0:
 
 | Subcommand | Replaces | Purpose |
 |---|---|---|
-| `sage init-schema` | `src/sage/cli/init_schema.py` | Apply Spanner Graph DDL + create indexes |
-| `sage load-assets` | `src/sage/cli/load_assets.py` | Load BEACON assets.json into Spanner |
+| `sage init-schema` | `src/sage/cli/init_schema.py` | Apply the DDL for the configured backend (`SAGE_DB`) + create indexes |
+| `sage load-assets` | `src/sage/cli/load_assets.py` | Load BEACON assets.json into the database |
 | `sage load-identity-assets` | `src/sage/cli/load_identity_assets.py` | Load identity_assets.json |
 | `sage load-user-accounts` | `src/sage/cli/load_user_accounts.py` | Load user_accounts.json |
 | `sage incident-register` | `src/sage/cli/register_incident.py` | Interactive Diamond Model CLI (Initiative G Phase 3) |
@@ -226,10 +246,11 @@ derivation namespace, sequence preservation.
 
 | Env | Default | Purpose |
 |---|---|---|
-| `GCP_PROJECT_ID` | (required) | GCP project ID |
-| `SPANNER_INSTANCE` | (required) | Spanner instance ID |
-| `SPANNER_DB` | (required) | Spanner database ID |
-| `SAGE_ETL_INPUT_BUCKET` | (required) | GCS landing zone bucket |
+| `SAGE_DB` | `sqlite` | Database backend selector: `sqlite` or `spanner` (4.0.0) |
+| `GCP_PROJECT_ID` | (required when `SAGE_DB=spanner`) | GCP project ID |
+| `SPANNER_INSTANCE` | (required when `SAGE_DB=spanner`) | Spanner instance ID |
+| `SPANNER_DB` | (required when `SAGE_DB=spanner`) | Spanner database ID |
+| `SAGE_ETL_INPUT_BUCKET` | (required when `SAGE_DB=spanner`) | GCS landing zone bucket |
 | `OPENCTI_URL` | (required for legacy) | OpenCTI server URL (only required if using OpenCTI relay) |
 | `OPENCTI_TOKEN` | (required for legacy) | OpenCTI API token |
 | `PIR_FILE_PATH` | `/config/pir.json` | Path to BEACON-emitted pir_output.json |
@@ -275,8 +296,10 @@ SAGE's Committed surface depends on:
   / incident data.
 - **OASIS STIX 2.1 specification** as the cross-repo data model
   bridge.
-- **Google Cloud Spanner Graph (Preview/GA)** as the storage layer.
-  Spanner Graph DDL syntax stability is upstream-controlled.
+- **Google Cloud Spanner Graph (Preview/GA)** as the optional storage
+  layer (`SAGE_DB=spanner`; SQLite from the Python standard library is
+  the default backend since 4.0.0). Spanner Graph DDL syntax stability
+  is upstream-controlled.
 
 Full citation inventory: `../beacon/docs/citations.md`.
 

@@ -5,8 +5,11 @@ This guide describes the day-to-day workflow for CTI analysts and Blue Team memb
 ## Prerequisites
 
 - `uv sync --extra dev` completed in the SAGE directory
-- `.env` configured with production Spanner credentials
+- `.env` configured. The default backend is SQLite (`SAGE_DB=sqlite`) and
+  needs no GCP values; set `SAGE_DB=spanner` plus the Spanner credentials
+  to run against the optional Spanner backend
 - `gcloud auth application-default login` completed on your local machine
+  (only when using GCS storage or the Spanner backend)
 
 ---
 
@@ -59,18 +62,28 @@ Example output:
 ### 3. Find asset IDs and actor STIX IDs
 
 **Asset IDs** are defined in your `assets.json` file (the `id` field of each asset entry).
-After loading, you can also look them up from Spanner:
+After loading, you can also look them up from the database:
 
 ```sh
+# SQLite backend (default)
+sqlite3 output/db/sage.db \
+  "SELECT id, name, criticality, pir_adjusted_criticality FROM Asset ORDER BY pir_adjusted_criticality DESC LIMIT 20"
+
+# Spanner backend (SAGE_DB=spanner)
 gcloud spanner databases execute-sql sage-db \
   --instance=sage-instance \
   --sql="SELECT id, name, criticality, pir_adjusted_criticality FROM Asset ORDER BY pir_adjusted_criticality DESC LIMIT 20"
 ```
 
 **Actor STIX IDs** are assigned by OpenCTI or are embedded in STIX bundle files.
-Look them up from Spanner after ETL:
+Look them up after ETL:
 
 ```sh
+# SQLite backend (default)
+sqlite3 output/db/sage.db \
+  "SELECT stix_id, name, tags FROM ThreatActor ORDER BY name LIMIT 50"
+
+# Spanner backend (SAGE_DB=spanner)
 gcloud spanner databases execute-sql sage-db \
   --instance=sage-instance \
   --sql="SELECT stix_id, name, tags FROM ThreatActor ORDER BY name LIMIT 50"
@@ -92,7 +105,7 @@ uv run sage query-attack-paths --actor-id intrusion-set--xxxxxxxx-xxxx-xxxx-xxxx
 
 ### 5. Visualize the graph (on demand)
 
-Generates an interactive HTML file and opens it in your browser. Nodes are color-coded by type, draggable, and zoomable. Runs locally against production Spanner.
+Generates an interactive HTML file and opens it in your browser. Nodes are color-coded by type, draggable, and zoomable. Runs locally against the configured database backend (`SAGE_DB`).
 
 ```sh
 # Combined view (attack graph + attack flow with FollowedBy weights)
@@ -117,7 +130,7 @@ uv run sage visualize-combined --no-open --limit 200
 
 ### 6. Query via Analysis API (optional)
 
-For integration with other tools or ad-hoc queries, start the API server locally pointing at production Spanner:
+For integration with other tools or ad-hoc queries, start the API server locally (it materializes and opens the configured database read-only on startup):
 
 ```sh
 uv run sage serve-api --port 8080
@@ -228,7 +241,7 @@ uv run sage incident-register \
   --navigator-layer ./layer.json \
   --no-interactive
 
-# 4) Air-gapped / token-less — bypass the API and write Spanner directly.
+# 4) Air-gapped / token-less — bypass the API and write the database directly.
 uv run sage incident-register \
   --from-file ./payload.json \
   --no-api --no-interactive
@@ -314,7 +327,23 @@ curl -H "Authorization: Bearer ${SAGE_API_AUTH_TOKEN}" \
 
 ---
 
-## Spanner Data Management
+## Database Data Management
+
+**SQLite backend (default):** run the same DML directly against the
+database file — table and column names are identical to the Spanner DDL:
+
+```sh
+sqlite3 output/db/sage.db \
+  "DELETE FROM ThreatActor WHERE stix_id = 'intrusion-set--xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'"
+```
+
+For a full reset, delete the file (`rm output/db/sage.db`) — the schema is
+recreated automatically on the next run. When `SAGE_STORAGE=gcs`, edit a
+downloaded copy and re-upload it to the `db/sage.db` object, or delete the
+object for a full reset.
+
+**Spanner backend (`SAGE_DB=spanner`):** the sections below use
+`gcloud spanner databases execute-sql`.
 
 ### Deleting nodes by STIX ID
 
@@ -352,7 +381,9 @@ gcloud spanner databases execute-sql ${SPANNER_DB} \
 ### Full schema reset (wipe all data, keep schema)
 
 ```sh
-# Drops and recreates all tables — use only when a clean slate is needed
+# Spanner backend: drops and recreates all tables — use only when a clean
+# slate is needed. On SQLite the DDL is CREATE TABLE IF NOT EXISTS (no
+# drop) — delete the database file instead.
 make init-schema
 ```
 
@@ -403,15 +434,15 @@ uv run sage report-choke-points --ghe
 
 - Verify OpenCTI connectivity: `curl ${OPENCTI_URL}/graphql -H "Authorization: Bearer ${OPENCTI_TOKEN}"`
 - Check that STIX bundles exist in the StorageBackend `stix/` category.
-- Inspect Spanner for existing data: `SELECT COUNT(*) FROM ThreatActor`
+- Inspect the database for existing data: `sqlite3 output/db/sage.db "SELECT COUNT(*) FROM ThreatActor"` (or the `gcloud spanner databases execute-sql` equivalent on the Spanner backend)
 
-### `OTEL_SDK_DISABLED` metric export errors
+### `OTEL_SDK_DISABLED` metric export errors (Spanner backend only)
 
 Set `OTEL_SDK_DISABLED=true` in `.env` to suppress Spanner client OpenTelemetry metric export errors in environments without a metrics backend.
 
-### Spanner `ALREADY_EXISTS` on schema init
+### Spanner `ALREADY_EXISTS` on schema init (`SAGE_DB=spanner`)
 
-The schema was previously initialized. Run `make init-schema` only when a clean slate is needed — it drops all tables.
+The schema was previously initialized. Run `make init-schema` only when a clean slate is needed — on the Spanner backend it drops all tables.
 
 ### Analysis API returns 401
 

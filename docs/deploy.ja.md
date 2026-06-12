@@ -4,6 +4,19 @@
 
 デプロイ前に [docs/setup.ja.md](setup.ja.md) の手順を完了すること。デプロイ前に `make check` がパスすることを確認すること。
 
+**データベースバックエンド（SAGE 4.0.0）:** 既定のデプロイ構成は
+**SQLite + GCS** で動作し、Spanner インスタンスは不要。フローは次のとおり:
+
+- **ETL ジョブ（`sage-etl`）**: 起動時にストレージバケットから `db/sage.db`
+  をダウンロードし（初回は新規作成）、グラフを書き込み、ファイルをアップロード
+  して戻す。ETL ジョブが**単一ライター**。
+- **API サービス（`sage-api`）**: コールドスタート時に `db/sage.db` を
+  ダウンロードし、**read-only** で開く。新しい ETL 出力は次のコールドスタートで
+  反映される（scale-to-zero + 日次 ETL の構成ではこれが通常の動作）。
+
+Cloud Spanner は任意バックエンド（`SAGE_DB=spanner`）として引き続き利用可能。
+以下の手順では Spanner 固有のステップをその旨明記している。
+
 ---
 
 ## Day-0 前提条件
@@ -18,9 +31,11 @@ gcloud services enable \
   run.googleapis.com \
   artifactregistry.googleapis.com \
   cloudbuild.googleapis.com \
-  spanner.googleapis.com \
   cloudscheduler.googleapis.com \
   --project=${GCP_PROJECT_ID}
+
+# Spanner バックエンドのみ（SAGE_DB=spanner）:
+gcloud services enable spanner.googleapis.com --project=${GCP_PROJECT_ID}
 ```
 
 ### Artifact Registry リポジトリの作成
@@ -41,29 +56,43 @@ gcloud iam service-accounts create sage-etl \
   --display-name="SAGE ETL Job" \
   --project=${GCP_PROJECT_ID}
 
-for ROLE in roles/spanner.databaseUser roles/storage.objectViewer roles/run.invoker; do
+for ROLE in roles/storage.objectViewer roles/run.invoker; do
   gcloud projects add-iam-policy-binding ${GCP_PROJECT_ID} \
     --member="serviceAccount:sage-etl@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
     --role="${ROLE}"
 done
+
+# SQLite-on-GCS（既定バックエンド）: ETL ジョブは実行のたびに db/sage.db を
+# ストレージバケットへアップロードして戻すため、書き込み権限が必要:
+gcloud storage buckets add-iam-policy-binding gs://${SAGE_STORAGE_BUCKET} \
+  --member="serviceAccount:sage-etl@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
+  --role="roles/storage.objectAdmin"
 
 # TRACE 出力 bucket に対する bucket-level binding
 # （project-wide な objectViewer を避ける least-privilege 代替）:
 gcloud storage buckets add-iam-policy-binding gs://${TRACE_STORAGE_BUCKET} \
   --member="serviceAccount:sage-etl@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
   --role="roles/storage.objectViewer"
+
+# Spanner バックエンドのみ（SAGE_DB=spanner）:
+gcloud projects add-iam-policy-binding ${GCP_PROJECT_ID} \
+  --member="serviceAccount:sage-etl@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
+  --role="roles/spanner.databaseUser"
 ```
 
 ### GCS バケットの作成（未作成の場合）
 
 ```sh
-# ETL 入力バケット — TRACE が STIX バンドルを書き込み、SAGE がここから読み込む
-gcloud storage buckets create gs://${SAGE_ETL_INPUT_BUCKET} \
+# ストレージバックエンドバケット（SAGE_STORAGE=gcs — 既定のデプロイ構成）。
+# SQLite データベース（db/sage.db）と SAGE が読み込む STIX バンドルを保持する。
+# 通常は TRACE の出力バケットを再利用する（下記 sage-etl の注記参照）。
+gcloud storage buckets create gs://${SAGE_STORAGE_BUCKET} \
   --location=${REGION} \
   --project=${GCP_PROJECT_ID}
 
-# ストレージバックエンドバケット（SAGE_STORAGE=gcs の場合のみ）
-gcloud storage buckets create gs://${SAGE_STORAGE_BUCKET} \
+# Spanner バックエンドのみ（SAGE_DB=spanner）: OpenCTI 取り込みモードが使う
+# raw STIX landing バケット
+gcloud storage buckets create gs://${SAGE_ETL_INPUT_BUCKET} \
   --location=${REGION} \
   --project=${GCP_PROJECT_ID}
 ```
@@ -85,18 +114,24 @@ gcloud run jobs create sage-etl \
   --image=${IMAGE} \
   --region=${REGION} \
   --service-account="sage-etl@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
-  --set-env-vars="GCP_PROJECT_ID=${GCP_PROJECT_ID},SPANNER_INSTANCE=${SPANNER_INSTANCE},SPANNER_DB=${SPANNER_DB},PIR_FILE_PATH=/config/pir.json,OPENCTI_URL=https://example.com,OPENCTI_TOKEN=skip,SAGE_STORAGE=gcs,SAGE_ETL_INPUT_BUCKET=${SAGE_ETL_INPUT_BUCKET},SAGE_STORAGE_BUCKET=${SAGE_STORAGE_BUCKET},SAGE_STORAGE_PREFIX=trace/" \
+  --set-env-vars="PIR_FILE_PATH=/config/pir.json,OPENCTI_URL=https://example.com,OPENCTI_TOKEN=skip,SAGE_STORAGE=gcs,SAGE_STORAGE_BUCKET=${SAGE_STORAGE_BUCKET},SAGE_STORAGE_PREFIX=trace/" \
   --add-volume=name=pir,type=cloud-storage,bucket=${PIR_GCS_BUCKET},mount-options="only-dir=pir" \
   --add-volume-mount=volume=pir,mount-path=/config \
   --project=${GCP_PROJECT_ID}
 ```
 
-> **`SAGE_STORAGE=gcs` + `SAGE_ETL_INPUT_BUCKET` + `SAGE_STORAGE_PREFIX`:** TRACE が生成
-> した STIX バンドルを `run-etl` が読み込むために必須。`SAGE_ETL_INPUT_BUCKET` は
-> TRACE が書き込むバケット（典型的には `${TRACE_STORAGE_BUCKET}`、TRACE デプロイ
-> ガイド参照）、`SAGE_STORAGE_PREFIX` は TRACE のプレフィックス（`trace/`）を指定する。
-> ETL は `${SAGE_STORAGE_PREFIX}/stix/` 配下を探す。設定しないと OpenCTI モードに
+> **`SAGE_STORAGE=gcs` + `SAGE_STORAGE_BUCKET` + `SAGE_STORAGE_PREFIX`:** TRACE が生成
+> した STIX バンドルの読み込みとデータベースファイルの同期のために必須。
+> `SAGE_STORAGE_BUCKET` は TRACE が書き込むバケット（典型的には
+> `${TRACE_STORAGE_BUCKET}`、TRACE デプロイガイド参照）、`SAGE_STORAGE_PREFIX` は
+> TRACE のプレフィックス（`trace/`）を指定する。ETL は
+> `${SAGE_STORAGE_PREFIX}/stix/` 配下のバンドルを探し、SQLite データベースを
+> `${SAGE_STORAGE_PREFIX}/db/sage.db` に publish する。設定しないと OpenCTI モードに
 > フォールバックし、`OPENCTI_TOKEN=skip` の構成では失敗する。
+
+> **Spanner バックエンド構成（`SAGE_DB=spanner`）:** `--set-env-vars` に
+> `SAGE_DB=spanner,GCP_PROJECT_ID=${GCP_PROJECT_ID},SPANNER_INSTANCE=${SPANNER_INSTANCE},SPANNER_DB=${SPANNER_DB},SAGE_ETL_INPUT_BUCKET=${SAGE_ETL_INPUT_BUCKET}`
+> を追加する。これら 4 つの GCP 変数はこのバックエンドの場合のみ必須。
 
 > **`mount-options="only-dir=pir"`:** PIR バケットは他の成果物（raw STIX
 > landing 等）も保持しうるため、`only-dir=pir` で `pir/` サブディレクトリのみ
@@ -140,9 +175,20 @@ gcloud run deploy sage-api \
   --args='run,sage,serve-api,--host,0.0.0.0,--port,8080' \
   --port=8080 \
   --service-account="sage-etl@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
-  --set-env-vars="GCP_PROJECT_ID=${GCP_PROJECT_ID},SPANNER_INSTANCE=${SPANNER_INSTANCE},SPANNER_DB=${SPANNER_DB}" \
+  --set-env-vars="SAGE_STORAGE=gcs,SAGE_STORAGE_BUCKET=${SAGE_STORAGE_BUCKET},SAGE_STORAGE_PREFIX=trace/" \
   --project=${GCP_PROJECT_ID}
 ```
+
+> **バケット/プレフィックスは ETL ジョブと同一にする:** API はコールドスタート時に
+> `${SAGE_STORAGE_PREFIX}/db/sage.db` をダウンロードして read-only で開くため、
+> `SAGE_STORAGE_BUCKET` / `SAGE_STORAGE_PREFIX` は上記 `sage-etl` の値と一致させる
+> こと。後続の ETL 実行が publish したデータベースは次のコールドスタートで反映
+> される（scale-to-zero + 日次 ETL の構成では自然に起こる）。即時反映したい場合は
+> 新しいリビジョンをデプロイする（例: `gcloud run services update sage-api ...`）。
+
+> **Spanner バックエンド構成（`SAGE_DB=spanner`）:** `--set-env-vars` には代わりに
+> `SAGE_DB=spanner,GCP_PROJECT_ID=${GCP_PROJECT_ID},SPANNER_INSTANCE=${SPANNER_INSTANCE},SPANNER_DB=${SPANNER_DB},SAGE_ETL_INPUT_BUCKET=${SAGE_ETL_INPUT_BUCKET}`
+> を指定する。
 
 > **Service URL の取得:** デプロイ後、BEACON 設定に使用する URL を確認する:
 > ```sh
@@ -247,9 +293,10 @@ URL=$(gcloud run services describe sage-api \
   --format='value(status.url)' \
   --project=${GCP_PROJECT_ID})
 
-# /openapi.json は FastAPI が自動提供する（認証 dependency 無し・Spanner 非依存）ため、
-# サービス起動と OIDC トークン受理の疎通確認に使える。
-# ビジネスルート（/attack-paths 等）は Spanner データが必要なので sage-etl 実行後に確認する。
+# /openapi.json は FastAPI が自動提供する（認証 dependency 無し・データベース非依存）
+# ため、サービス起動と OIDC トークン受理の疎通確認に使える。
+# ビジネスルート（/attack-paths 等）はグラフデータが必要なので、sage-etl 実行後に
+# API がコールドスタートで publish 済み db を materialize してから確認する。
 curl -sL -H "Authorization: Bearer $(gcloud auth print-identity-token)" \
   -w "\nHTTP=%{http_code}\n" \
   ${URL}/openapi.json | head -5

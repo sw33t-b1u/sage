@@ -16,6 +16,7 @@
 - **アタックフロー** — TTP の時系列遷移を重み付き `FollowedBy` エッジで追跡
 - **PIR カスケード** — `PIR` をグラフのノードとして格納し、`PirPrioritizesActor`(TAP) / `PirPrioritizesTTP`(PTTP) / `PirWeightsAsset` エッジで Strategic → Operational → Tactical のカスケードを表現
 - **Identity ターゲティング** — `Identity` SDO と `ActorTargetsIdentity` エッジで認証情報・組織を狙う攻撃の帰属を捕捉（TRACE と連動）
+- **切替可能なデータベースバックエンド** — SQLite ファイル（4.0.0 からの既定。StorageBackend 経由でローカルディレクトリまたは GCS と同期）または Cloud Spanner（`SAGE_DB=spanner`）
 - **Analysis API** — 攻撃経路・チョークポイント・アクター TTP・資産露出クエリを提供する内部 REST API（Cloud Run、VPC 内、IAP 保護）
 - **チーム別出力** — GitHub Enterprise プレイブック Issue、Slack 優先度別アラート、Caldera レッドチーム用 Adversary プロファイル生成
 - **TLP 制御** — TLP Red オブジェクトはストレージ除外。`white`/`green`/`amber` のみ取り込む
@@ -39,7 +40,8 @@
   ├── stix/        ← TRACE STIX バンドル
   ├── assets/      ← BEACON assets 出力
   ├── pir/         ← BEACON PIR 出力
-  └── plans/       ← collection_plan、sources_candidate
+  ├── plans/       ← collection_plan、sources_candidate
+  └── db/          ← sage.db（SQLite バックエンドのデータベースファイル）
 
        │
        ▼
@@ -54,15 +56,19 @@
   ├── TLP 制御
   ├── PIR カスケード生成 (TAP/PTTP/WeightsAsset)
   ├── FollowedBy 重み再計算
-  └── Spanner Graph upsert
+  └── Graph upsert（sage.db バックエンドディスパッチ経由）
 
         │
         ▼
-[Spanner Graph: ThreatIntelGraph]
+[データベース — SAGE_DB で選択]
+  ├── sqlite（既定）: sage.db ファイルを StorageBackend 経由で同期
+  │     local: <base_dir>/db/sage.db をそのまま使用
+  │     gcs:   起動時にダウンロード → 書き込み → ETL 後にアップロード
+  └── spanner（任意）: Spanner Graph ThreatIntelGraph
 
         │
         ▼
-[Analysis API — Cloud Run、VPC 内]
+[Analysis API — Cloud Run、VPC 内、DB は read-only 参照]
   GET /attack-paths   GET /choke-points
   GET /actor-ttps     GET /asset-exposure
   GET /actors         GET /similar-incidents
@@ -83,7 +89,7 @@
 | [docs/setup.ja.md](docs/setup.ja.md) | クローン、インストール、設定、初回実行、テスト |
 | [docs/deploy.ja.md](docs/deploy.ja.md) | Cloud Run デプロイと Cloud Scheduler |
 | [docs/usage.ja.md](docs/usage.ja.md) | CLI コマンド、ワークフロー、運用、トラブルシューティング |
-| [docs/data-model.ja.md](docs/data-model.ja.md) | Spanner Graph スキーマ、ノード/エッジ定義、PIR 計算式 |
+| [docs/data-model.ja.md](docs/data-model.ja.md) | データベーススキーマ（SQLite 既定 / Spanner 任意）、ノード/エッジ定義、PIR 計算式 |
 | [docs/ir-feedback-flow.ja.md](docs/ir-feedback-flow.ja.md) | IR フィードバックループとスコアリング計算式 |
 | [docs/structure.ja.md](docs/structure.ja.md) | プロジェクトディレクトリ構成 |
 | [docs/dependencies.ja.md](docs/dependencies.ja.md) | 依存パッケージの選定理由とライセンス情報 |
@@ -99,7 +105,8 @@
 git clone https://github.com/sw33t-b1u/sage.git
 cd sage
 uv sync --extra dev
-cp .env.example .env   # GCP_PROJECT_ID, SPANNER_*, GCS_*, OPENCTI_* を入力
+cp .env.example .env   # 既定構成は SQLite + ローカルストレージで動作 — GCP の値は不要
+                       # Spanner バックエンドを使う場合は SAGE_DB=spanner（+ GCP_PROJECT_ID, SPANNER_*）を設定
 make setup             # Git フックをインストール
 ```
 
@@ -128,7 +135,7 @@ SAGE は [BEACON](https://github.com/sw33t-b1u/beacon) が生成し、[TRACE](ht
 - [FIRST CTI-SIG — Priority Intelligence Requirements カリキュラム](https://www.first.org/global/sigs/cti/curriculum/pir)
 - [SANS — Bridging Gaps in CTI: A Practical Guide to Threat-Informed Security PIRs](https://www.sans.org/blog/bridging-gaps-cti-practical-guide-threat-informed-security-pirs)
 
-PIR は Operational TAP（脅威アクター優先度付け）と Tactical PTTP（優先 TTP）にカスケードします。このカスケードは Spanner グラフ上で `PIR` ノード + `PirPrioritizesActor` / `PirPrioritizesTTP` / `PirWeightsAsset` エッジとして実装済（0.4.1 で導入、0.5.0 で一般化）。
+PIR は Operational TAP（脅威アクター優先度付け）と Tactical PTTP（優先 TTP）にカスケードします。このカスケードはグラフ上で `PIR` ノード + `PirPrioritizesActor` / `PirPrioritizesTTP` / `PirWeightsAsset` エッジとして実装済（0.4.1 で導入、0.5.0 で一般化）。
 
 ## ライセンス
 

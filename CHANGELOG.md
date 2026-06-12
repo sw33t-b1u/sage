@@ -6,6 +6,99 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [4.0.0] - 2026-06-12
+
+### Changed (BREAKING)
+
+- **Default database backend is now SQLite, not Spanner.** The new
+  `SAGE_DB` env var (`Config.sage_db`, validated values `sqlite` |
+  `spanner`) selects the backend and defaults to `sqlite`. Existing
+  Spanner deployments that do not set `SAGE_DB=spanner` will silently
+  start reading/writing a local SQLite file instead of Spanner.
+- `GCP_PROJECT_ID`, `SPANNER_INSTANCE`, `SPANNER_DB`, and
+  `SAGE_ETL_INPUT_BUCKET` are now required **only when
+  `SAGE_DB=spanner`**. The SQLite backend needs no GCP configuration
+  beyond what the storage backend itself requires (`SAGE_STORAGE=gcs`
+  still needs `SAGE_STORAGE_BUCKET`).
+
+### Restoring the Spanner backend
+
+The Spanner implementation is fully preserved (`src/sage/spanner/`).
+To keep running on Spanner:
+
+```diff
++ SAGE_DB=spanner
+  GCP_PROJECT_ID=your-gcp-project-id
+  SPANNER_INSTANCE=your-spanner-instance
+  SPANNER_DB=your-spanner-database
+  SAGE_ETL_INPUT_BUCKET=your-landing-bucket
+```
+
+Cloud Run: `gcloud run jobs update sage-etl --update-env-vars=SAGE_DB=spanner ...`
+(same for `sage-api`). No schema or data migration is needed — the
+Spanner DDL, queries, and mutations are unchanged.
+
+### Rationale (cost)
+
+Spanner is an always-on database: ~$0.90/hour (≈ $650/month) for a
+1-node instance, ≈ $66/month even at the 100 processing-unit minimum,
+with no stop/start capability. SAGE's workload is a daily ETL run plus
+on-demand queries — it does not need an always-on database. A SQLite
+file on GCS combined with Cloud Run scale-to-zero removes the always-on
+cost entirely.
+
+### Added
+
+- `src/sage/sqlite/` — SQLite backend package mirroring
+  `src/sage/spanner/` module-for-module (`client` / `upsert` / `query` /
+  `incidents` / `annotations`) with identical function signatures and
+  return shapes. Schema in `schema/sqlite_ddl.sql` (all 36 tables of
+  `schema/spanner_ddl.sql`, types mapped: `TIMESTAMP` → TEXT ISO 8601
+  UTC, `ARRAY<STRING>` → TEXT JSON array, `INT64` → INTEGER, `FLOAT64`
+  → REAL, `STRING(n)` → TEXT; no `CREATE PROPERTY GRAPH` — SAGE never
+  used GQL).
+- `src/sage/db/` — backend dispatch layer: `get_database(config)`,
+  `materialize_db(config)`, `publish_db(config, path)`, `is_sqlite`,
+  and same-named query/upsert wrapper functions. All cli/etl/api/
+  analysis/pir code now goes through `sage.db` and never imports a
+  backend package directly. `google-cloud-spanner` is only imported on
+  the Spanner branch.
+- DB file synchronization via the existing `StorageBackend` (category
+  `db`, filename `sage.db`): the `local` backend uses
+  `<base_dir>/db/sage.db` in place; the `gcs` backend downloads the
+  file to a temp dir on startup (`materialize_db`) and uploads it after
+  ETL (`publish_db`).
+- `StorageBackend.load_bytes()` (local + gcs) — binary-safe read; the
+  existing `load()` is UTF-8 text-only and cannot carry a SQLite file.
+- `SAGE_DB` env var (see Breaking above).
+
+### Fixed
+
+- `src/sage/spanner/query.py` `find_followedby_edges` selected
+  nonexistent columns; it now selects `src_ttp_stix_id` /
+  `dst_ttp_stix_id` per the DDL. Returned dict keys (`src_stix_id` /
+  `dst_stix_id`) are unchanged.
+
+### Behavior notes (SQLite backend)
+
+- **Single-writer model**: only the ETL job writes (read-write
+  connection, WAL journaling). The Analysis API opens the database
+  read-only (`file:...?mode=ro` URI), shared across FastAPI's
+  threadpool with `check_same_thread=False` (safe: read-only + Python's
+  `sqlite3` serializes access).
+- **Annotation timestamps**: `created_at` is assigned client-side as
+  `datetime.now(UTC)` at write time, so `created_at_pending` is always
+  `False` on SQLite. Spanner keeps its commit-timestamp pending
+  semantics.
+- **Timestamp normalization**: ISO 8601 values with a `Z` suffix are
+  rewritten to the canonical `+00:00` UTC form on write, so
+  lexicographic window comparisons (`?since/until` filters) behave
+  identically across backends.
+- **GCS publish is atomic**: `publish_db` overwrites
+  `db/sage.db` via a single GCS object upload, which is atomic —
+  readers see either the old or the new file, never a partial write.
+
+
 ## [3.0.0] - 2026-06-03
 
 ### Changed (BREAKING)

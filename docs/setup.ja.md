@@ -6,8 +6,15 @@
 
 - Python 3.12+
 - [uv](https://github.com/astral-sh/uv)
-- 課金が有効な Google Cloud プロジェクト
+- 課金が有効な Google Cloud プロジェクト — 任意の Spanner バックエンド
+  （`SAGE_DB=spanner`）または GCS ストレージ（`SAGE_STORAGE=gcs`）を使う場合
+  **のみ**必要。既定構成（SQLite + ローカルストレージ）に GCP アカウントは不要
 - OpenCTI インスタンス（ライブ CTI 取り込み用。手動 STIX バンドルモードでは不要）
+
+SAGE 4.0.0 は既定で **SQLite データベースファイル**にグラフを格納する
+（`SAGE_DB=sqlite`）。ファイルは StorageBackend の `db/` カテゴリに置かれる
+（ローカルでは `<base_dir>/db/sage.db`、GCS では同期）。Cloud Spanner は
+`SAGE_DB=spanner` で選択できる任意バックエンドとして利用可能。
 
 ---
 
@@ -33,11 +40,12 @@ make setup
 
 | 変数 | 必須 | デフォルト | 説明 |
 |------|------|-----------|------|
-| `GCP_PROJECT_ID` | Yes | — | GCP プロジェクト ID |
+| `SAGE_DB` | No | `sqlite` | データベースバックエンド: `sqlite`（既定）または `spanner` |
+| `GCP_PROJECT_ID` | Spanner のみ | — | GCP プロジェクト ID（`SAGE_DB=spanner` 時に必須） |
 | `REGION` | シェルのみ | `us-central1` | `gcloud` コマンド用リージョン（Python コードでは未使用） |
-| `SPANNER_INSTANCE` | Yes | — | Spanner インスタンス ID |
-| `SPANNER_DB` | Yes | — | Spanner データベース ID |
-| `SAGE_ETL_INPUT_BUCKET` | Yes | — | 生 STIX を受け取る GCS バケット |
+| `SPANNER_INSTANCE` | Spanner のみ | — | Spanner インスタンス ID（`SAGE_DB=spanner` 時に必須） |
+| `SPANNER_DB` | Spanner のみ | — | Spanner データベース ID（`SAGE_DB=spanner` 時に必須） |
+| `SAGE_ETL_INPUT_BUCKET` | Spanner のみ | — | 生 STIX を受け取る GCS バケット（`SAGE_DB=spanner` 時に必須） |
 | `OPENCTI_URL` | Yes | — | OpenCTI ベース URL |
 | `OPENCTI_TOKEN` | Yes | — | OpenCTI API トークン |
 | `PIR_FILE_PATH` | No | `/config/pir.json` | PIR JSON ファイルのパス |
@@ -56,11 +64,19 @@ make setup
 | `SAGE_STORAGE_BASE_DIR` | No | `output` | `local` バックエンドのベースディレクトリ |
 | `SAGE_STORAGE_BUCKET` | GCS 利用時 | — | GCS バケット名（`SAGE_STORAGE=gcs` 時必須） |
 | `SAGE_STORAGE_PREFIX` | No | (空文字) | GCS バケット内のキープレフィックス |
-| `OTEL_SDK_DISABLED` | No | — | `true` に設定すると Spanner クライアントのメトリクスエクスポートエラーを抑制 |
+| `OTEL_SDK_DISABLED` | No | — | `true` に設定すると Spanner クライアントのメトリクスエクスポートエラーを抑制（Spanner バックエンドのみ） |
+
+既定バックエンド（`SAGE_DB=sqlite`）+ 既定ストレージ（`SAGE_STORAGE=local`）
+では GCP の変数は一切不要 — データベースファイルは初回実行時に
+`output/db/sage.db` に作成される。GCS 経由でデータベースを同期する場合は
+`SAGE_STORAGE=gcs` + `SAGE_STORAGE_BUCKET` を設定する。
 
 ---
 
-## Step 3 — GCP リソースの作成
+## Step 3 —（任意）Spanner バックエンド — GCP リソースの作成
+
+**既定の SQLite バックエンドではこの Step をスキップする。**
+`SAGE_DB=spanner` を設定する場合のみ実施する。
 
 ```sh
 # .env を読み込む（Step 2 で設定済み）— REGION を含むすべての変数が使用可能になる
@@ -88,15 +104,20 @@ gcloud storage buckets create gs://${SAGE_ETL_INPUT_BUCKET} \
   --project=${GCP_PROJECT_ID}
 ```
 
-> **コスト注記:** 1 ノード Spanner インスタンスは約 $0.90/時間。評価時のコスト最小化には `--nodes=1` の代わりに `--processing-units=100` を使用。
+> **コスト注記:** 1 ノード Spanner インスタンスは約 $0.90/時間で、停止はできない。評価時のコスト最小化には `--nodes=1` の代わりに `--processing-units=100` を使用。既定の SQLite バックエンドはまさにこの常時稼働コストを避けるためのもの — Spanner はデータ量や同時実行性が必要になった場合にのみ選択する。
 
 ---
 
-## Step 4 — Spanner スキーマの初期化
+## Step 4 — データベーススキーマの初期化
 
 ```sh
 make init-schema
 ```
+
+既定の SQLite バックエンドでは `schema/sqlite_ddl.sql` を、`SAGE_DB=spanner`
+では `schema/spanner_ddl.sql` を適用する。SQLite ではこの Step は省略可能 —
+データベースファイルが未作成の場合、各 CLI エントリポイントがスキーマを
+自動適用する。
 
 ---
 
@@ -236,13 +257,32 @@ uv run pytest --cov=src/sage --cov-report=term-missing
 
 ---
 
-### Spanner エミュレーターを使ったフルローカルテスト
+### フルローカルテスト（SQLite 既定）
 
-Attack Flow（STIX 脅威インテリジェンス）と Attack Graph（内部資産）の完全なワークフローを検証する。
+既定バックエンドでは、Attack Flow（STIX 脅威インテリジェンス）+
+Attack Graph（内部資産）の完全なワークフローがエミュレーターも Docker も
+GCP 認証情報も無しで動作する:
+
+```sh
+# データベースファイルは output/db/sage.db に自動作成される
+uv run sage run-etl --input tests/fixtures/sample_bundle_mirrorface.json
+uv run sage run-etl --input tests/fixtures/sample_bundle_inc.json
+make load-assets
+make visualize
+```
+
+---
+
+### Spanner エミュレーターを使ったフルローカルテスト（`SAGE_DB=spanner`）
+
+同じワークフローを任意の Spanner バックエンドに対して検証する。
 
 **Docker または Podman が必要。**
 
 ```sh
+# 0. このシェルで Spanner バックエンドを選択
+export SAGE_DB=spanner
+
 # 1. Spanner エミュレーターを起動
 docker run -d --name spanner-emulator -p 9010:9010 -p 9020:9020 \
   gcr.io/cloud-spanner-emulator/emulator
@@ -329,3 +369,66 @@ uv run sage visualize-attack-flow --no-open # 攻撃フローのみ
 | `sample_bundle_inc.json` | INC ランサムウェア（2023年〜、医療/製造業標的）。TTP: T1190, T1078, T1003.001, T1021.002, T1048.002, T1486。CVE-2023-3519, CVE-2023-4966 (Citrix)。ツール: Cobalt Strike, AnyDesk, MegaSync。 |
 | `sample_assets.json` | 日本の製造業企業: Citrix NetScaler ADC, Active Directory, ファイルサーバー, バックアップサーバー, ERP (SAP), 工場 PLC, ワークステーション。 |
 | `sample_pir.json` | ユニットテスト用の最小 PIR。 |
+
+---
+
+## データの削除
+
+専用の削除 CLI はない。
+
+**SQLite バックエンド（既定）:** `sqlite3` シェルでデータベースファイルに
+直接 DML を実行する — テーブル名・カラム名は Spanner DDL と同一:
+
+```sh
+sqlite3 output/db/sage.db \
+  "DELETE FROM ThreatActor WHERE stix_id = 'intrusion-set--xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'"
+```
+
+完全リセットはファイル削除（`rm output/db/sage.db`）で行う — スキーマは
+次回実行時に自動で再作成される。`SAGE_STORAGE=gcs` の場合は、ダウンロード
+したコピーを編集して `db/sage.db` オブジェクトに再アップロードするか、
+完全リセットならオブジェクトを削除する。
+
+**Spanner バックエンド:** `gcloud spanner databases execute-sql` で DML を実行する。
+
+**特定ノードを STIX ID で削除する:**
+
+```sh
+# ThreatActor を削除
+gcloud spanner databases execute-sql ${SPANNER_DB} \
+  --instance=${SPANNER_INSTANCE} --project=${GCP_PROJECT_ID} \
+  --sql="DELETE FROM ThreatActor WHERE stix_id = 'intrusion-set--xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'"
+
+# TTP を削除（参照する下流 FollowedBy エッジも削除される）
+gcloud spanner databases execute-sql ${SPANNER_DB} \
+  --instance=${SPANNER_INSTANCE} --project=${GCP_PROJECT_ID} \
+  --sql="DELETE FROM TTP WHERE stix_id = 'attack-pattern--xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'"
+
+# 誤って投入した Asset を削除
+gcloud spanner databases execute-sql ${SPANNER_DB} \
+  --instance=${SPANNER_INSTANCE} --project=${GCP_PROJECT_ID} \
+  --sql="DELETE FROM Asset WHERE id = 'asset-001-xxxxx-xxxx-xxxxxxxxxxxx'"
+```
+
+**エッジのみ削除する（ノードは残す）:**
+
+```sh
+# 特定アクターの Targets エッジを全削除
+gcloud spanner databases execute-sql ${SPANNER_DB} \
+  --instance=${SPANNER_INSTANCE} --project=${GCP_PROJECT_ID} \
+  --sql="DELETE FROM Targets WHERE src_actor_stix_id = 'intrusion-set--xxxx'"
+
+# 特定ソースの FollowedBy エッジを削除
+gcloud spanner databases execute-sql ${SPANNER_DB} \
+  --instance=${SPANNER_INSTANCE} --project=${GCP_PROJECT_ID} \
+  --sql="DELETE FROM FollowedBy WHERE source = 'manual'"
+```
+
+**スキーマの完全リセット（全データ削除、スキーマは維持）:**
+
+```sh
+# DDL を再実行 — 全テーブルを drop して再作成する
+make init-schema
+```
+
+> **Note:** Spanner バックエンドでは `sage init-schema` による DDL 再実行は全テーブルを drop して空で再作成する。SQLite の DDL は `CREATE TABLE IF NOT EXISTS`（drop なし）のため、クリーンスレートが必要な場合はデータベースファイルを削除する。いずれもクリーンスレートが必要な場合のみ使うこと。

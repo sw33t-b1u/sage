@@ -4,12 +4,40 @@
 
 ## グラフの概要
 
-Spanner Graph（`ThreatIntelGraph`）には 2 つのサブグラフが共存する:
+脅威インテリジェンスグラフには 2 つのサブグラフが共存する:
 
 - **Attack Flow** — STIX 脅威インテリジェンスから導出された TTP 時系列遷移
 - **Attack Graph** — 内部資産の接続性と脆弱性露出
 
 クロスドメイン結合: `Targets` エッジが ThreatActor → Asset を接続する。
+
+---
+
+## スキーマファイル（DDL）
+
+SAGE 4.0.0 以降、データベースバックエンド（`SAGE_DB` で選択）ごとに
+DDL ファイルが 1 つずつ、計 2 つ存在する:
+
+| ファイル | バックエンド |
+|----------|--------------|
+| `schema/sqlite_ddl.sql` | SQLite（既定、`SAGE_DB=sqlite`） |
+| `schema/spanner_ddl.sql` | Cloud Spanner（任意、`SAGE_DB=spanner`） |
+
+SQLite DDL は Spanner DDL の全テーブル・全カラムを以下の型マッピングで
+網羅する:
+
+| Spanner 型 | SQLite 型 |
+|------------|-----------|
+| `TIMESTAMP` | `TEXT` — ISO 8601 UTC（`+00:00` サフィックス） |
+| `ARRAY<STRING>` | `TEXT` — JSON 配列。読み出し時に `list[str]` へデコード |
+| `INT64` | `INTEGER` |
+| `FLOAT64` | `REAL` |
+| `STRING(n)` | `TEXT` |
+
+Spanner DDL の `CREATE PROPERTY GRAPH` 宣言に対応するものは SQLite 側には
+ない: SAGE が発行するのは plain SQL（SELECT + JOIN）のみで、グラフ宣言は
+アプリケーションコードから未使用のため。以下のノード/エッジ表に記載の
+カラム型は Spanner 表記であり、SQLite では上記マッピングを適用する。
 
 ---
 

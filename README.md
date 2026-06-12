@@ -16,6 +16,7 @@ real-time SIEM detection, endpoint protection, vulnerability scanning automation
 - **Attack Flow** — Tracks TTP time-series transitions as weighted `FollowedBy` edges
 - **PIR cascade** — `PIR` is a first-class graph node with `PirPrioritizesActor` (TAP), `PirPrioritizesTTP` (PTTP), and `PirWeightsAsset` edges materializing the Strategic → Operational → Tactical cascade
 - **Identity targeting** — `Identity` SDO and `ActorTargetsIdentity` edges capture credential / org-targeting attribution (paired with TRACE)
+- **Pluggable database backend** — SQLite file (default since 4.0.0; synced via StorageBackend to a local directory or GCS) or Cloud Spanner (`SAGE_DB=spanner`)
 - **Analysis API** — Internal REST API (Cloud Run, VPC-internal, IAP-protected) exposing attack paths, choke points, actor TTPs, and asset exposure queries
 - **Team outputs** — GitHub Enterprise playbook issues, Slack priority alerts, Caldera adversary profiles for red team simulations
 - **TLP enforcement** — TLP Red objects excluded from storage; only `white`/`green`/`amber` ingested
@@ -39,7 +40,8 @@ real-time SIEM detection, endpoint protection, vulnerability scanning automation
   ├── stix/        ← TRACE STIX bundles
   ├── assets/      ← BEACON assets outputs
   ├── pir/         ← BEACON PIR outputs
-  └── plans/       ← collection_plan, sources_candidate
+  ├── plans/       ← collection_plan, sources_candidate
+  └── db/          ← sage.db (SQLite backend database file)
 
        │
        ▼
@@ -54,15 +56,19 @@ real-time SIEM detection, endpoint protection, vulnerability scanning automation
   ├── TLP enforcement
   ├── PIR cascade build (TAP/PTTP/WeightsAsset)
   ├── FollowedBy weight recalculation
-  └── Spanner Graph upsert
+  └── Graph upsert (via sage.db backend dispatch)
 
         │
         ▼
-[Spanner Graph: ThreatIntelGraph]
+[Database — selected by SAGE_DB]
+  ├── sqlite (default): sage.db file synced via StorageBackend
+  │     local: <base_dir>/db/sage.db in place
+  │     gcs:   download on startup → write → upload after ETL
+  └── spanner (optional): Spanner Graph ThreatIntelGraph
 
         │
         ▼
-[Analysis API — Cloud Run, VPC-internal]
+[Analysis API — Cloud Run, VPC-internal, read-only DB access]
   GET /attack-paths   GET /choke-points
   GET /actor-ttps     GET /asset-exposure
   GET /actors         GET /similar-incidents
@@ -83,7 +89,7 @@ real-time SIEM detection, endpoint protection, vulnerability scanning automation
 | [docs/setup.md](docs/setup.md) | Clone, install, configure, first run, testing |
 | [docs/deploy.md](docs/deploy.md) | Cloud Run deployment and Cloud Scheduler |
 | [docs/usage.md](docs/usage.md) | CLI commands, workflows, operations, troubleshooting |
-| [docs/data-model.md](docs/data-model.md) | Spanner Graph schema, node/edge definitions, PIR formulas |
+| [docs/data-model.md](docs/data-model.md) | Database schema (SQLite default / Spanner optional), node/edge definitions, PIR formulas |
 | [docs/ir-feedback-flow.md](docs/ir-feedback-flow.md) | IR feedback loop and scoring formulas |
 | [docs/structure.md](docs/structure.md) | Project directory layout |
 | [docs/dependencies.md](docs/dependencies.md) | Dependency rationale and licenses |
@@ -99,7 +105,8 @@ Cross-project:
 git clone https://github.com/sw33t-b1u/sage.git
 cd sage
 uv sync --extra dev
-cp .env.example .env   # fill in GCP_PROJECT_ID, SPANNER_*, GCS_*, OPENCTI_*
+cp .env.example .env   # defaults run on SQLite with local storage — no GCP values needed
+                       # set SAGE_DB=spanner (+ GCP_PROJECT_ID, SPANNER_*) for the Spanner backend
 ```
 
 See [docs/setup.md](docs/setup.md) for the full setup procedure.
@@ -126,7 +133,7 @@ SAGE consumes PIR JSON produced by [BEACON](https://github.com/sw33t-b1u/beacon)
 - [FIRST CTI-SIG — Priority Intelligence Requirements curriculum](https://www.first.org/global/sigs/cti/curriculum/pir)
 - [SANS — Bridging Gaps in CTI: A Practical Guide to Threat-Informed Security PIRs](https://www.sans.org/blog/bridging-gaps-cti-practical-guide-threat-informed-security-pirs)
 
-PIRs cascade into Operational TAP (Threat Actor Prioritization) and Tactical PTTPs (Priority TTPs). This cascade is materialized in the Spanner graph as `PIR` nodes plus `PirPrioritizesActor` / `PirPrioritizesTTP` / `PirWeightsAsset` edges (added in 0.4.1, generalized in 0.5.0).
+PIRs cascade into Operational TAP (Threat Actor Prioritization) and Tactical PTTPs (Priority TTPs). This cascade is materialized in the graph as `PIR` nodes plus `PirPrioritizesActor` / `PirPrioritizesTTP` / `PirWeightsAsset` edges (added in 0.4.1, generalized in 0.5.0).
 
 ## License
 

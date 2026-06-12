@@ -4,8 +4,15 @@
 
 - Python 3.12+
 - [uv](https://github.com/astral-sh/uv)
-- Google Cloud project with billing enabled
+- Google Cloud project with billing enabled — **only** for the optional
+  Spanner backend (`SAGE_DB=spanner`) or GCS storage (`SAGE_STORAGE=gcs`).
+  The default configuration (SQLite + local storage) needs no GCP account.
 - OpenCTI instance (for live CTI ingestion; not required for manual STIX bundle mode)
+
+SAGE 4.0.0 stores its graph in a **SQLite database file by default**
+(`SAGE_DB=sqlite`). The file lives under the StorageBackend `db/`
+category (`<base_dir>/db/sage.db` locally, or synced to GCS). Cloud
+Spanner remains available as an optional backend via `SAGE_DB=spanner`.
 
 ---
 
@@ -31,11 +38,12 @@ Copy `.env.example` to `.env` and fill in the values.
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `GCP_PROJECT_ID` | Yes | — | GCP project ID |
+| `SAGE_DB` | No | `sqlite` | Database backend: `sqlite` (default) or `spanner` |
+| `GCP_PROJECT_ID` | Spanner only | — | GCP project ID (required when `SAGE_DB=spanner`) |
 | `REGION` | Shell only | `us-central1` | GCP region for `gcloud` commands (not used in Python code) |
-| `SPANNER_INSTANCE` | Yes | — | Spanner instance ID |
-| `SPANNER_DB` | Yes | — | Spanner database ID |
-| `SAGE_ETL_INPUT_BUCKET` | Yes | — | GCS bucket for raw STIX landing |
+| `SPANNER_INSTANCE` | Spanner only | — | Spanner instance ID (required when `SAGE_DB=spanner`) |
+| `SPANNER_DB` | Spanner only | — | Spanner database ID (required when `SAGE_DB=spanner`) |
+| `SAGE_ETL_INPUT_BUCKET` | Spanner only | — | GCS bucket for raw STIX landing (required when `SAGE_DB=spanner`) |
 | `OPENCTI_URL` | Yes | — | OpenCTI base URL |
 | `OPENCTI_TOKEN` | Yes | — | OpenCTI API token |
 | `PIR_FILE_PATH` | No | `/config/pir.json` | Path to PIR JSON file |
@@ -54,11 +62,19 @@ Copy `.env.example` to `.env` and fill in the values.
 | `SAGE_STORAGE_BASE_DIR` | No | `output` | Base directory for `local` backend |
 | `SAGE_STORAGE_BUCKET` | GCS mode | — | GCS bucket name (required when `SAGE_STORAGE=gcs`) |
 | `SAGE_STORAGE_PREFIX` | No | (empty) | Key prefix within the GCS bucket |
-| `OTEL_SDK_DISABLED` | No | — | Set `true` to suppress Spanner client metrics export errors |
+| `OTEL_SDK_DISABLED` | No | — | Set `true` to suppress Spanner client metrics export errors (Spanner backend only) |
+
+With the default backend (`SAGE_DB=sqlite`) and default storage
+(`SAGE_STORAGE=local`), no GCP variable is needed — the database file is
+created at `output/db/sage.db` on first run. To sync the database via
+GCS instead, set `SAGE_STORAGE=gcs` + `SAGE_STORAGE_BUCKET`.
 
 ---
 
-## Step 3 — Create GCP resources
+## Step 3 — (Optional) Spanner backend — create GCP resources
+
+**Skip this step on the default SQLite backend.** Only follow it when
+you set `SAGE_DB=spanner`.
 
 ```sh
 # Load .env (set in Step 2) — all variables including REGION are now available
@@ -86,15 +102,20 @@ gcloud storage buckets create gs://${SAGE_ETL_INPUT_BUCKET} \
   --project=${GCP_PROJECT_ID}
 ```
 
-> **Cost note:** A 1-node Spanner instance costs ~$0.90/hour. Use `--processing-units=100` instead of `--nodes=1` to minimize cost during evaluation.
+> **Cost note:** A 1-node Spanner instance costs ~$0.90/hour and cannot be stopped. Use `--processing-units=100` instead of `--nodes=1` to minimize cost during evaluation. The default SQLite backend exists precisely to avoid this always-on cost — choose Spanner only when data volume or concurrency demands it.
 
 ---
 
-## Step 4 — Initialize Spanner schema
+## Step 4 — Initialize the database schema
 
 ```sh
 make init-schema
 ```
+
+Applies `schema/sqlite_ddl.sql` on the default SQLite backend, or
+`schema/spanner_ddl.sql` when `SAGE_DB=spanner`. On SQLite this step is
+optional — every CLI entry point applies the schema automatically when
+the database file does not exist yet.
 
 ---
 
@@ -233,13 +254,32 @@ uv run pytest --cov=src/sage --cov-report=term-missing
 
 ---
 
-### Full local test with Spanner emulator
+### Full local test (SQLite default)
 
-Covers the complete workflow: Attack Flow (STIX threat intel) + Attack Graph (internal assets).
+With the default backend the complete workflow — Attack Flow (STIX
+threat intel) + Attack Graph (internal assets) — runs with no emulator,
+no Docker, and no GCP credentials:
+
+```sh
+# Database file is created at output/db/sage.db automatically
+uv run sage run-etl --input tests/fixtures/sample_bundle_mirrorface.json
+uv run sage run-etl --input tests/fixtures/sample_bundle_inc.json
+make load-assets
+make visualize
+```
+
+---
+
+### Full local test with Spanner emulator (`SAGE_DB=spanner`)
+
+Same workflow against the optional Spanner backend.
 
 **Requires Docker or Podman.**
 
 ```sh
+# 0. Select the Spanner backend for this shell
+export SAGE_DB=spanner
+
 # 1. Start the Spanner emulator
 docker run -d --name spanner-emulator -p 9010:9010 -p 9020:9020 \
   gcr.io/cloud-spanner-emulator/emulator
@@ -328,9 +368,25 @@ uv run sage visualize-attack-flow --no-open # attack flow only
 
 ---
 
-## Deleting data from Spanner
+## Deleting data
 
-There is no dedicated delete CLI. Use `gcloud spanner databases execute-sql` with DML statements.
+There is no dedicated delete CLI.
+
+**SQLite backend (default):** run DML directly against the database file
+with the `sqlite3` shell — the table and column names are identical to
+the Spanner DDL:
+
+```sh
+sqlite3 output/db/sage.db \
+  "DELETE FROM ThreatActor WHERE stix_id = 'intrusion-set--xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'"
+```
+
+For a full reset, delete the file (`rm output/db/sage.db`) — the schema
+is recreated automatically on the next run. When `SAGE_STORAGE=gcs`,
+edit a downloaded copy and re-upload it to the `db/sage.db` object, or
+delete the object for a full reset.
+
+**Spanner backend:** use `gcloud spanner databases execute-sql` with DML statements.
 
 **Delete a specific node by STIX ID:**
 
@@ -372,4 +428,4 @@ gcloud spanner databases execute-sql ${SPANNER_DB} \
 make init-schema
 ```
 
-> **Note:** Spanner DDL re-execution via `init_schema.py` drops all tables and recreates them empty. Use this only when a clean slate is needed.
+> **Note:** On the Spanner backend, DDL re-execution via `sage init-schema` drops all tables and recreates them empty. On SQLite the DDL is `CREATE TABLE IF NOT EXISTS` (no drop) — delete the database file instead for a clean slate. Use either only when a clean slate is needed.

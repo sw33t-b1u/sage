@@ -4,6 +4,19 @@ Japanese translation: [`docs/deploy.ja.md`](deploy.ja.md)
 
 Before deploying, complete [docs/setup.md](setup.md). Ensure `make check` passes before deploying.
 
+**Database backend (SAGE 4.0.0):** the default deployment runs on
+**SQLite + GCS** — no Spanner instance is required. The flow is:
+
+- **ETL job (`sage-etl`)**: downloads `db/sage.db` from the storage
+  bucket on startup (creates a fresh one on first run), writes the graph,
+  then uploads the file back. The ETL job is the **single writer**.
+- **API service (`sage-api`)**: downloads `db/sage.db` on cold start and
+  opens it **read-only**. It picks up new ETL output on the next cold
+  start (scale-to-zero makes this the common case for a daily ETL).
+
+Cloud Spanner remains available as an optional backend (`SAGE_DB=spanner`);
+the Spanner-specific steps below are marked as such.
+
 ---
 
 ## Day-0 Prerequisites
@@ -18,9 +31,11 @@ gcloud services enable \
   run.googleapis.com \
   artifactregistry.googleapis.com \
   cloudbuild.googleapis.com \
-  spanner.googleapis.com \
   cloudscheduler.googleapis.com \
   --project=${GCP_PROJECT_ID}
+
+# Spanner backend only (SAGE_DB=spanner):
+gcloud services enable spanner.googleapis.com --project=${GCP_PROJECT_ID}
 ```
 
 ### Create Artifact Registry repository
@@ -41,29 +56,43 @@ gcloud iam service-accounts create sage-etl \
   --display-name="SAGE ETL Job" \
   --project=${GCP_PROJECT_ID}
 
-for ROLE in roles/spanner.databaseUser roles/storage.objectViewer roles/run.invoker; do
+for ROLE in roles/storage.objectViewer roles/run.invoker; do
   gcloud projects add-iam-policy-binding ${GCP_PROJECT_ID} \
     --member="serviceAccount:sage-etl@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
     --role="${ROLE}"
 done
+
+# SQLite-on-GCS (default backend): the ETL job uploads db/sage.db back
+# to the storage bucket after each run, so it needs write access there:
+gcloud storage buckets add-iam-policy-binding gs://${SAGE_STORAGE_BUCKET} \
+  --member="serviceAccount:sage-etl@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
+  --role="roles/storage.objectAdmin"
 
 # Bucket-level binding for the TRACE output bucket (least-privilege
 # alternative to a project-wide objectViewer):
 gcloud storage buckets add-iam-policy-binding gs://${TRACE_STORAGE_BUCKET} \
   --member="serviceAccount:sage-etl@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
   --role="roles/storage.objectViewer"
+
+# Spanner backend only (SAGE_DB=spanner):
+gcloud projects add-iam-policy-binding ${GCP_PROJECT_ID} \
+  --member="serviceAccount:sage-etl@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
+  --role="roles/spanner.databaseUser"
 ```
 
 ### Create GCS buckets (if not already existing)
 
 ```sh
-# ETL input bucket — TRACE writes STIX bundles here; SAGE reads from it
-gcloud storage buckets create gs://${SAGE_ETL_INPUT_BUCKET} \
+# Storage backend bucket (SAGE_STORAGE=gcs — the default deployment).
+# Holds the SQLite database (db/sage.db) and the STIX bundles SAGE reads.
+# TRACE's output bucket is commonly reused here (see the sage-etl note below).
+gcloud storage buckets create gs://${SAGE_STORAGE_BUCKET} \
   --location=${REGION} \
   --project=${GCP_PROJECT_ID}
 
-# Storage backend bucket (only when SAGE_STORAGE=gcs)
-gcloud storage buckets create gs://${SAGE_STORAGE_BUCKET} \
+# Spanner backend only (SAGE_DB=spanner): raw STIX landing bucket used by
+# the OpenCTI ingestion mode
+gcloud storage buckets create gs://${SAGE_ETL_INPUT_BUCKET} \
   --location=${REGION} \
   --project=${GCP_PROJECT_ID}
 ```
@@ -85,18 +114,24 @@ gcloud run jobs create sage-etl \
   --image=${IMAGE} \
   --region=${REGION} \
   --service-account="sage-etl@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
-  --set-env-vars="GCP_PROJECT_ID=${GCP_PROJECT_ID},SPANNER_INSTANCE=${SPANNER_INSTANCE},SPANNER_DB=${SPANNER_DB},PIR_FILE_PATH=/config/pir.json,OPENCTI_URL=https://example.com,OPENCTI_TOKEN=skip,SAGE_STORAGE=gcs,SAGE_ETL_INPUT_BUCKET=${SAGE_ETL_INPUT_BUCKET},SAGE_STORAGE_BUCKET=${SAGE_STORAGE_BUCKET},SAGE_STORAGE_PREFIX=trace/" \
+  --set-env-vars="PIR_FILE_PATH=/config/pir.json,OPENCTI_URL=https://example.com,OPENCTI_TOKEN=skip,SAGE_STORAGE=gcs,SAGE_STORAGE_BUCKET=${SAGE_STORAGE_BUCKET},SAGE_STORAGE_PREFIX=trace/" \
   --add-volume=name=pir,type=cloud-storage,bucket=${PIR_GCS_BUCKET},mount-options="only-dir=pir" \
   --add-volume-mount=volume=pir,mount-path=/config \
   --project=${GCP_PROJECT_ID}
 ```
 
-> **`SAGE_STORAGE=gcs` + `SAGE_ETL_INPUT_BUCKET` + `SAGE_STORAGE_PREFIX`:** required so
-> `run-etl` reads STIX bundles produced by TRACE. Set `SAGE_ETL_INPUT_BUCKET` to the
-> bucket where TRACE writes (typically `${TRACE_STORAGE_BUCKET}` per the TRACE
-> deploy guide) and `SAGE_STORAGE_PREFIX` to TRACE's prefix (`trace/`). The ETL
-> looks for objects under `${SAGE_STORAGE_PREFIX}/stix/`. Without these env vars
-> the job falls back to OpenCTI mode and fails when `OPENCTI_TOKEN=skip`.
+> **`SAGE_STORAGE=gcs` + `SAGE_STORAGE_BUCKET` + `SAGE_STORAGE_PREFIX`:** required so
+> `run-etl` reads STIX bundles produced by TRACE and syncs the database file.
+> Set `SAGE_STORAGE_BUCKET` to the bucket where TRACE writes (typically
+> `${TRACE_STORAGE_BUCKET}` per the TRACE deploy guide) and `SAGE_STORAGE_PREFIX`
+> to TRACE's prefix (`trace/`). The ETL looks for bundles under
+> `${SAGE_STORAGE_PREFIX}/stix/` and publishes the SQLite database to
+> `${SAGE_STORAGE_PREFIX}/db/sage.db`. Without these env vars the job falls back
+> to OpenCTI mode and fails when `OPENCTI_TOKEN=skip`.
+
+> **Spanner backend variant (`SAGE_DB=spanner`):** add
+> `SAGE_DB=spanner,GCP_PROJECT_ID=${GCP_PROJECT_ID},SPANNER_INSTANCE=${SPANNER_INSTANCE},SPANNER_DB=${SPANNER_DB},SAGE_ETL_INPUT_BUCKET=${SAGE_ETL_INPUT_BUCKET}`
+> to `--set-env-vars`. These four GCP variables are required only on this backend.
 
 > **`mount-options="only-dir=pir"`:** the PIR bucket holds other artifacts
 > (raw STIX landing, etc.); `only-dir=pir` exposes just the `pir/` subdir at
@@ -141,9 +176,20 @@ gcloud run deploy sage-api \
   --args='run,sage,serve-api,--host,0.0.0.0,--port,8080' \
   --port=8080 \
   --service-account="sage-etl@${GCP_PROJECT_ID}.iam.gserviceaccount.com" \
-  --set-env-vars="GCP_PROJECT_ID=${GCP_PROJECT_ID},SPANNER_INSTANCE=${SPANNER_INSTANCE},SPANNER_DB=${SPANNER_DB}" \
+  --set-env-vars="SAGE_STORAGE=gcs,SAGE_STORAGE_BUCKET=${SAGE_STORAGE_BUCKET},SAGE_STORAGE_PREFIX=trace/" \
   --project=${GCP_PROJECT_ID}
 ```
+
+> **Same bucket/prefix as the ETL job:** the API downloads
+> `${SAGE_STORAGE_PREFIX}/db/sage.db` on cold start and opens it read-only, so
+> `SAGE_STORAGE_BUCKET` / `SAGE_STORAGE_PREFIX` must match the `sage-etl` values
+> above. A database published by a later ETL run is picked up on the next cold
+> start; with scale-to-zero and a daily ETL this happens naturally. To force it,
+> deploy a new revision (e.g. `gcloud run services update sage-api ...`).
+
+> **Spanner backend variant (`SAGE_DB=spanner`):** use
+> `SAGE_DB=spanner,GCP_PROJECT_ID=${GCP_PROJECT_ID},SPANNER_INSTANCE=${SPANNER_INSTANCE},SPANNER_DB=${SPANNER_DB},SAGE_ETL_INPUT_BUCKET=${SAGE_ETL_INPUT_BUCKET}`
+> in `--set-env-vars` instead.
 
 > **Service URL:** After deploy, retrieve the URL for use in BEACON:
 > ```sh
@@ -248,9 +294,10 @@ URL=$(gcloud run services describe sage-api \
   --format='value(status.url)' \
   --project=${GCP_PROJECT_ID})
 
-# /openapi.json is served by FastAPI itself — no auth dependency, no Spanner
+# /openapi.json is served by FastAPI itself — no auth dependency, no database
 # access — so it confirms the service is up and the OIDC token is accepted.
-# Business routes (/attack-paths etc.) need Spanner data; check those after sage-etl runs.
+# Business routes (/attack-paths etc.) need graph data; check those after
+# sage-etl has run and the API has materialized the published db on a cold start.
 curl -sL -H "Authorization: Bearer $(gcloud auth print-identity-token)" \
   -w "\nHTTP=%{http_code}\n" \
   ${URL}/openapi.json | head -5

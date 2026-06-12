@@ -2,12 +2,41 @@
 
 ## Graph overview
 
-The Spanner Graph (`ThreatIntelGraph`) contains two co-existing sub-graphs:
+The threat-intel graph contains two co-existing sub-graphs:
 
 - **Attack Flow** — TTP time-series transitions derived from STIX threat intel
 - **Attack Graph** — Internal asset connectivity and vulnerability exposure
 
 Cross-domain join: `Targets` edge links ThreatActor → Asset.
+
+---
+
+## Schema files (DDL)
+
+Since SAGE 4.0.0 there are two DDL files, one per database backend
+(selected by `SAGE_DB`):
+
+| File | Backend |
+|------|---------|
+| `schema/sqlite_ddl.sql` | SQLite (default, `SAGE_DB=sqlite`) |
+| `schema/spanner_ddl.sql` | Cloud Spanner (optional, `SAGE_DB=spanner`) |
+
+The SQLite DDL covers all tables and columns of the Spanner DDL with the
+following type mapping:
+
+| Spanner type | SQLite type |
+|--------------|-------------|
+| `TIMESTAMP` | `TEXT` — ISO 8601 UTC (`+00:00` suffix) |
+| `ARRAY<STRING>` | `TEXT` — JSON array, decoded to `list[str]` on read |
+| `INT64` | `INTEGER` |
+| `FLOAT64` | `REAL` |
+| `STRING(n)` | `TEXT` |
+
+The Spanner DDL's `CREATE PROPERTY GRAPH` declaration has no SQLite
+counterpart: SAGE issues only plain SQL (SELECT + JOIN), so the graph
+declaration is unused by application code. The column types quoted in
+the node/edge tables below use the Spanner spelling; apply the mapping
+above for SQLite.
 
 ---
 
