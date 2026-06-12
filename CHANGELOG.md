@@ -78,6 +78,13 @@ cost entirely.
   nonexistent columns; it now selects `src_ttp_stix_id` /
   `dst_ttp_stix_id` per the DDL. Returned dict keys (`src_stix_id` /
   `dst_stix_id`) are unchanged.
+- `src/sage/stix/mapper.py` `_tlp()` now recognizes the four canonical
+  STIX TLP marking-definition ids (the fixed UUIDs for TLP:WHITE /
+  GREEN / AMBER / RED). Previously it only substring-matched level
+  names against the marking ref, so spec-valid bundles were all
+  classified `white` and the `TLP_MAX_LEVEL` ETL gate failed open —
+  TLP:RED data passed the gate and was stored mislabeled. The
+  substring fallback for custom marking refs is unchanged.
 
 ### Behavior notes (SQLite backend)
 

@@ -69,6 +69,17 @@ _INDICATOR_PATTERNS: list[tuple[str, str]] = [
     ("url", r"\[url:value\s*=\s*'([^']+)'\]"),
 ]
 
+# Canonical STIX 2.x TLP marking-definition ids (fixed UUIDs defined by the
+# spec; identical to stix2's TLP_WHITE/GREEN/AMBER/RED constants). Spec-valid
+# bundles — including everything TRACE emits — reference these ids, which
+# never contain the level name as a substring.
+_TLP_MARKING_IDS: dict[str, str] = {
+    "marking-definition--613f2e26-407d-48c7-9eca-b8e91df99dc9": "white",
+    "marking-definition--34098fce-860f-48ae-8e50-ebd3cc5e41da": "green",
+    "marking-definition--f88d31f6-486f-44da-b317-01333bde0b82": "amber",
+    "marking-definition--5e57c739-391a-4eb3-b6be-7d15ca92d5ed": "red",
+}
+
 
 class StixMapper:
     """Maps STIX 2.1 objects to the Spanner schema."""
@@ -831,6 +842,11 @@ def _extract_indicator(pattern: str) -> tuple[str, str] | None:
 def _tlp(obj: dict) -> str:
     for ref in obj.get("object_marking_refs", []):
         ref_lower = ref.lower()
+        level = _TLP_MARKING_IDS.get(ref_lower)
+        if level is not None:
+            return level
+        # Fallback for non-canonical refs that embed the level name
+        # (custom marking-definition ids).
         for level in ("red", "amber", "green", "white"):
             if level in ref_lower:
                 return level

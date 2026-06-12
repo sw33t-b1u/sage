@@ -19,6 +19,8 @@
 | `requests` | `>=2.32.0` | Apache-2.0 | Slack Incoming Webhook・GitHub REST API・MITRE Caldera REST API への HTTP クライアント | これら 3 つの外部 API はすべて平易な HTTPS/JSON を使用。ETL 層に非同期の複雑さを持ち込まないため `requests`（同期）を採用。|
 | `fastapi` | `>=0.115.0` | MIT | Analysis API の Web フレームワーク — 宣言的ルーティング・OpenAPI 自動生成・Pydantic バリデーション | Flask は OpenAPI 生成と型ベースバリデーションを標準では持たない。FastAPI の `Query` ディスクリプターで範囲チェックや必須パラメーターを最小ボイラープレートで記述できる。|
 | `uvicorn` | `>=0.30.0` | BSD-3-Clause | Cloud Run 上で FastAPI を動かす ASGI サーバー | FastAPI は ASGI サーバーが必要。uvicorn は FastAPI と同じ Encode チームが開発しており、事実上の標準ペアリング。|
+| `cryptography` | `>=46.0.7` | Apache-2.0 / BSD | `google-cloud-spanner` の推移的依存。46.0.6 の CVE-2026-39892 を解消するため `>=46.0.7` に固定。SAGE コードでの直接使用はない。|
+| `click` | `>=8.1` | BSD-3-Clause | `src/sage/cli/register_incident.py` の対話型 CLI プロンプト（Diamond Model 4 象限の対話型インシデント入力） | stdlib の `argparse` は対話型 `Prompt` や非表示入力フローを標準では提供しない。click の `prompt()` は空欄許容の既定値・型変換・プロンプトごとの入力例ヒントを最小ボイラープレートでカバーする。|
 
 ---
 

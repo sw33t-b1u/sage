@@ -9,6 +9,7 @@ import pytest
 from sage.stix.mapper import (
     _DETERMINISTIC_ID_NAMESPACE,
     StixMapper,
+    _tlp,
     build_followed_by_weights,
     build_ir_feedback_followed_by,
     deterministic_vuln_stix_id,
@@ -236,16 +237,35 @@ class TestMapObservable:
         assert row["value"] == "198.51.100.1"
         assert row["confidence"] == 80
         # The fixture marks the indicator with the canonical STIX 2.1
-        # TLP:AMBER marking-definition UUID. mapper._tlp() matches TLP
-        # level names as substrings of the ref string, which a UUID-form
-        # ref can never contain, so it falls back to "white". Documents
-        # current behavior — recognizing the canonical TLP UUIDs would
-        # be a mapper change, out of scope for this fixture cleanup.
-        assert row["tlp"] == "white"
+        # TLP:AMBER marking-definition UUID, which _tlp() resolves to "amber".
+        assert row["tlp"] == "amber"
 
     def test_non_indicator_returns_none(self, mapper, bundle_objects):
         obj = next(o for o in bundle_objects if o["type"] == "intrusion-set")
         assert mapper.map_observable(obj) is None
+
+
+class TestTlp:
+    """_tlp() — canonical STIX TLP marking-definition ids and fallbacks."""
+
+    @pytest.mark.parametrize(
+        ("marking_ref", "expected"),
+        [
+            ("marking-definition--613f2e26-407d-48c7-9eca-b8e91df99dc9", "white"),
+            ("marking-definition--34098fce-860f-48ae-8e50-ebd3cc5e41da", "green"),
+            ("marking-definition--f88d31f6-486f-44da-b317-01333bde0b82", "amber"),
+            ("marking-definition--5e57c739-391a-4eb3-b6be-7d15ca92d5ed", "red"),
+        ],
+    )
+    def test_canonical_marking_id_returns_level(self, marking_ref, expected):
+        assert _tlp({"object_marking_refs": [marking_ref]}) == expected
+
+    def test_legacy_substring_ref_still_matches(self):
+        # Custom (non-canonical) refs embedding the level name keep working.
+        assert _tlp({"object_marking_refs": ["marking-definition--tlp-amber"]}) == "amber"
+
+    def test_unmarked_object_defaults_to_white(self):
+        assert _tlp({}) == "white"
 
 
 # ---------------------------------------------------------------------------

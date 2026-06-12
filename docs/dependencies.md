@@ -18,7 +18,7 @@ per [project Rule 18](../../docs/RULES.md).
 | `fastapi` | `>=0.115.0` | MIT | Analysis API web framework — declarative routing, automatic OpenAPI docs, Pydantic validation. | Flask lacks built-in OpenAPI generation and type-based validation. FastAPI's `Query` descriptor handles range checks and required parameters with minimal boilerplate. |
 | `uvicorn` | `>=0.30.0` | BSD-3-Clause | ASGI server for FastAPI on Cloud Run. | FastAPI requires an ASGI server; uvicorn is the de facto standard pairing and is maintained by the same Encode team. |
 | `cryptography` | `>=46.0.7` | Apache-2.0 / BSD | Transitive dependency of `google-cloud-spanner`. Pinned to `>=46.0.7` to resolve CVE-2026-39892 in 46.0.6. No direct usage in SAGE code. |
-| `click` | `>=8.1` | BSD-3-Clause | Interactive CLI prompts for `cmd/register_incident.py` (Initiative G Phase 3 — Diamond Model 4-quadrant input). | `argparse` from stdlib does not provide interactive `Prompt` / hidden-input flows out of the box; click's `prompt()` covers blank-allowed defaults, type coercion, and per-prompt example hints with minimal boilerplate. |
+| `click` | `>=8.1` | BSD-3-Clause | Interactive CLI prompts for `src/sage/cli/register_incident.py` (Diamond Model 4-quadrant interactive incident input). | `argparse` from stdlib does not provide interactive `Prompt` / hidden-input flows out of the box; click's `prompt()` covers blank-allowed defaults, type coercion, and per-prompt example hints with minimal boilerplate. |
 
 ---
 
