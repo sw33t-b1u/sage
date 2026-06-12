@@ -19,6 +19,14 @@ SAGE/
 │   │   ├── client.py           # Spanner Database クライアントのセットアップ
 │   │   ├── upsert.py           # 一括 upsert ヘルパー（INSERT OR UPDATE）
 │   │   └── query.py            # 分析クエリ関数（GQL + SQL）
+│   ├── sqlite/
+│   │   ├── client.py           # SQLite 接続セットアップ（読み取り専用 / 読み書き）
+│   │   ├── upsert.py           # 一括 upsert ヘルパー（INSERT ... ON CONFLICT）
+│   │   ├── query.py            # 分析クエリ関数（SQL）
+│   │   ├── incidents.py        # インシデント upsert/read ヘルパー
+│   │   └── annotations.py      # アクターアノテーション書き込みヘルパー
+│   ├── db/
+│   │   └── __init__.py         # バックエンドディスパッチ層（SAGE_DB: sqlite | spanner）
 │   ├── notify/
 │   │   ├── slack.py            # Slack Webhook 通知
 │   │   └── github.py           # GitHub / GHE Issue の作成・更新
@@ -57,7 +65,8 @@ SAGE/
 │   └── setup_emulator.py       # ローカルテスト用 Spanner エミュレーターの設定
 │
 ├── schema/
-│   └── spanner_ddl.sql         # Spanner Graph DDL（ノード・エッジ・プロパティグラフ）
+│   ├── sqlite_ddl.sql          # SQLite DDL（既定バックエンド; 同一テーブルを方言変換）
+│   └── spanner_ddl.sql         # Spanner Graph DDL（任意バックエンド）
 │
 ├── tests/
 │   ├── fixtures/               # サンプル STIX バンドル・資産 JSON・PIR JSON
@@ -91,6 +100,6 @@ SAGE/
 
 - **`src/sage/`** はすべての再利用可能なライブラリコードを含みます。各サブパッケージは単一の責務を持ちます。
 - **`cmd/`** には引数解析と `src/sage/` モジュールへの委譲のみを行う薄い CLI スクリプトを置きます。ビジネスロジックはここに書きません。
-- **`schema/`** は Spanner Graph DDL の唯一の情報源です。
+- **`schema/`** はデータベース DDL の唯一の情報源です: 既定の SQLite バックエンド用 `sqlite_ddl.sql` と、任意の Spanner バックエンド用 `spanner_ddl.sql` を置きます。
 - **`docs/`** は利用者向けドキュメントを保持します。英語版はベース名（例 `setup.md`）、日本語翻訳は `.ja.md` サフィックス（例 `setup.ja.md`）で同じディレクトリに並べて維持します。
 - **`docs/high-level-design.md`** はアーキテクチャ変更を実装する前に更新しなければなりません（Rule 27）。本ファイルは maintainer 方針で gitignored です。

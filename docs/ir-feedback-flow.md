@@ -134,7 +134,7 @@ Click-based CLI for IR analysts. Four modes:
 | Interactive | (no flag) | Prompts 4 Diamond Model quadrants with hints |
 | File | `--from-file payload.json` | Non-interactive scripts |
 | Navigator | `--navigator-layer layer.json` | Import MITRE Navigator TTP sequence |
-| Direct | `--no-api` | Air-gapped — write Spanner directly, bypass HTTP |
+| Direct | `--no-api` | Air-gapped — write the database directly, bypass HTTP |
 
 `--id incident--<uuid>` overrides auto-generated `incident--<uuid4>`.
 `--token` defaults to `$SAGE_API_AUTH_TOKEN`.
@@ -241,7 +241,7 @@ missing, 403 on wrong token).
 | Sequence order | Manual in OpenCTI Web UI | Optional — warning on NULL |
 | 3rd-party reports | OpenCTI native | Same endpoint; note origin in `description` (Q5=NO separate source value) |
 | Network requirement | OpenCTI server reachable | SAGE server reachable |
-| Audit trail | OpenCTI log | SAGE structlog + Spanner audit |
+| Audit trail | OpenCTI log | SAGE structlog + database audit |
 
 Operators may use both paths simultaneously; `Incident.source`
 discriminates downstream analyses.
@@ -263,7 +263,7 @@ uv run sage incident-register \
     --severity high \
     --navigator-layer ./navigator_2026q1.json
 
-# Air-gapped (write Spanner directly, no HTTP):
+# Air-gapped (write the database directly, no HTTP):
 uv run sage incident-register \
     --from-file payload.json --no-api
 ```

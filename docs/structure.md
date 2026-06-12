@@ -17,6 +17,14 @@ SAGE/
 │   │   ├── client.py           # Spanner Database client setup
 │   │   ├── upsert.py           # Bulk upsert helpers (INSERT OR UPDATE)
 │   │   └── query.py            # Analytical query functions (GQL + SQL)
+│   ├── sqlite/
+│   │   ├── client.py           # SQLite connection setup (read-only / read-write)
+│   │   ├── upsert.py           # Bulk upsert helpers (INSERT ... ON CONFLICT)
+│   │   ├── query.py            # Analytical query functions (SQL)
+│   │   ├── incidents.py        # Incident upsert/read helpers
+│   │   └── annotations.py      # Actor annotation write helpers
+│   ├── db/
+│   │   └── __init__.py         # Backend dispatch layer (SAGE_DB: sqlite | spanner)
 │   ├── notify/
 │   │   ├── slack.py            # Slack webhook notification
 │   │   └── github.py           # GitHub / GHE Issue creation and update
@@ -55,7 +63,8 @@ SAGE/
 │   └── setup_emulator.py       # Configure Spanner emulator for local testing
 │
 ├── schema/
-│   └── spanner_ddl.sql         # Spanner Graph DDL (nodes, edges, property graph)
+│   ├── sqlite_ddl.sql          # SQLite DDL (default backend; same tables, dialect-mapped)
+│   └── spanner_ddl.sql         # Spanner Graph DDL (optional backend)
 │
 ├── tests/
 │   ├── fixtures/               # Sample STIX bundles, asset JSON, PIR JSON
@@ -89,6 +98,6 @@ SAGE/
 
 - **`src/sage/`** contains all reusable library code. Each sub-package has a single responsibility.
 - **`cmd/`** contains thin CLI scripts that parse arguments, load configuration, and delegate to `src/sage/` modules. No business logic lives here.
-- **`schema/`** is the single source of truth for the Spanner Graph DDL.
+- **`schema/`** is the single source of truth for the database DDL: `sqlite_ddl.sql` for the default SQLite backend and `spanner_ddl.sql` for the optional Spanner backend.
 - **`docs/`** holds user-facing documentation. English files use the base name (e.g. `setup.md`); Japanese translations are siblings with the `.ja.md` suffix (e.g. `setup.ja.md`).
 - **`docs/high-level-design.md`** must be updated before any architectural change is implemented (Rule 27). The file is gitignored per maintainer policy.

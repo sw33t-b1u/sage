@@ -13,7 +13,7 @@
 |-----------|-------------|---------|------|------------|
 | `stix2` | `>=3.0.1` | BSD-3-Clause | STIX 2.1 オブジェクト（ThreatActor、TTP、Incident 等）の解析・シリアライズ | STIX 2.1 は多数のオブジェクト型と関係スキーマを持つ複雑な標準規格。内製パーサーは OASIS 仕様全体の再実装に等しい。|
 | `pycti` | `>=6.3.0` | Apache-2.0 | OpenCTI REST API クライアント — STIX バンドルのポーリング・ページネーション・認証 | OpenCTI の API はリリースごとに変化する。公式 SDK がその変更を追跡し、型付きヘルパーを提供している。|
-| `google-cloud-spanner` | `>=3.49.0` | Apache-2.0 | Cloud Spanner クライアント — ノード・エッジの upsert、GQL・SQL クエリ、スナップショット読み取り | Google 公式クライアントが gRPC 接続プール・リトライロジック・Spanner 固有の型マッピングを担っており、内製は現実的でない。|
+| `google-cloud-spanner` | `>=3.49.0` | Apache-2.0 | Cloud Spanner クライアント — ノード・エッジの upsert、GQL・SQL クエリ、スナップショット読み取り。SAGE 4.0.0 以降は任意の Spanner バックエンド（`SAGE_DB=spanner`）専用で、既定の SQLite バックエンドは stdlib の `sqlite3` を使用 | Google 公式クライアントが gRPC 接続プール・リトライロジック・Spanner 固有の型マッピングを担っており、内製は現実的でない。|
 | `google-cloud-storage` | `>=2.18.0` | Apache-2.0 | GCS ランディングゾーンからの生 STIX バンドル読み取り | Google 公式クライアントがリジューム可能アップロード・リトライポリシー・IAM 認証を処理する。|
 | `structlog` | `>=24.4.0` | MIT | 構造化ログ出力（Cloud Run は JSON、ターミナルは色付きテキスト） | stdlib の `logging` には構造化コンテキストバインディングがない。`structlog` は Cloud Logging 互換 JSON 出力を最小オーバーヘッドで実現する。|
 | `requests` | `>=2.32.0` | Apache-2.0 | Slack Incoming Webhook・GitHub REST API・MITRE Caldera REST API への HTTP クライアント | これら 3 つの外部 API はすべて平易な HTTPS/JSON を使用。ETL 層に非同期の複雑さを持ち込まないため `requests`（同期）を採用。|
