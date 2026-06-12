@@ -15,9 +15,8 @@ from collections import deque
 from typing import Any
 
 import structlog
-from google.cloud.spanner_v1.database import Database
 
-from sage.spanner.query import find_all_incident_ttps, find_followedby_edges, find_incident_ttps
+from sage.db import find_all_incident_ttps, find_followedby_edges, find_incident_ttps
 
 logger = structlog.get_logger(__name__)
 
@@ -121,12 +120,12 @@ def hybrid_score(
 
 
 # ---------------------------------------------------------------------------
-# Spanner integration: similar incident search
+# Database integration: similar incident search
 # ---------------------------------------------------------------------------
 
 
 def find_similar_incidents(
-    database: Database,
+    database: Any,
     incident_id: str,
     top_k: int = 5,
     alpha: float = 0.5,
@@ -135,7 +134,7 @@ def find_similar_incidents(
     """Return historical incidents most similar to the specified incident, ordered by score.
 
     Args:
-        database: Spanner Database instance
+        database: backend database handle (sqlite3.Connection or Spanner Database)
         incident_id: STIX ID of the query incident
         top_k: Number of top results to return
         alpha: Weight for jaccard_ttp component

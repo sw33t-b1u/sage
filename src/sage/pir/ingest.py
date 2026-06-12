@@ -14,15 +14,14 @@ import json
 from typing import Any
 
 import structlog
-from google.cloud.spanner_v1.database import Database
 
-from sage.spanner.upsert import upsert_rows
+from sage.db import upsert_rows
 
 logger = structlog.get_logger(__name__)
 
 
 def ingest_prioritized_actors(
-    database: Database,
+    database: Any,
     pir_id: str,
     prioritized_actors: list[dict[str, Any]],
 ) -> int:
@@ -38,7 +37,7 @@ def ingest_prioritized_actors(
     never raise). Empty or missing rationale fields default to {} / "".
 
     Args:
-        database: Spanner database instance.
+        database: backend database handle (sqlite3.Connection or Spanner Database).
         pir_id: PIR identifier (pir_output.json[*].pir_id).
         prioritized_actors: list from pir_output.json[*].prioritized_actors.
 

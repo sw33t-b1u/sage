@@ -17,10 +17,17 @@ One incident is seeded through ``sage.db.upsert_rows`` with a STIX-style
 ``Z``-suffix timestamp to verify the write-boundary canonicalization to
 ``+00:00`` ISO 8601 TEXT (window queries compare TEXT lexicographically,
 so an unnormalized ``...Z`` value would fall out of every window).
+
+The PIR fixture carries a non-empty ``prioritized_actors`` list so the
+ETL exercises the actor-triage ingest path (``sage.pir.ingest`` →
+``PirPrioritizesActor``), and two incidents share a TTP so
+``GET /similar-incidents`` exercises the similarity query path — both
+paths previously bypassed the ``sage.db`` dispatch and broke on sqlite.
 """
 
 from __future__ import annotations
 
+import json
 import os
 import sqlite3
 import sys
@@ -33,7 +40,7 @@ from fastapi.testclient import TestClient
 FIXTURES = Path(__file__).parent / "fixtures"
 ASSETS_FILE = FIXTURES / "sample_assets.json"
 BUNDLE_FILE = FIXTURES / "sample_bundle_roundtrip.json"
-PIR_FILE = FIXTURES / "sample_pir.json"
+PIR_FILE = FIXTURES / "sample_pir_actors.json"
 
 # Known fixture contents: APT99 (tags apt / targets-japan) matches the
 # sample PIR's threat_actor_tags; asset-001 carries the "external-facing"
@@ -49,7 +56,13 @@ AUTH_HEADER = {"Authorization": f"Bearer {AUTH_TOKEN}"}
 
 POSTED_INCIDENT = "incident--00000000-0000-0000-0000-00000000e2e1"
 SEEDED_Z_INCIDENT = "incident--00000000-0000-0000-0000-00000000e2e2"
+SIMILAR_REF_INCIDENT = "incident--00000000-0000-0000-0000-00000000e2e3"
 TTP_UUID_A = "attack-pattern--00000000-0000-0000-0000-0000000000aa"
+TTP_UUID_B = "attack-pattern--00000000-0000-0000-0000-0000000000ab"
+
+# Matches tests/fixtures/sample_pir_actors.json prioritized_actors[0].
+TRIAGED_ACTOR = "intrusion-set--00000000-0000-4000-8000-0000000000a1"
+TRIAGED_LIKELIHOOD = 0.042
 
 _ENV_KEYS_TO_SCRUB = (
     "GCP_PROJECT_ID",
@@ -127,7 +140,39 @@ def pipeline_base(tmp_path_factory: pytest.TempPathFactory) -> Path:
                         "severity": "medium",
                         "source": "ir_feedback",
                         "stix_modified": "2026-06-01T00:00:00Z",
-                    }
+                    },
+                    {
+                        "stix_id": SIMILAR_REF_INCIDENT,
+                        "name": "Similarity reference incident",
+                        "occurred_at": "2026-05-20T00:00:00Z",
+                        "severity": "low",
+                        "source": "ir_feedback",
+                        "stix_modified": "2026-05-20T00:00:00Z",
+                    },
+                ],
+            )
+            # TTP links for /similar-incidents: the Z-seeded incident shares
+            # TTP_UUID_A with the reference incident (jaccard 0.5) and the
+            # reference TTP set is a subset of the query set (coverage 1.0).
+            upsert_rows(
+                conn,
+                "IncidentUsesTTP",
+                [
+                    {
+                        "incident_stix_id": SEEDED_Z_INCIDENT,
+                        "ttp_stix_id": TTP_UUID_A,
+                        "sequence_order": 0,
+                    },
+                    {
+                        "incident_stix_id": SEEDED_Z_INCIDENT,
+                        "ttp_stix_id": TTP_UUID_B,
+                        "sequence_order": 1,
+                    },
+                    {
+                        "incident_stix_id": SIMILAR_REF_INCIDENT,
+                        "ttp_stix_id": TTP_UUID_A,
+                        "sequence_order": 0,
+                    },
                 ],
             )
     finally:
@@ -172,6 +217,32 @@ def test_z_suffix_timestamp_normalized_at_write_boundary(pipeline_base: Path):
         conn.close()
     assert row is not None
     assert row[0] == "2026-06-01T00:00:00+00:00"
+
+
+def test_etl_ingests_prioritized_actor_into_triage_table(pipeline_base: Path):
+    """The non-empty ``prioritized_actors`` PIR entry must land in
+    PirPrioritizesActor via the ``sage.db`` dispatch (run-etl crashed here
+    when the ingest path used the Spanner upsert directly).
+    """
+    conn = sqlite3.connect(pipeline_base / "db" / "sage.db")
+    try:
+        row = conn.execute(
+            "SELECT likelihood, rationale_json FROM PirPrioritizesActor"
+            " WHERE pir_id = ? AND actor_stix_id = ?",
+            ("PIR-2025-001", TRIAGED_ACTOR),
+        ).fetchone()
+    finally:
+        conn.close()
+    assert row is not None, "triage-sourced actor row missing from PirPrioritizesActor"
+    assert row[0] == pytest.approx(TRIAGED_LIKELIHOOD)
+    rationale = json.loads(row[1])
+    assert set(rationale) == {
+        "text",
+        "intent_factors",
+        "capability_factors",
+        "opportunity_factors",
+    }
+    assert rationale["intent_factors"] == {"motivation_alignment": 0.5, "industry_match": 0.5}
 
 
 def test_read_only_connection_usable_from_another_thread(pipeline_base: Path):
@@ -252,6 +323,38 @@ def test_actors_search_finds_etl_ingested_actor(client: TestClient):
     by_id = {a["stix_id"]: a for a in body["actors"]}
     assert ACTOR_APT99 in by_id
     assert by_id[ACTOR_APT99]["name"] == "APT99"
+
+
+def test_similar_incidents_ranks_seeded_reference(client: TestClient):
+    """``GET /similar-incidents`` must work end-to-end on sqlite (it returned
+    500 when the similarity module queried the Spanner read layer directly).
+
+    Seeded TTP sets: query = {A, B}, reference = {A} -> jaccard 0.5,
+    transition coverage 1.0, hybrid score 0.75 at the default alpha 0.5.
+    """
+    resp = client.get(
+        "/similar-incidents",
+        params={"incident_id": SEEDED_Z_INCIDENT},
+        headers=AUTH_HEADER,
+    )
+    assert resp.status_code == 200, resp.text
+    rows = resp.json()
+    assert isinstance(rows, list)
+    assert rows, "expected at least the seeded reference incident"
+    by_id = {row["incident_id"]: row for row in rows}
+    assert SIMILAR_REF_INCIDENT in by_id
+    ref = by_id[SIMILAR_REF_INCIDENT]
+    assert set(ref) == {
+        "incident_id",
+        "hybrid_score",
+        "jaccard_ttp",
+        "transition_coverage",
+        "shared_ttps",
+    }
+    assert ref["shared_ttps"] == [TTP_UUID_A]
+    assert ref["jaccard_ttp"] == pytest.approx(0.5)
+    assert ref["transition_coverage"] == pytest.approx(1.0)
+    assert ref["hybrid_score"] == pytest.approx(0.75)
 
 
 # ---------------------------------------------------------------------------

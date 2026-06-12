@@ -1,0 +1,32 @@
+{
+  "schema_version": "2.0.0",
+  "pirs": [
+    {
+      "pir_id": "PIR-2025-001",
+      "description": "ランサムウェアグループおよびAPTによる標的型攻撃への耐性強化",
+      "threat_actor_tags": ["ransomware", "apt", "targets-japan"],
+      "asset_weight_rules": [
+        {"tag": "external-facing",  "criticality_multiplier": 2.0},
+        {"tag": "s3",               "criticality_multiplier": 1.8},
+        {"tag": "gcs",              "criticality_multiplier": 1.8},
+        {"tag": "backup",           "criticality_multiplier": 1.5}
+      ],
+      "valid_from": "2025-01-01",
+      "valid_until": "2025-12-31",
+      "prioritized_actors": [
+        {
+          "actor_id": "intrusion-set--00000000-0000-4000-8000-0000000000a1",
+          "name": "TriageActorAlpha",
+          "aliases": ["triage-alias-a"],
+          "likelihood": 0.042,
+          "rationale": {
+            "text": "Likelihood = Intent(0.250) x Capability(0.155) x Opportunity(0.029)",
+            "intent_factors": {"motivation_alignment": 0.5, "industry_match": 0.5},
+            "capability_factors": {"sophistication_score": 0.667},
+            "opportunity_factors": {"victimology_match": 1.0}
+          }
+        }
+      ]
+    }
+  ]
+}
