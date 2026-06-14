@@ -341,6 +341,134 @@ class TestPirFilterReferentialIntegrity:
         assert stats["uses"] == 1
 
 
+class TestPirFilterAttributionEdges:
+    """Regression (4.0.1): PIR-filtered actors must not leave dangling
+    AttributedToActor / AttributedToIdentity / ImpersonatesIdentity edges.
+
+    Lazarus (apt-north-korea / espionage) does NOT match the financial-crime
+    PIR fixture, so its actor row is dropped. FIN7 (financial-crime) is kept.
+    The actor endpoint of each attribution edge is checked against
+    kept_actor_ids; the identity endpoint and campaign sources are not.
+    """
+
+    def _bundle(self) -> list[dict]:
+        return [
+            # Kept actor (matches PIR). A threat-actor so it can be both an
+            # AttributedToActor target and the source of identity edges.
+            {
+                "type": "threat-actor",
+                "id": "threat-actor--fin7",
+                "name": "FIN7",
+                "labels": ["financial-crime"],
+                "modified": _ts(),
+            },
+            # Filtered actor (does NOT match PIR).
+            {
+                "type": "threat-actor",
+                "id": "threat-actor--lazarus",
+                "name": "Lazarus",
+                "labels": ["apt-north-korea", "espionage"],
+                "modified": _ts(),
+            },
+            {
+                "type": "identity",
+                "id": "identity--victim",
+                "name": "Crypto Exchange",
+                "modified": _ts(),
+            },
+            # AttributedToActor: campaign → kept actor (must be written —
+            # campaign source must not trigger a false drop).
+            {
+                "type": "relationship",
+                "id": "relationship--attr-campaign-kept",
+                "relationship_type": "attributed-to",
+                "source_ref": "campaign--op-cobalt",
+                "target_ref": "threat-actor--fin7",
+                "modified": _ts(),
+            },
+            # AttributedToActor: campaign → filtered actor (dropped via
+            # target endpoint).
+            {
+                "type": "relationship",
+                "id": "relationship--attr-campaign-filtered",
+                "relationship_type": "attributed-to",
+                "source_ref": "campaign--op-lazarus",
+                "target_ref": "threat-actor--lazarus",
+                "modified": _ts(),
+            },
+            # AttributedToIdentity: kept actor → identity (written).
+            {
+                "type": "relationship",
+                "id": "relationship--attr-id-kept",
+                "relationship_type": "attributed-to",
+                "source_ref": "threat-actor--fin7",
+                "target_ref": "identity--victim",
+                "modified": _ts(),
+            },
+            # AttributedToIdentity: filtered actor → identity (dropped via
+            # source endpoint).
+            {
+                "type": "relationship",
+                "id": "relationship--attr-id-filtered",
+                "relationship_type": "attributed-to",
+                "source_ref": "threat-actor--lazarus",
+                "target_ref": "identity--victim",
+                "modified": _ts(),
+            },
+            # ImpersonatesIdentity: kept actor → identity (written).
+            {
+                "type": "relationship",
+                "id": "relationship--imp-kept",
+                "relationship_type": "impersonates",
+                "source_ref": "threat-actor--fin7",
+                "target_ref": "identity--victim",
+                "modified": _ts(),
+            },
+            # ImpersonatesIdentity: filtered actor → x-identity-internal
+            # (dropped via source endpoint, NOT via the cross-bundle
+            # identity endpoint).
+            {
+                "type": "relationship",
+                "id": "relationship--imp-filtered",
+                "relationship_type": "impersonates",
+                "source_ref": "threat-actor--lazarus",
+                "target_ref": "x-identity-internal--ffffffff-0000-5000-8000-000000000001",
+                "modified": _ts(),
+            },
+        ]
+
+    def test_attributed_to_actor_dropped_for_filtered_target(self, worker):
+        w, recorded = worker
+        stats = w.process_bundle(self._bundle())
+        # FIN7 kept, Lazarus filtered.
+        assert stats["threat_actors"] == 1
+        # Only the campaign → FIN7 edge survives; campaign → Lazarus dropped.
+        assert stats["attributed_to_actor"] == 1
+        assert _row_count(recorded, "AttributedToActor") == 1
+        rows = [r for tbl, _c, rs in recorded if tbl == "AttributedToActor" for r in rs]
+        assert all("threat-actor--fin7" in r for r in rows)
+
+    def test_attributed_to_identity_dropped_for_filtered_source(self, worker):
+        w, recorded = worker
+        stats = w.process_bundle(self._bundle())
+        # Only the FIN7 → identity edge survives; Lazarus → identity dropped.
+        assert stats["attributed_to_identity"] == 1
+        assert _row_count(recorded, "AttributedToIdentity") == 1
+        rows = [r for tbl, _c, rs in recorded if tbl == "AttributedToIdentity" for r in rs]
+        assert all("threat-actor--fin7" in r for r in rows)
+
+    def test_impersonates_identity_dropped_for_filtered_source(self, worker):
+        w, recorded = worker
+        stats = w.process_bundle(self._bundle())
+        # Only the FIN7 → identity edge survives. The Lazarus →
+        # x-identity-internal edge is dropped on the actor endpoint, not on
+        # the cross-bundle identity endpoint.
+        assert stats["impersonates_identity"] == 1
+        assert _row_count(recorded, "ImpersonatesIdentity") == 1
+        rows = [r for tbl, _c, rs in recorded if tbl == "ImpersonatesIdentity" for r in rs]
+        assert all("threat-actor--fin7" in r for r in rows)
+
+
 # ---------------------------------------------------------------------------
 # Type dispatch table coverage
 # ---------------------------------------------------------------------------

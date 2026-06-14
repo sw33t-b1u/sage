@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [4.0.1] - 2026-06-14
+
+### Fixed
+
+- PIR-filtered threat actors no longer leave dangling `AttributedToActor`,
+  `AttributedToIdentity`, or `ImpersonatesIdentity` edges referencing
+  non-existent `ThreatActor` rows. The referential-integrity drop that
+  already guarded `Uses` / `UsesTool` / `IndicatesActor` /
+  `ActorTargetsIdentity` is now extended to the attribution and
+  impersonation edges, checking each edge's actor endpoint against the kept
+  actor set. Campaign-sourced `AttributedToActor` edges and cross-bundle
+  identity endpoints (`x-identity-internal`) are intentionally not filtered,
+  since campaigns are not stored nodes and identities are not PIR-filtered.
+
+
 ## [4.0.0] - 2026-06-12
 
 ### Changed (BREAKING)

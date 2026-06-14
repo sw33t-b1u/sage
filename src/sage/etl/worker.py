@@ -249,10 +249,37 @@ class ETLWorker:
                 # ownership from TRACE 1.4.0+ related-to relationships.
                 user_account_belongs_to_rows.append(row)
             elif table == "AttributedToActor":
+                # SAGE 4.0.1: drop edges pointing at PIR-filtered actors.
+                # The target endpoint is always an actor node. The source is
+                # an actor node only when it is an intrusion-set; a campaign
+                # source is not a stored node (no Campaign table), so its
+                # absence from kept_actor_ids is expected, not dangling.
+                if row["target_actor_stix_id"] not in kept_actor_ids:
+                    dangling_dropped += 1
+                    continue
+                if (
+                    row["source_type"] == "intrusion-set"
+                    and row["source_stix_id"] not in kept_actor_ids
+                ):
+                    dangling_dropped += 1
+                    continue
                 attributed_to_actor_rows.append(row)
             elif table == "AttributedToIdentity":
+                # SAGE 4.0.1: the source is always a threat-actor. The
+                # identity endpoint is not PIR-filtered (may be a cross-bundle
+                # x-identity-internal ref), so it is not checked here.
+                if row["source_stix_id"] not in kept_actor_ids:
+                    dangling_dropped += 1
+                    continue
                 attributed_to_identity_rows.append(row)
             elif table == "ImpersonatesIdentity":
+                # SAGE 4.0.1: the source is always a threat-actor; same
+                # identity-endpoint caveat as AttributedToIdentity. Dropping
+                # here also keeps _derive_pir_prioritizes_impersonation_target
+                # from deriving rows off dangling edges.
+                if row["source_stix_id"] not in kept_actor_ids:
+                    dangling_dropped += 1
+                    continue
                 impersonates_identity_rows.append(row)
 
         if dangling_dropped:
