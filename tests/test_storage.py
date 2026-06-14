@@ -490,101 +490,57 @@ class TestCreateStorageBackend:
 
 
 class TestConfigStorageFields:
-    def test_default_backend_is_local(self, monkeypatch):
-        monkeypatch.delenv("SAGE_STORAGE", raising=False)
-        from importlib import reload
-
-        import sage.config as cfg_mod
-
-        reload(cfg_mod)
-        # Config.from_env() requires several mandatory env vars; patch them first.
-        # Patch required env vars
+    # NOTE: these tests do not reload sage.config. The module has no import-time
+    # state to reset (from_env reads os.environ live), and reloading would
+    # replace the conftest-patched _load_dotenv, re-injecting the developer's
+    # repo-root .env and making the "default" assertions environment-dependent.
+    @staticmethod
+    def _set_required_env(monkeypatch):
         monkeypatch.setenv("GCP_PROJECT_ID", "test-project")
         monkeypatch.setenv("SPANNER_INSTANCE", "test-instance")
         monkeypatch.setenv("SPANNER_DB", "test-db")
         monkeypatch.setenv("SAGE_ETL_INPUT_BUCKET", "test-bucket")
         monkeypatch.setenv("OPENCTI_URL", "http://localhost")
         monkeypatch.setenv("OPENCTI_TOKEN", "test-token")
-        reload(cfg_mod)
-        cfg = cfg_mod.Config.from_env()
-        assert cfg.sage_storage == "local"
+
+    def test_default_backend_is_local(self, monkeypatch):
+        monkeypatch.delenv("SAGE_STORAGE", raising=False)
+        self._set_required_env(monkeypatch)
+        from sage.config import Config
+
+        assert Config.from_env().sage_storage == "local"
 
     def test_default_base_dir_is_output(self, monkeypatch):
         monkeypatch.delenv("SAGE_STORAGE_BASE_DIR", raising=False)
-        monkeypatch.setenv("GCP_PROJECT_ID", "test-project")
-        monkeypatch.setenv("SPANNER_INSTANCE", "test-instance")
-        monkeypatch.setenv("SPANNER_DB", "test-db")
-        monkeypatch.setenv("SAGE_ETL_INPUT_BUCKET", "test-bucket")
-        monkeypatch.setenv("OPENCTI_URL", "http://localhost")
-        monkeypatch.setenv("OPENCTI_TOKEN", "test-token")
-        from importlib import reload
+        self._set_required_env(monkeypatch)
+        from sage.config import Config
 
-        import sage.config as cfg_mod
-
-        reload(cfg_mod)
-        cfg = cfg_mod.Config.from_env()
-        assert cfg.sage_storage_base_dir == "output"
+        assert Config.from_env().sage_storage_base_dir == "output"
 
     def test_env_overrides_backend(self, monkeypatch):
         monkeypatch.setenv("SAGE_STORAGE", "gcs")
-        monkeypatch.setenv("GCP_PROJECT_ID", "test-project")
-        monkeypatch.setenv("SPANNER_INSTANCE", "test-instance")
-        monkeypatch.setenv("SPANNER_DB", "test-db")
-        monkeypatch.setenv("SAGE_ETL_INPUT_BUCKET", "test-bucket")
-        monkeypatch.setenv("OPENCTI_URL", "http://localhost")
-        monkeypatch.setenv("OPENCTI_TOKEN", "test-token")
-        from importlib import reload
+        self._set_required_env(monkeypatch)
+        from sage.config import Config
 
-        import sage.config as cfg_mod
-
-        reload(cfg_mod)
-        cfg = cfg_mod.Config.from_env()
-        assert cfg.sage_storage == "gcs"
+        assert Config.from_env().sage_storage == "gcs"
 
     def test_env_overrides_base_dir(self, monkeypatch):
         monkeypatch.setenv("SAGE_STORAGE_BASE_DIR", "/tmp/sage_in")
-        monkeypatch.setenv("GCP_PROJECT_ID", "test-project")
-        monkeypatch.setenv("SPANNER_INSTANCE", "test-instance")
-        monkeypatch.setenv("SPANNER_DB", "test-db")
-        monkeypatch.setenv("SAGE_ETL_INPUT_BUCKET", "test-bucket")
-        monkeypatch.setenv("OPENCTI_URL", "http://localhost")
-        monkeypatch.setenv("OPENCTI_TOKEN", "test-token")
-        from importlib import reload
+        self._set_required_env(monkeypatch)
+        from sage.config import Config
 
-        import sage.config as cfg_mod
-
-        reload(cfg_mod)
-        cfg = cfg_mod.Config.from_env()
-        assert cfg.sage_storage_base_dir == "/tmp/sage_in"
+        assert Config.from_env().sage_storage_base_dir == "/tmp/sage_in"
 
     def test_env_overrides_gcs_bucket(self, monkeypatch):
         monkeypatch.setenv("SAGE_STORAGE_BUCKET", "my-sage-bucket")
-        monkeypatch.setenv("GCP_PROJECT_ID", "test-project")
-        monkeypatch.setenv("SPANNER_INSTANCE", "test-instance")
-        monkeypatch.setenv("SPANNER_DB", "test-db")
-        monkeypatch.setenv("SAGE_ETL_INPUT_BUCKET", "test-bucket")
-        monkeypatch.setenv("OPENCTI_URL", "http://localhost")
-        monkeypatch.setenv("OPENCTI_TOKEN", "test-token")
-        from importlib import reload
+        self._set_required_env(monkeypatch)
+        from sage.config import Config
 
-        import sage.config as cfg_mod
-
-        reload(cfg_mod)
-        cfg = cfg_mod.Config.from_env()
-        assert cfg.sage_storage_bucket == "my-sage-bucket"
+        assert Config.from_env().sage_storage_bucket == "my-sage-bucket"
 
     def test_env_overrides_gcs_prefix(self, monkeypatch):
         monkeypatch.setenv("SAGE_STORAGE_PREFIX", "prod/sage")
-        monkeypatch.setenv("GCP_PROJECT_ID", "test-project")
-        monkeypatch.setenv("SPANNER_INSTANCE", "test-instance")
-        monkeypatch.setenv("SPANNER_DB", "test-db")
-        monkeypatch.setenv("SAGE_ETL_INPUT_BUCKET", "test-bucket")
-        monkeypatch.setenv("OPENCTI_URL", "http://localhost")
-        monkeypatch.setenv("OPENCTI_TOKEN", "test-token")
-        from importlib import reload
+        self._set_required_env(monkeypatch)
+        from sage.config import Config
 
-        import sage.config as cfg_mod
-
-        reload(cfg_mod)
-        cfg = cfg_mod.Config.from_env()
-        assert cfg.sage_storage_prefix == "prod/sage"
+        assert Config.from_env().sage_storage_prefix == "prod/sage"
