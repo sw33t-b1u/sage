@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [4.0.2] - 2026-06-16
+
+### Security
+
+- Raised the `cryptography` floor from 46.0.7 to 48.0.1, closing
+  GHSA-537c-gmf6-5ccf (pulled in transitively).
+- Raised the `starlette` floor from 1.0.1 to 1.3.1, closing
+  CVE-2026-48817, CVE-2026-48818, CVE-2026-54282, and CVE-2026-54283
+  (pulled in transitively via fastapi).
+- Together these close the pip-audit findings on SAGE's Analysis API
+  (FastAPI/Starlette) web surface.
+
+
 ## [4.0.1] - 2026-06-14
 
 ### Fixed

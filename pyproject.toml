@@ -1,6 +1,6 @@
 [project]
 name = "sage"
-version = "4.0.1"
+version = "4.0.2"
 requires-python = ">=3.12"
 dependencies = [
     "stix2>=3.0.1",
@@ -8,12 +8,12 @@ dependencies = [
     "google-cloud-spanner>=3.49.0",
     "google-cloud-storage>=2.18.0",
     "structlog>=24.4.0",
-    "cryptography>=46.0.7",
+    "cryptography>=48.0.1",  # GHSA-537c-gmf6-5ccf fix; transitive
     "requests>=2.32.0",
     "fastapi>=0.115.0",
     "uvicorn>=0.30.0",
     "idna>=3.15",  # CVE-2026-45409 fix; transitive via anyio/httpx
-    "starlette>=1.0.1",  # PYSEC-2026-161 fix; transitive via fastapi
+    "starlette>=1.3.1",  # CVE-2026-48817/-48818/-54282/-54283 fix; transitive via fastapi
     "pyjwt>=2.13.0",  # PYSEC-2026-175/177/178/179 fix; transitive via pycti
     "click>=8.1",  # cmd/register_incident.py Diamond Model CLI (Initiative G Phase 3)
 ]
