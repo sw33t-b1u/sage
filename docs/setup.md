@@ -44,9 +44,12 @@ Copy `.env.example` to `.env` and fill in the values.
 | `SPANNER_INSTANCE` | Spanner only | — | Spanner instance ID (required when `SAGE_DB=spanner`) |
 | `SPANNER_DB` | Spanner only | — | Spanner database ID (required when `SAGE_DB=spanner`) |
 | `SAGE_ETL_INPUT_BUCKET` | Spanner only | — | GCS bucket for raw STIX landing (required when `SAGE_DB=spanner`) |
-| `OPENCTI_URL` | Yes | — | OpenCTI base URL |
-| `OPENCTI_TOKEN` | Yes | — | OpenCTI API token |
+| `OPENCTI_URL` | OpenCTI mode only | — | OpenCTI base URL (only needed for live OpenCTI ingestion) |
+| `OPENCTI_TOKEN` | OpenCTI mode only | — | OpenCTI API token (only needed for live OpenCTI ingestion) |
 | `PIR_FILE_PATH` | No | `/config/pir.json` | Path to PIR JSON file |
+| `PIR_GCS_BUCKET` | Shell only | — | GCS bucket the `sage-etl` job mounts `pir.json` from at deploy (`gcloud` only; see `docs/deploy.md`) |
+| `TRACE_STORAGE_BUCKET` | Shell only | — | TRACE output bucket SAGE consumes; match `SAGE_STORAGE_BUCKET` to it (`gcloud` only; see `docs/deploy.md`) |
+| `TRACE_STORAGE_PREFIX` | Shell only | `trace/` | TRACE key prefix; match `SAGE_STORAGE_PREFIX` to it (`gcloud` only; see `docs/deploy.md`) |
 | `TLP_MAX_LEVEL` | No | `amber` | Maximum TLP level to ingest (`white`/`green`/`amber`) |
 | `ACTIVITY_WINDOW_DAYS` | No | `90` | Lookback window for FollowedBy activity score (overridden by `SAGE_ACTIVITY_WINDOW_DAYS` if set) |
 | `SAGE_ACTIVITY_WINDOW_DAYS` | No | — | SAGE-specific override for `ACTIVITY_WINDOW_DAYS` |
@@ -197,7 +200,7 @@ host `Asset` rows via `AccountOnAsset` edges (composite key
 
 ## Step 6 — Place PIR file
 
-Generate a PIR JSON with [BEACON](https://github.com/sw33t-b1u/beacon) (`cmd/generate_pir.py`) and place it in `input/`:
+Generate a PIR JSON with [BEACON](https://github.com/sw33t-b1u/beacon) (`beacon pir-generate`) and place it in `input/`:
 
 ```sh
 cp /path/to/pir_output_<timestamp>.json input/pir.json
@@ -232,6 +235,14 @@ uv run sage run-etl --input tests/fixtures/sample_bundle_mirrorface.json
 # Against live OpenCTI
 make run-etl
 ```
+
+> **Querying without the API.** After ETL you can inspect attack paths
+> with `sage query-attack-paths`. It is labelled **"(offline)"** in
+> `docs/api-stability.md` because it queries the local SQLite graph
+> directly, without going through a running Analysis API server
+> (`sage serve-api`) — see `docs/usage.md`. Use it for local
+> verification; use the Analysis API when BEACON or other clients need
+> HTTP access.
 
 ---
 

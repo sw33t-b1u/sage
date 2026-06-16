@@ -46,9 +46,12 @@ make setup
 | `SPANNER_INSTANCE` | Spanner のみ | — | Spanner インスタンス ID（`SAGE_DB=spanner` 時に必須） |
 | `SPANNER_DB` | Spanner のみ | — | Spanner データベース ID（`SAGE_DB=spanner` 時に必須） |
 | `SAGE_ETL_INPUT_BUCKET` | Spanner のみ | — | 生 STIX を受け取る GCS バケット（`SAGE_DB=spanner` 時に必須） |
-| `OPENCTI_URL` | Yes | — | OpenCTI ベース URL |
-| `OPENCTI_TOKEN` | Yes | — | OpenCTI API トークン |
+| `OPENCTI_URL` | OpenCTI モードのみ | — | OpenCTI ベース URL（ライブ OpenCTI 取り込み時のみ必要） |
+| `OPENCTI_TOKEN` | OpenCTI モードのみ | — | OpenCTI API トークン（ライブ OpenCTI 取り込み時のみ必要） |
 | `PIR_FILE_PATH` | No | `/config/pir.json` | PIR JSON ファイルのパス |
+| `PIR_GCS_BUCKET` | シェルのみ | — | `sage-etl` ジョブがデプロイ時に `pir.json` をマウントする GCS バケット（`gcloud` 用・`docs/deploy.ja.md` 参照） |
+| `TRACE_STORAGE_BUCKET` | シェルのみ | — | SAGE が消費する TRACE 出力バケット。`SAGE_STORAGE_BUCKET` をこれに合わせる（`gcloud` 用・`docs/deploy.ja.md` 参照） |
+| `TRACE_STORAGE_PREFIX` | シェルのみ | `trace/` | TRACE のキープレフィックス。`SAGE_STORAGE_PREFIX` をこれに合わせる（`gcloud` 用・`docs/deploy.ja.md` 参照） |
 | `TLP_MAX_LEVEL` | No | `amber` | 取り込む最大 TLP レベル（`white`/`green`/`amber`） |
 | `ACTIVITY_WINDOW_DAYS` | No | `90` | FollowedBy アクティビティスコアの振り返り期間（日）（`SAGE_ACTIVITY_WINDOW_DAYS` で上書き可） |
 | `SAGE_ACTIVITY_WINDOW_DAYS` | No | — | `ACTIVITY_WINDOW_DAYS` の SAGE 固有オーバーライド |
@@ -200,7 +203,7 @@ cd ../SAGE && uv run sage load-user-accounts \
 
 ## Step 6 — PIR ファイルの配置
 
-[BEACON](https://github.com/sw33t-b1u/beacon)（`cmd/generate_pir.py`）で PIR JSON を生成し、`input/` に配置する:
+[BEACON](https://github.com/sw33t-b1u/beacon)（`beacon pir-generate`）で PIR JSON を生成し、`input/` に配置する:
 
 ```sh
 cp /path/to/pir_output_<timestamp>.json input/pir.json
@@ -234,6 +237,13 @@ uv run sage run-etl --input tests/fixtures/sample_bundle_mirrorface.json
 # ライブの OpenCTI に対して実行
 make run-etl
 ```
+
+> **API を介さないクエリ。** ETL 後は `sage query-attack-paths` で攻撃
+> パスを調査できる。`docs/api-stability.md` でこのコマンドが
+> **「(offline)」** と表記されているのは、稼働中の Analysis API サーバー
+> （`sage serve-api`）を介さず、ローカルの SQLite グラフを直接クエリする
+> ためである（`docs/usage.md` 参照）。ローカル確認に使い、BEACON など他
+> クライアントが HTTP アクセスを要する場合は Analysis API を使う。
 
 ---
 

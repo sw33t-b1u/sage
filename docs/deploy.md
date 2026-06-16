@@ -19,6 +19,36 @@ the Spanner-specific steps below are marked as such.
 
 ---
 
+## Cross-repo deploy order
+
+SAGE, BEACON, and TRACE form a cycle at deploy time: BEACON needs
+`SAGE_API_URL` (the sage-api URL) and SAGE's ETL needs the validated
+`pir.json` BEACON produces. Break the cycle in this order — unmet
+dependencies are wired in afterward with `--update-env-vars`, so nothing
+blocks on something that does not exist yet.
+
+1. **SAGE — deploy `sage-api` first.** Create the GCS bucket (Day-0
+   below) and deploy `sage-api` (Day-1 below). The API starts even with
+   no database in the bucket — `/openapi.json` returns `HTTP=200` and
+   confirms liveness. Note its URL.
+2. **BEACON — deploy `beacon-web`.** Set `SAGE_API_URL` to the sage-api
+   URL from step 1, and grant BEACON's service account
+   (`beacon-sa@...`) `roles/run.invoker` on `sage-api` (see
+   [Access](#access-production--l2)). See the
+   [BEACON deploy guide](https://github.com/sw33t-b1u/beacon).
+3. **BEACON — generate PIR / assets.** Produce `pir_output.json` and the
+   asset artifacts from business context.
+4. **TRACE — validate.** Pass the assets, PIR, and any STIX bundles
+   through TRACE, the single validation gate for all SAGE inputs. See
+   the [TRACE repo](https://github.com/sw33t-b1u/trace) for the commands
+   (not duplicated here).
+5. **SAGE — load and run ETL.** Place the validated `pir.json` and STIX
+   bundles in GCS (`${PIR_GCS_BUCKET}` / `${TRACE_STORAGE_BUCKET}`), then
+   run `sage-etl`. `sage-api` materializes the freshly published
+   `db/sage.db` on its next cold start.
+
+---
+
 ## Day-0 Prerequisites
 
 ### Enable APIs
@@ -37,6 +67,14 @@ gcloud services enable \
 # Spanner backend only (SAGE_DB=spanner):
 gcloud services enable spanner.googleapis.com --project=${GCP_PROJECT_ID}
 ```
+
+> **Env vars come from `.env`.** `source .env` exports the variables
+> used below, including `REGION`, `SAGE_STORAGE_BUCKET`,
+> `${PIR_GCS_BUCKET}`, and `${TRACE_STORAGE_BUCKET}` (all defined in
+> `.env.example`). The `gcloud` commands in Day-0 and Day-1 reference
+> these directly and fail with an empty/unresolved argument if a
+> variable is unset — confirm `echo ${PIR_GCS_BUCKET} ${TRACE_STORAGE_BUCKET}`
+> prints non-empty values before deploying.
 
 ### Create Artifact Registry repository
 
