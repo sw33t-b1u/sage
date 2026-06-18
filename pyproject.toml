@@ -1,6 +1,6 @@
 [project]
 name = "sage"
-version = "4.0.2"
+version = "4.0.3"
 requires-python = ">=3.12"
 dependencies = [
     "stix2>=3.0.1",
@@ -12,7 +12,7 @@ dependencies = [
     "requests>=2.32.0",
     "fastapi>=0.115.0",
     "uvicorn>=0.30.0",
-    "idna>=3.15",  # CVE-2026-45409 fix; transitive via anyio/httpx
+    "idna>=3.18",  # httpx2 requires idna>=3.18; includes CVE-2026-45409 fix (3.15); transitive via anyio/httpx2
     "starlette>=1.3.1",  # CVE-2026-48817/-48818/-54282/-54283 fix; transitive via fastapi
     "pyjwt>=2.13.0",  # PYSEC-2026-175/177/178/179 fix; transitive via pycti
     "click>=8.1",  # cmd/register_incident.py Diamond Model CLI (Initiative G Phase 3)
@@ -26,7 +26,7 @@ dev = [
     "pip-audit>=2.7.0",
     "pip>=26.1.2",  # PYSEC-2026-196 + CVE-2026-6357 fix; transitive via pip-audit -> pip-api
     "pyvis>=0.3.2",
-    "httpx>=0.27.0",
+    "httpx2>=2.4.0",
 ]
 
 # Initiative H Phase 6 (SAGE 1.0.0) — unified ``sage`` entry; legacy

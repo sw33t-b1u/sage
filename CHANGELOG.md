@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [4.0.3] - 2026-06-18
+
+### Changed
+
+- Migrated the test-time HTTP dependency from `httpx` to `httpx2`
+  (`httpx2>=2.4.0`), silencing the `starlette.testclient` deprecation warning
+  ("install httpx2 instead") surfaced through the FastAPI TestClient. SAGE's
+  production code does not import httpx directly. The `idna` floor moves
+  `3.15` → `3.18` (httpx2 requirement; still includes the CVE-2026-45409 fix).
+
+
 ## [4.0.2] - 2026-06-16
 
 ### Security
