@@ -351,3 +351,12 @@ gcloud run services proxy sage-api --region=${REGION} --project=${GCP_PROJECT_ID
 ## 対象外
 
 IAP / 内部ロードバランサ / VPC Service Controls はこのガイドでは設定しない。少数の Google Workspace ユーザー運用（数名程度）では、上記の L2 IAM バインディングで十分である。カスタムドメイン、gcloud を使わないブラウザアクセス、コンテキストアウェアアクセスが必要な場合は https://cloud.google.com/iap/docs を参照すること。
+
+---
+
+## CTI Platform console 連携
+
+ブラウザ完結運用では、SAGE は `sage-api`（読み取り専用 Cloud Run service）と
+`sage-etl`（単一 writer Cloud Run Job）として運用し、`beacon/Dockerfile.cti-console`
+から統合 `cti-console` service をデプロイする。console は Threats と STIX 抽出で
+`sage-api` を呼び、`sage-etl` だけが共有 storage の `db/sage.db` を更新する。

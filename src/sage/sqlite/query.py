@@ -711,3 +711,93 @@ def find_incidents_for_asset(
         until=until.isoformat(),
     )
     return rows
+
+
+# ---------------------------------------------------------------------------
+# Indicator extraction for actors (GET /indicators, /export/stix)
+# ---------------------------------------------------------------------------
+
+
+def find_indicators_for_actors(
+    conn: sqlite3.Connection,
+    actor_stix_ids: list[str],
+    *,
+    limit: int = 1000,
+) -> list[dict[str, Any]]:
+    """Return Observables directly linked to ``actor_stix_ids`` via IndicatesActor.
+
+    Direct-relationship only: an Observable is included only when an
+    ``IndicatesActor`` edge connects it to one of the requested actors.
+    Observables reachable only through TTP / malware are intentionally
+    excluded. TLP Red is excluded defensively (it is already dropped at
+    storage time).
+
+    Returns one row per (observable, actor) pair so the STIX exporter can
+    build ``indicates`` relationships:
+
+        [
+          {
+            "observable_stix_id": "indicator--...",
+            "obs_type": "ip",
+            "value": "203.0.113.10",
+            "confidence": 80,
+            "tlp": "amber",
+            "first_seen": <datetime|None>,
+            "last_seen": <datetime|None>,
+            "actor_stix_id": "intrusion-set--...",
+            "actor_stix_type": "intrusion-set",
+            "actor_name": "APT99",
+            "rel_confidence": 70,
+          },
+          ...
+        ]
+    """
+    if not actor_stix_ids:
+        return []
+
+    placeholders = ", ".join(f":a{i}" for i in range(len(actor_stix_ids)))
+    params: dict[str, Any] = {f"a{i}": aid for i, aid in enumerate(actor_stix_ids)}
+    params["limit"] = limit
+    sql = f"""
+    SELECT
+      o.stix_id        AS observable_stix_id,
+      o.obs_type       AS obs_type,
+      o.value          AS value,
+      o.confidence     AS confidence,
+      o.tlp            AS tlp,
+      o.first_seen     AS first_seen,
+      o.last_seen      AS last_seen,
+      ia.actor_stix_id AS actor_stix_id,
+      a.stix_type      AS actor_stix_type,
+      a.name           AS actor_name,
+      ia.confidence    AS rel_confidence
+    FROM IndicatesActor ia
+    JOIN Observable o ON o.stix_id = ia.observable_stix_id
+    LEFT JOIN ThreatActor a ON a.stix_id = ia.actor_stix_id
+    WHERE ia.actor_stix_id IN ({placeholders})
+      AND (o.tlp IS NULL OR LOWER(o.tlp) != 'red')
+    ORDER BY o.last_seen DESC, o.stix_id ASC
+    LIMIT :limit
+    """  # noqa: S608 - placeholders are bound params, not interpolated values.
+    rows = [
+        {
+            "observable_stix_id": rec["observable_stix_id"],
+            "obs_type": rec["obs_type"],
+            "value": rec["value"],
+            "confidence": rec["confidence"],
+            "tlp": rec["tlp"],
+            "first_seen": _parse_ts(rec["first_seen"]),
+            "last_seen": _parse_ts(rec["last_seen"]),
+            "actor_stix_id": rec["actor_stix_id"],
+            "actor_stix_type": rec["actor_stix_type"],
+            "actor_name": rec["actor_name"],
+            "rel_confidence": rec["rel_confidence"],
+        }
+        for rec in conn.execute(sql, params)
+    ]
+    logger.info(
+        "find_indicators_for_actors",
+        actor_count=len(actor_stix_ids),
+        count=len(rows),
+    )
+    return rows

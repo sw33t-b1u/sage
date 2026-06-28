@@ -773,3 +773,79 @@ def _date_type() -> Any:
     from google.cloud.spanner_v1 import param_types
 
     return param_types.DATE
+
+
+# ---------------------------------------------------------------------------
+# Indicator extraction for actors (GET /indicators, /export/stix)
+# ---------------------------------------------------------------------------
+
+
+def find_indicators_for_actors(
+    database: Database,
+    actor_stix_ids: list[str],
+    *,
+    limit: int = 1000,
+) -> list[dict[str, Any]]:
+    """Return Observables directly linked to ``actor_stix_ids`` via IndicatesActor.
+
+    Mirror of ``sage.sqlite.query.find_indicators_for_actors`` — same return
+    shape. Direct-relationship only; TLP Red excluded defensively.
+    """
+    if not actor_stix_ids:
+        return []
+
+    from google.cloud.spanner_v1 import param_types
+
+    sql = """
+    SELECT
+      o.stix_id        AS observable_stix_id,
+      o.obs_type       AS obs_type,
+      o.value          AS value,
+      o.confidence     AS confidence,
+      o.tlp            AS tlp,
+      o.first_seen     AS first_seen,
+      o.last_seen      AS last_seen,
+      ia.actor_stix_id AS actor_stix_id,
+      a.stix_type      AS actor_stix_type,
+      a.name           AS actor_name,
+      ia.confidence    AS rel_confidence
+    FROM IndicatesActor ia
+    JOIN Observable o ON o.stix_id = ia.observable_stix_id
+    LEFT JOIN ThreatActor a ON a.stix_id = ia.actor_stix_id
+    WHERE ia.actor_stix_id IN UNNEST(@actor_ids)
+      AND (o.tlp IS NULL OR LOWER(o.tlp) != 'red')
+    ORDER BY o.last_seen DESC, o.stix_id ASC
+    LIMIT @limit
+    """
+    params = {"actor_ids": list(actor_stix_ids), "limit": limit}
+    param_types_map = {
+        "actor_ids": param_types.Array(param_types.STRING),
+        "limit": _int64_type(),
+    }
+
+    rows: list[dict[str, Any]] = []
+    with database.snapshot() as snap:
+        result = snap.execute_sql(sql, params=params, param_types=param_types_map)
+        for row in result:
+            rows.append(
+                {
+                    "observable_stix_id": row[0],
+                    "obs_type": row[1],
+                    "value": row[2],
+                    "confidence": row[3],
+                    "tlp": row[4],
+                    "first_seen": row[5],
+                    "last_seen": row[6],
+                    "actor_stix_id": row[7],
+                    "actor_stix_type": row[8],
+                    "actor_name": row[9],
+                    "rel_confidence": row[10],
+                }
+            )
+
+    logger.info(
+        "find_indicators_for_actors",
+        actor_count=len(actor_stix_ids),
+        count=len(rows),
+    )
+    return rows

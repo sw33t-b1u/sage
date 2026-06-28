@@ -147,6 +147,8 @@ Available endpoints:
 | `GET /attack-paths?asset_id=<id>` | Attack paths leading to an asset |
 | `GET /actor-ttps?actor_id=<id>` | TTPs associated with a threat actor |
 | `GET /actors?name=<query>&limit=20` | Threat actor name search (case-insensitive substring, min 2 chars) |
+| `GET /indicators?actor_id=<id>` | Observables directly linked to selected actors (repeat `actor_id` for multi-select) |
+| `GET /export/stix?actor_id=<id>&download=true` | STIX 2.1 bundle subset of directly linked indicators (file download) |
 | `GET /similar-incidents?incident_id=<id>` | Incidents similar to a given one |
 
 **Actor name search examples:**
@@ -160,6 +162,21 @@ curl "http://localhost:8080/actors?name=lazarus&limit=5"
 ```
 
 Response format: `{"actors": [{stix_id, name, description, aliases, first_seen, last_seen, sophistication_level}, …], "count": N}`
+
+**STIX extraction for manual hunting:**
+
+```sh
+# Direct indicators for one or more selected actors (multi-select repeats actor_id)
+curl "http://localhost:8080/indicators?actor_id=intrusion-set--<a>&actor_id=intrusion-set--<b>"
+
+# Download a STIX 2.1 bundle subset (indicators + actors + indicates + TLP markings)
+curl -OJ "http://localhost:8080/export/stix?actor_id=intrusion-set--<a>&download=true"
+```
+
+`/indicators` and `/export/stix` return only Observables **directly** linked to a
+selected actor via the `IndicatesActor` edge (no TTP/malware multi-hop). TLP Red
+is excluded. The exported bundle is for manual review and manual SIEM ingestion;
+SAGE does not push to a SIEM.
 
 **Loading artifacts via StorageBackend:**
 

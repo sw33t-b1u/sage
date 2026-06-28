@@ -43,7 +43,7 @@ the full policy text.
 
 | Surface | Committed? | First version | Notes |
 |---|---|---|---|
-| REST API (10 endpoints) | ✓ | 1.0.0 | See §3.1 for endpoint list |
+| REST API (12 endpoints) | ✓ | 1.0.0 | See §3.1 for endpoint list |
 | Database backend selector (`SAGE_DB`) | ✓ | 4.0.0 | Values: `sqlite` (default) / `spanner` (optional, preserved) |
 | Spanner Graph DDL (`schema/spanner_ddl.sql`) | ✓ | 1.0.0 | 36 tables; additive only (type widening OK; rename/drop = major); Spanner-backend-only since 4.0.0 |
 | SQLite DDL (`schema/sqlite_ddl.sql`) | ✓ | 4.0.0 | Mirrors all 36 Spanner tables under the documented type mapping; same additive-only rule |
@@ -70,6 +70,8 @@ semantics in §3.2.
 | Endpoint | Method | First | Purpose |
 |---|---|---|---|
 | `/actors` | GET | Initiative I | Actor search by name substring (`?name=` required, min 2 chars; `?limit=` optional) |
+| `/indicators` | GET | 4.1.0 | Direct `IndicatesActor` Observables for selected actors (`?actor_id=` required, repeatable; `?limit=` optional) |
+| `/export/stix` | GET | 4.1.0 | STIX 2.1 bundle subset of direct indicators (`?actor_id=` required, repeatable; `?download=` optional) |
 | `/attack-paths` | GET | Initiative C | Multi-hop attack path search (actor → asset) |
 | `/choke-points` | GET | Initiative C | Defense priority computation |
 | `/actor-ttps` | GET | Initiative E + F-7 | Per-actor TTP list + `?since/until` filter |

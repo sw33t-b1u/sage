@@ -17,12 +17,14 @@ Environment variables (loaded via Config.from_env()):
 
 from __future__ import annotations
 
+import json
 from contextlib import asynccontextmanager
 from datetime import date
 from typing import Any
 
 import structlog
 from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi.responses import Response
 from google.cloud import spanner
 
 from sage.analysis.similarity import find_similar_incidents
@@ -40,9 +42,11 @@ from sage.db import (
     find_asset_exposure,
     find_attack_paths,
     find_choke_points,
+    find_indicators_for_actors,
     materialize_db,
 )
 from sage.sqlite.client import get_connection, init_schema
+from sage.stix.export import build_indicator_bundle
 
 logger = structlog.get_logger(__name__)
 
@@ -186,6 +190,64 @@ def get_actors(
         return {"actors": actors, "count": len(actors)}
     except Exception as exc:
         logger.error("api_error", endpoint="actors", error=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error") from exc
+
+
+@app.get("/indicators", dependencies=[Depends(_verify_auth)])
+def get_indicators(
+    actor_id: list[str] = Query(
+        ...,
+        min_length=1,
+        description="Selected actor STIX ids. Repeat actor_id for multi-select.",
+    ),
+    limit: int = Query(
+        1000,
+        ge=1,
+        le=5000,
+        description="Maximum direct indicator links to return.",
+    ),
+) -> dict[str, Any]:
+    """Return Observables directly linked to selected actors via IndicatesActor."""
+    try:
+        rows = find_indicators_for_actors(app.state.database, actor_id, limit=limit)
+        return {"indicators": rows, "count": len(rows)}
+    except Exception as exc:
+        logger.error("api_error", endpoint="indicators", error=str(exc))
+        raise HTTPException(status_code=500, detail="Internal server error") from exc
+
+
+@app.get("/export/stix", dependencies=[Depends(_verify_auth)], response_model=None)
+def export_stix(
+    actor_id: list[str] = Query(
+        ...,
+        min_length=1,
+        description="Selected actor STIX ids. Repeat actor_id for multi-select.",
+    ),
+    limit: int = Query(
+        1000,
+        ge=1,
+        le=5000,
+        description="Maximum direct indicator links to include.",
+    ),
+    download: bool = Query(
+        False,
+        description="When true, return the bundle as a file attachment.",
+    ),
+) -> dict[str, Any] | Response:
+    """Export directly linked actor indicators as a STIX 2.1 bundle subset."""
+    try:
+        rows = find_indicators_for_actors(app.state.database, actor_id, limit=limit)
+        bundle = build_indicator_bundle(rows)
+        if not download:
+            return bundle
+        payload = json.dumps(bundle, ensure_ascii=False, indent=2)
+        return Response(
+            content=payload,
+            media_type="application/stix+json",
+            headers={"Content-Disposition": 'attachment; filename="sage_indicator_export.json"'},
+        )
+    except Exception as exc:
+        logger.error("api_error", endpoint="export-stix", error=str(exc))
         raise HTTPException(status_code=500, detail="Internal server error") from exc
 
 

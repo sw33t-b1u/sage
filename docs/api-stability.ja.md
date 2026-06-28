@@ -34,7 +34,7 @@ SAGE は 1.0.0 以降、[Semantic Versioning 2.0.0](https://semver.org/spec/v2.0
 
 | サーフェス | Committed? | 初版 | 備考 |
 |---|---|---|---|
-| REST API（10 エンドポイント）| ✓ | 1.0.0 | エンドポイント一覧は §3.1 参照 |
+| REST API（12 エンドポイント）| ✓ | 1.0.0 | エンドポイント一覧は §3.1 参照 |
 | データベースバックエンドセレクター（`SAGE_DB`）| ✓ | 4.0.0 | 値: `sqlite`（既定）/ `spanner`（任意、温存）|
 | Spanner Graph DDL（`schema/spanner_ddl.sql`）| ✓ | 1.0.0 | 36 テーブル; 追加のみ（型拡張は可; 改名/削除 = メジャー）; 4.0.0 以降は Spanner バックエンド専用 |
 | SQLite DDL（`schema/sqlite_ddl.sql`）| ✓ | 4.0.0 | 文書化された型マッピングのもとで Spanner の全 36 テーブルをミラー; 同じ追加のみのルール |
@@ -55,11 +55,13 @@ SAGE は 1.0.0 以降、[Semantic Versioning 2.0.0](https://semver.org/spec/v2.0
 
 ### 3.1 REST API エンドポイント
 
-以下の 10 エンドポイントはすべて Committed。各エンドポイントは §3.2 の認証ゲートのセマンティクスに従う。
+以下の 12 エンドポイントはすべて Committed。各エンドポイントは §3.2 の認証ゲートのセマンティクスに従う。
 
 | エンドポイント | メソッド | 初版 | 目的 |
 |---|---|---|---|
 | `/actors` | GET | Initiative I | アクター名サブストリング検索（`?name=` 必須、最低 2 文字; `?limit=` 任意）|
+| `/indicators` | GET | 4.1.0 | 選択アクターに直接 `IndicatesActor` で紐づく Observable（`?actor_id=` 必須・繰り返し可; `?limit=` 任意）|
+| `/export/stix` | GET | 4.1.0 | 直接 indicator の STIX 2.1 bundle サブセット（`?actor_id=` 必須・繰り返し可; `?download=` 任意）|
 | `/attack-paths` | GET | Initiative C | マルチホップ攻撃パス検索（actor → asset）|
 | `/choke-points` | GET | Initiative C | 防御優先度の計算 |
 | `/actor-ttps` | GET | Initiative E + F-7 | アクターごとの TTP リスト + `?since/until` フィルタ |

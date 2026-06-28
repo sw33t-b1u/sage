@@ -355,3 +355,13 @@ gcloud run services proxy sage-api --region=${REGION} --project=${GCP_PROJECT_ID
 ## Out of scope
 
 IAP / Internal Load Balancer / VPC Service Controls are not configured by this guide. For small Google Workspace user counts (a few users), the L2 IAM binding above is sufficient. If you need custom domain, browser access without gcloud, or context-aware access, see https://cloud.google.com/iap/docs.
+
+---
+
+## CTI Platform console integration
+
+For browser-complete operation, run SAGE as `sage-api` (read-only Cloud Run
+service) plus `sage-etl` (single-writer Cloud Run Job) and deploy the combined
+`cti-console` service from `beacon/Dockerfile.cti-console`. The console calls
+`sage-api` for Threats and STIX extraction, while `sage-etl` remains the only
+writer that publishes `db/sage.db` to shared storage.

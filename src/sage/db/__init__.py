@@ -401,6 +401,16 @@ def find_actors_by_name(database: Any, name_query: str, limit: int = 20) -> list
     return _query_module(database).find_actors_by_name(database, name_query, limit)
 
 
+def find_indicators_for_actors(
+    database: Any,
+    actor_stix_ids: list[str],
+    *,
+    limit: int = 1000,
+) -> list[dict[str, Any]]:
+    """Dispatching wrapper for the backend ``find_indicators_for_actors``."""
+    return _query_module(database).find_indicators_for_actors(database, actor_stix_ids, limit=limit)
+
+
 def find_prioritized_actors_for_asset(
     database: Any,
     asset_id: str,

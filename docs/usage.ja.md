@@ -151,6 +151,8 @@ uv run sage serve-api --port 8080
 | `GET /attack-paths?asset_id=<id>` | 指定資産への攻撃経路 |
 | `GET /actor-ttps?actor_id=<id>` | 脅威アクターに関連する TTP |
 | `GET /actors?name=<query>&limit=20` | 脅威アクター名の部分一致検索（大小文字不問、最小 2 文字） |
+| `GET /indicators?actor_id=<id>` | 選択アクターに直接紐づく Observable（`actor_id` を繰り返して複数選択） |
+| `GET /export/stix?actor_id=<id>&download=true` | 直接紐づく indicator の STIX 2.1 bundle サブセット（ファイルダウンロード） |
 | `GET /similar-incidents?incident_id=<id>` | 指定インシデントに類似した過去インシデント |
 
 **アクター名検索の例:**
@@ -164,6 +166,20 @@ curl "http://localhost:8080/actors?name=lazarus&limit=5"
 ```
 
 レスポンス形式: `{"actors": [{stix_id, name, description, aliases, first_seen, last_seen, sophistication_level}, …], "count": N}`
+
+**手動ハンティング向け STIX 抽出:**
+
+```sh
+# 選択した1つ以上のアクターに直接紐づく indicator（複数選択は actor_id を繰り返す）
+curl "http://localhost:8080/indicators?actor_id=intrusion-set--<a>&actor_id=intrusion-set--<b>"
+
+# STIX 2.1 bundle サブセット（indicator + actor + indicates + TLP marking）をダウンロード
+curl -OJ "http://localhost:8080/export/stix?actor_id=intrusion-set--<a>&download=true"
+```
+
+`/indicators` と `/export/stix` は、選択アクターに `IndicatesActor` エッジで
+**直接**紐づく Observable のみを返す（TTP/malware 経由の多段は対象外）。TLP Red は除外。
+出力 bundle は人手レビューと手動 SIEM 取り込み用で、SAGE は SIEM へ送信しない。
 
 **StorageBackend 経由でのアーティファクトロード:**
 
