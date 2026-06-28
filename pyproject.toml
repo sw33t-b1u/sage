@@ -25,6 +25,7 @@ dev = [
     "pytest-cov>=5.0.0",
     "pip-audit>=2.7.0",
     "pip>=26.1.2",  # PYSEC-2026-196 + CVE-2026-6357 fix; transitive via pip-audit -> pip-api
+    "msgpack>=1.2.1",  # GHSA-6v7p-g79w-8964 fix; transitive via pip-audit -> cachecontrol
     "pyvis>=0.3.2",
     "httpx2>=2.4.0",
 ]
