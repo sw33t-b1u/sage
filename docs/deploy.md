@@ -358,10 +358,12 @@ IAP / Internal Load Balancer / VPC Service Controls are not configured by this g
 
 ---
 
-## CTI Platform console integration
+## CTI Platform unified deployment
 
-For browser-complete operation, keep SAGE split into `sage-api` (read-only Cloud
-Run service) and `sage-etl` (single-writer Cloud Run Job). Deploy `cti-console`
-from the BEACON repository; the console calls `sage-api` for Threats and STIX
-extraction while `sage-etl` remains the only writer that publishes `db/sage.db`
-to shared storage. See the BEACON deployment guide for the console command.
+For browser-complete operation, use the unified CTI Platform runbook in the
+BEACON repository: `beacon/docs/deploy-cti-platform.md`. It keeps SAGE split into
+`sage-api` (read-only Cloud Run service) and `sage-etl` (single-writer Cloud Run
+Job), then wires `cti-console` to the `sage-api` URL and shared GCS storage.
+
+Use this standalone SAGE deploy guide when you need a non-standard SAGE topology
+(such as `SAGE_DB=spanner`) or custom IAM/networking.
