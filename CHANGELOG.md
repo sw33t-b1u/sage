@@ -772,8 +772,8 @@ relationships (`attributed-to` / `impersonates`) in the Spanner Graph.
 Introduces SAGE's first polymorphic edge table pattern with `source_type`
 discriminator columns to accommodate Phase 2 expansion without schema migration.
 
-See `/Users/test/Projects/claude_pj/docs/initiative_c_attributed_impersonates.md`
-for full design rationale, STIX spec verification, and Phase 2 deferred scope.
+See the internal design notes for full design rationale, STIX spec verification,
+and Phase 2 deferred scope.
 
 #### New Spanner edge tables
 
